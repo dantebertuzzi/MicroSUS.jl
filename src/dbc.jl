@@ -1,79 +1,141 @@
-# dbc.jl — Conversão .dbc → .dbf e leitura como tabela.
-#
-# Estrutura de um .dbc do DATASUS:
-#   [0 .. hsize-1]      header DBF intacto (hsize lido dos bytes 8-9, LE)
-#   [hsize .. hsize+3]  CRC32 (ignorado, como no read.dbc do R)
-#   [hsize+4 .. fim]    registros DBF comprimidos com PKWare DCL
+# ─────────────────────────────────────────────────────────────────────
+# .dbc = cabeçalho DBF em claro + 4 bytes (CRC32) + registros
+# comprimidos em PKWare DCL. Aqui: abertura, conversão dbc→dbf e o
+# streaming de registros (Channel de lotes de registros brutos).
+# ─────────────────────────────────────────────────────────────────────
 
 """
-    dbc_para_dbf_bytes(raw::Vector{UInt8}) -> Vector{UInt8}
+    abre_dbc(caminho) -> (io, CabecalhoDBF)
 
-Converte o conteúdo bruto de um arquivo `.dbc` nos bytes do `.dbf`
-equivalente (header + registros descomprimidos). Valida a consistência do
-resultado contra os metadados do header DBF (nº de registros × tamanho do
-registro).
+Abre um `.dbc`, lê o cabeçalho DBF em claro e posiciona `io` no início
+do fluxo comprimido (cabeçalho + 4 bytes de CRC).
 """
-function dbc_para_dbf_bytes(raw::Vector{UInt8})
-    length(raw) < 32 && throw(DBCError("arquivo muito pequeno para ser um .dbc"))
+function abre_dbc(caminho::AbstractString)
+    io = open(caminho, "r")
+    seek(io, 8)
+    hsize = Int(read(io, UInt8)) | (Int(read(io, UInt8)) << 8)
+    seekstart(io)
+    header = read(io, hsize)
+    length(header) == hsize || error("arquivo truncado: $caminho")
+    cab = le_cabecalho_dbf(header)
+    seek(io, hsize + 4)
+    return io, cab
+end
 
-    # Bytes 4-7: nº de registros; 8-9: tamanho do header; 10-11: tamanho do
-    # registro. Tudo little-endian, herdado do formato DBF.
-    nrec  = Int(raw[5]) | Int(raw[6]) << 8 | Int(raw[7]) << 16 | Int(raw[8]) << 24
-    hsize = Int(raw[9]) | Int(raw[10]) << 8
-    rsize = Int(raw[11]) | Int(raw[12]) << 8
+_eh_dbc(caminho) = lowercase(splitext(caminho)[2]) == ".dbc"
 
-    (hsize < 32 || hsize + 4 >= length(raw)) &&
-        throw(DBCError("header DBF inconsistente (hsize = $hsize)"))
+"""
+    descomprime_dbc_para_dbf(entrada, saida) -> saida
 
-    header      = raw[1:hsize]
-    comprimido  = raw[hsize + 5:end]          # pula CRC32 de 4 bytes
-    esperado    = nrec * rsize + 1            # +1: byte EOF (0x1a)
+Converte `.dbc` → `.dbf` em streaming (equivalente ao `dbc2dbf` do
+`read.dbc`, memória constante).
+"""
+function descomprime_dbc_para_dbf(entrada::AbstractString,
+                                  saida::AbstractString)
+    io, _ = abre_dbc(entrada)
+    seekstart(io)
+    hsize_lo = (seek(io, 8); read(io, UInt8))
+    hsize = Int(hsize_lo) | (Int(read(io, UInt8)) << 8)
+    seekstart(io)
+    header = read(io, hsize)
+    seek(io, hsize + 4)
+    open(saida, "w") do out
+        write(out, header)
+        dcl_descomprime(io, chunk -> write(out, chunk))
+        write(out, 0x1a)   # EOF marker do dBase
+    end
+    close(io)
+    return saida
+end
 
-    registros = blast(comprimido; sizehint = esperado)
+# ── streaming de registros brutos ────────────────────────────────────
 
-    # Alguns arquivos antigos omitem o byte EOF; tolera diferença de 1.
-    abs(length(registros) - esperado) > 1 && throw(DBCError(
-        "tamanho descomprimido ($(length(registros)) bytes) não bate com o " *
-        "header DBF (esperados $esperado bytes para $nrec registros de $rsize bytes)"))
+"""
+    canal_registros(caminho, cab; lote = 4096) -> Channel{Vector{Vector{UInt8}}}
 
-    return vcat(header, registros)
+Produz lotes de registros brutos (cada um com `tamanho_registro` bytes,
+já sem registros deletados), lendo `.dbc` (descompressão em task
+separada) ou `.dbf` (leitura direta). A montagem lida com registros
+que atravessam a fronteira dos chunks de 4 KiB da janela DCL.
+"""
+function canal_registros(caminho::AbstractString, cab::CabecalhoDBF;
+                         lote::Int = 4096)
+    rsize = cab.tamanho_registro
+    Channel{Vector{Vector{UInt8}}}(2; spawn = true) do canal
+        atual = Vector{Vector{UInt8}}()
+        sizehint!(atual, lote)
+        parcial = Vector{UInt8}(undef, rsize)
+        preenchido = 0
+        emitidos = 0
+
+        function consome(chunk::AbstractVector{UInt8})
+            i = 1
+            n = length(chunk)
+            while i ≤ n
+                # ignora EOF marker solto no fim do arquivo
+                if preenchido == 0 && chunk[i] == 0x1a &&
+                   emitidos ≥ cab.n_registros
+                    return
+                end
+                falta = rsize - preenchido
+                pega = min(falta, n - i + 1)
+                copyto!(parcial, preenchido + 1, chunk, i, pega)
+                preenchido += pega
+                i += pega
+                if preenchido == rsize
+                    if !_deletado(parcial)
+                        push!(atual, copy(parcial))
+                    end
+                    emitidos += 1
+                    preenchido = 0
+                    if length(atual) ≥ lote
+                        put!(canal, atual)
+                        atual = Vector{Vector{UInt8}}()
+                        sizehint!(atual, lote)
+                    end
+                end
+            end
+        end
+
+        if _eh_dbc(caminho)
+            io, _ = abre_dbc(caminho)
+            try
+                dcl_descomprime(io, consome)
+            finally
+                close(io)
+            end
+        else
+            open(caminho, "r") do io
+                seek(io, cab.tamanho_cabecalho)
+                buf = Vector{UInt8}(undef, 1 << 16)
+                while !eof(io)
+                    n = readbytes!(io, buf)
+                    consome(view(buf, 1:n))
+                end
+            end
+        end
+
+        isempty(atual) || put!(canal, atual)
+    end
 end
 
 """
-    dbc2dbf(origem::AbstractString, destino::AbstractString) -> destino
+    cabecalho(caminho) -> CabecalhoDBF
 
-Descomprime o arquivo `.dbc` em `origem` gravando o `.dbf` em `destino`.
-Equivalente à função homônima do pacote `read.dbc` do R.
+Lê apenas o cabeçalho de um `.dbc` ou `.dbf` (campos, larguras,
+contagem de registros), sem tocar nos dados.
 """
-function dbc2dbf(origem::AbstractString, destino::AbstractString)
-    write(destino, dbc_para_dbf_bytes(read(origem)))
-    return destino
+function cabecalho(caminho::AbstractString)
+    if _eh_dbc(caminho)
+        io, cab = abre_dbc(caminho)
+        close(io)
+        return cab
+    else
+        open(caminho, "r") do io
+            seek(io, 8)
+            hsize = Int(read(io, UInt8)) | (Int(read(io, UInt8)) << 8)
+            seekstart(io)
+            return le_cabecalho_dbf(read(io, hsize))
+        end
+    end
 end
-
-"""
-    read_dbc(caminho::AbstractString) -> DataFrame
-    read_dbc(io::IO) -> DataFrame
-
-Lê um arquivo `.dbc` do DATASUS diretamente para um `DataFrame`, sem gravar
-intermediários em disco. A tabela subjacente (`DBFTables.Table`) implementa
-a interface Tables.jl; use [`read_dbc_table`](@ref) se preferir o objeto
-tabular sem materializar o `DataFrame`.
-
-# Exemplo
-```julia
-df = read_dbc("DOPE2023.dbc")
-```
-"""
-read_dbc(caminho::AbstractString) = DataFrame(read_dbc_table(caminho))
-read_dbc(io::IO) = DataFrame(read_dbc_table(io))
-
-"""
-    read_dbc_table(caminho::AbstractString) -> DBFTables.Table
-    read_dbc_table(io::IO) -> DBFTables.Table
-
-Como [`read_dbc`](@ref), mas devolve o `DBFTables.Table` (fonte Tables.jl
-preguiçosa) em vez de um `DataFrame` materializado.
-"""
-read_dbc_table(caminho::AbstractString) =
-    DBFTables.Table(IOBuffer(dbc_para_dbf_bytes(read(caminho))))
-read_dbc_table(io::IO) = DBFTables.Table(IOBuffer(dbc_para_dbf_bytes(read(io))))

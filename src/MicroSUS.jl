@@ -1,58 +1,73 @@
 """
     MicroSUS
 
-Interface moderna em Julia para download, descompressão, leitura e
-padronização dos microdados públicos do DATASUS, inspirada no pacote
-`microdatasus` do R (Saldanha, Bastos & Barcellos, 2019), com implementação
-totalmente independente.
+Microdados do DATASUS em Julia, com leitura **streaming** de arquivos
+`.dbc` (PKWare DCL) e `.dbf`: memória constante do arquivo comprimido
+até o sink, seleção de colunas e filtro de linhas no leitor,
+transcodificação CP850/Latin-1 → UTF-8, schemas tipados por sistema
+(SIM, SINASC, SIH, SIA, CNES) e interface Tables.jl com partições.
 
-# Uso típico
+Uso básico:
+
 ```julia
-using MicroSUS
+using MicroSUS, DataFrames
 
-# Óbitos de Pernambuco, 2019–2023, padronizados
-do_pe = fetch_datasus(:SIM_DO; uf = "PE", anos = 2019:2023)
+caminho = baixar(:sim, "PE"; ano = 2023)          # cache local (Scratch.jl)
+df = DataFrame(ler(caminho))                       # tudo tipado
 
-# Fontes disponíveis
-fontes()
+# nacional sem estourar RAM: colunas + filtro no leitor
+t = ler(caminho; colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))   # CVLI: X85–Y09
 
-# Leitura direta de um .dbc já baixado
-df = read_dbc("DOPE2023.dbc")
+# streaming direto para Arrow (requer `using Arrow`)
+converter(caminho, "do_pe_2023.arrow"; colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES])
 ```
 
-# Camadas
-1. **`blast`** — descompressor PKWare DCL em Julia puro (formato dos `.dbc`);
-2. **`read_dbc` / `dbc2dbf`** — conversão `.dbc` → tabela/`.dbf`;
-3. **`fetch_datasus`** — download com cache + leitura + concatenação;
-4. **`process_*`** — padronização por fonte (rótulos, datas, numéricos).
+Formato `.dbc` = cabeçalho DBF em claro + 4 bytes de CRC + registros
+comprimidos com PKWare DCL ("implode"). O descompressor é um porte puro
+Julia do `blast.c` de Mark Adler, com janela de 4 KiB emitida em chunks
+— é isso que permite a leitura em memória constante.
 """
 module MicroSUS
 
-using DBFTables
-using DataFrames
 using Dates
 using Downloads
-using Printf
+using InlineStrings
+using PooledArrays
 using Scratch
 using Tables
 
-export fetch_datasus, fontes,
-       read_dbc, read_dbc_table, dbc2dbf,
-       process_sim, process_sinasc,
-       cache_dir, limpar_cache,
-       DBCError
+export ler, materializar, converter, baixar, url_arquivo,
+       dcl_descomprime, descomprime_dbc_para_dbf,
+       decodifica_idade_sim, capitulo_cid10, eh_agressao,
+       dv_ibge, codigo7_ibge, codigo6_ibge,
+       CabecalhoDBF, CampoDBF, TabelaDBC
 
-include("blast.jl")
+include("dcl.jl")
+include("encoding.jl")
+include("dbf.jl")
 include("dbc.jl")
-include("sources.jl")
-include("download.jl")
-include("fetch.jl")
-include("process/process.jl")
-include("process/sim.jl")
-include("process/sinasc.jl")
+include("dimensoes.jl")
+include("schema.jl")
+include("tables.jl")
+include("ftp.jl")
+
+"""
+    converter(entrada, saida; kwargs...)
+
+Converte um `.dbc`/`.dbf` para Arrow em streaming (um record batch por
+lote), sem materializar o arquivo inteiro. Requer `using Arrow` na
+sessão (extensão condicional). Aceita os mesmos kwargs de [`ler`](@ref).
+"""
+function converter end
 
 function __init__()
-    __init_cache__()
+    Base.Experimental.register_error_hint(MethodError) do io, exc, _, _
+        if exc.f === converter
+            print(io, "\nconverter requer o pacote Arrow carregado: " *
+                      "`using Arrow` e tente novamente.")
+        end
+    end
 end
 
 end # module
