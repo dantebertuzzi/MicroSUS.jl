@@ -1,5 +1,10 @@
 # MicroSUS.jl
 
+# MissingPatterns
+<div align="center">
+  <img src="https://raw.githubusercontent.com/dantebertuzzi/MicroSUS.jl/main/logo_microsus.png" alt="Logo do MicroSUS.jl" width="200">
+</div>
+
 [![CI](https://github.com/SEU_USUARIO/MicroSUS.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/SEU_USUARIO/MicroSUS.jl/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
