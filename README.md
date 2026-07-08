@@ -15,7 +15,7 @@ Inspirado no pacote [`microdatasus`](https://github.com/rfsaldanha/microdatasus)
 ## Instalação
 
 ```julia
-] add https://github.com/SEU_USUARIO/MicroSUS.jl
+] add https://github.com/dantebertuzzi/MicroSUS.jl
 ```
 
 Dependências: `DBFTables`, `DataFrames`, `Scratch`, `Tables` (mais stdlib).
