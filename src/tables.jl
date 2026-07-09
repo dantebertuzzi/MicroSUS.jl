@@ -19,6 +19,16 @@ function _tipo_texto(largura::Int)
     return String
 end
 
+"""
+    TabelaDBC
+
+Tabela **preguiçosa** sobre um `.dbc`/`.dbf`, criada por [`ler`](@ref).
+Nada é lido do disco até a iteração. Implementa a interface Tables.jl:
+`Tables.partitions` produz lotes de `tamanho_lote` linhas (cada lote é
+um `NamedTuple` de vetores) e `Tables.columns` materializa tudo via
+[`materializar`](@ref) — então `DataFrame(t)`, `Arrow.write(io, t)` e
+afins funcionam diretamente.
+"""
 struct TabelaDBC
     caminho::String
     cab::CabecalhoDBF
@@ -100,7 +110,8 @@ end
 function _novo_vetor(tl::Symbol, c::CampoDBF)
     tl === :inteiro && return Vector{Union{Missing,Int32}}()
     tl === :float && return Vector{Union{Missing,Float64}}()
-    tl === :idade_sim && return Vector{Union{Missing,Float64}}()
+    (tl === :idade_sim || tl === :idade_sinan) &&
+        return Vector{Union{Missing,Float64}}()
     (tl === :data_ddmmyyyy || tl === :data_yyyymmdd) &&
         return Vector{Union{Missing,Date}}()
     T = _tipo_texto(c.largura)
@@ -125,6 +136,8 @@ _novos_vetores(t::TabelaDBC) =
         push!(v, _parse_data(dados, lo, hi, :yyyymmdd))
     elseif tl === :idade_sim
         push!(v, decodifica_idade_sim(decodifica_texto(dados, lo, hi, enc)))
+    elseif tl === :idade_sinan
+        push!(v, decodifica_idade_sinan(decodifica_texto(dados, lo, hi, enc)))
     else # :texto, :pool
         s = decodifica_texto(dados, lo, hi, enc)
         push!(v, convert(eltype(v), s))

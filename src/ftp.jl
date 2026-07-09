@@ -6,6 +6,12 @@
 
 const _FTP_BASE = "ftp://ftp.datasus.gov.br/dissemin/publicos"
 
+"""
+    UFS
+
+Siglas das 27 unidades federativas aceitas por [`url_arquivo`](@ref) e
+[`baixar`](@ref).
+"""
 const UFS = ["AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA",
              "MT", "MS", "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN",
              "RS", "RO", "RR", "SC", "SP", "SE", "TO"]
@@ -118,6 +124,90 @@ function baixar(sistema::Symbol, uf::AbstractString;
     end
     mv(tmp, destino; force = true)
     return destino
+end
+
+# ── SINAN (arquivos NACIONAIS por agravo, não por UF) ────────────────
+
+const _FTP_SINAN = "$_FTP_BASE/SINAN/DADOS"
+
+# agravo → prefixo do arquivo nacional (AGRAVOBR{aa})
+const _SINAN_AGRAVO = Dict(
+    :dengue => "DENGBR", :chikungunya => "CHIKBR", :chik => "CHIKBR",
+    :zika => "ZIKABR",
+    :leishmaniose_visceral => "LEIVBR", :leishmaniose_tegumentar => "LTANBR",
+    :esquistossomose => "ESQUBR", :febre_tifoide => "FTIFBR",
+    :meningite => "MENIBR", :tuberculose => "TUBEBR", :hanseniase => "HANSBR",
+    :hepatites => "HEPABR", :violencia => "VIOLBR",
+    :intoxicacao_exogena => "IEXOBR", :acidente_animais => "ANIMBR",
+)
+
+"""
+    url_sinan(agravo; ano, prelim = false) -> String
+
+URL FTP do arquivo NACIONAL do SINAN para um agravo. Os arquivos do
+SINAN cobrem o Brasil inteiro (`DENGBR20.dbc`), então não há UF — filtre
+por residência no [`ler`](@ref) (`SG_UF`/`ID_MN_RESI`). `prelim = true`
+aponta para a pasta de dados preliminares.
+
+Agravos: `:dengue`, `:chikungunya`, `:zika`, `:meningite`,
+`:tuberculose`, `:hanseniase`, `:hepatites`, `:violencia`, … (ver
+`MicroSUS._SINAN_AGRAVO`).
+
+Ex.: `url_sinan(:dengue; ano = 2020)` →
+`.../SINAN/DADOS/FINAIS/DENGBR20.dbc`.
+"""
+function url_sinan(agravo::Symbol; ano::Int, prelim::Bool = false)
+    pref = get(_SINAN_AGRAVO, agravo, nothing)
+    pref === nothing && throw(ArgumentError(
+        "agravo desconhecido: $agravo (veja MicroSUS._SINAN_AGRAVO)"))
+    aa = lpad(ano % 100, 2, '0')
+    pasta = prelim ? "PRELIM" : "FINAIS"
+    return "$_FTP_SINAN/$pasta/$pref$aa.dbc"
+end
+
+"""
+    baixar_sinan(agravo; ano, prelim = false, forcar = false,
+                 quieto = false) -> String
+    baixar_sinan(agravo; anos, kwargs...) -> Vector{String}
+
+Baixa (com cache) o arquivo nacional do SINAN de um agravo. Se
+`prelim` não for informado e o arquivo FINAIS não existir, tenta
+automaticamente a pasta PRELIM (com aviso). Forma plural baixa vários
+anos em paralelo.
+"""
+function baixar_sinan(agravo::Symbol; ano::Union{Nothing,Int} = nothing,
+                      anos = nothing, prelim::Union{Nothing,Bool} = nothing,
+                      forcar::Bool = false, quieto::Bool = false)
+    if anos !== nothing
+        return asyncmap(a -> baixar_sinan(agravo; ano = a, prelim = prelim,
+                                          forcar = forcar, quieto = quieto),
+                        anos; ntasks = 4)
+    end
+    ano === nothing && throw(ArgumentError("baixar_sinan requer ano"))
+
+    # tenta FINAIS e cai para PRELIM se prelim===nothing
+    tentativas = prelim === nothing ? (false, true) : (prelim,)
+    erro = nothing
+    for (i, pl) in enumerate(tentativas)
+        u = url_sinan(agravo; ano = ano, prelim = pl)
+        destino = joinpath(_dir_cache(), basename(u))
+        if isfile(destino) && !forcar
+            quieto || @info "cache: $destino"
+            return destino
+        end
+        tmp = destino * ".part"
+        try
+            i > 1 && @warn "FINAIS ausente; tentando PRELIM" agravo ano
+            quieto || @info "baixando $u"
+            Downloads.download(u, tmp)
+            mv(tmp, destino; force = true)
+            return destino
+        catch e
+            rm(tmp; force = true)
+            erro = e
+        end
+    end
+    throw(erro)
 end
 
 """

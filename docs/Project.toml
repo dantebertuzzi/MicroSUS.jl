@@ -1,0 +1,6 @@
+[deps]
+Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
+MicroSUS = "cf66faa3-c0ab-41b5-b901-e1d7c735fa13"
+
+[compat]
+Documenter = "1"

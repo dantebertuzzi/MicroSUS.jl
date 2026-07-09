@@ -359,6 +359,43 @@ end
         @test MicroSUS.decodifica_texto(ascii, 1, 8, :cp850) == "RECIFE"
     end
 
+    @testset "SINAN: idade, schema, detecção, URLs" begin
+        @test decodifica_idade_sinan("4025") == 25.0
+        @test decodifica_idade_sinan("3006") == 0.5        # 6 meses
+        @test decodifica_idade_sinan("2015") ≈ 15 / 365.25 # 15 dias
+        @test decodifica_idade_sinan("5010") == 110.0
+        @test ismissing(decodifica_idade_sinan("999"))
+        @test ismissing(decodifica_idade_sinan(missing))
+
+        @test MicroSUS.detecta_sistema("DENGBR20.dbc") == :sinan
+        @test MicroSUS.detecta_sistema("CHIKBR20.dbc") == :sinan
+        @test MicroSUS.detecta_sistema("ZIKABR20.dbc") == :sinan
+
+        @test url_sinan(:dengue; ano = 2020) ==
+              "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/FINAIS/DENGBR20.dbc"
+        @test occursin("CHIKBR19", url_sinan(:chikungunya; ano = 2019))
+        @test occursin("PRELIM", url_sinan(:zika; ano = 2024, prelim = true))
+        @test_throws ArgumentError url_sinan(:inexistente; ano = 2020)
+
+        # leitura tipada de um DENGBR sintético (schema :auto → :sinan)
+        campos_dg = [("DT_NOTIFIC", 'C', 8, 0), ("NU_IDADE_N", 'C', 4, 0),
+                     ("CS_SEXO", 'C', 1, 0), ("SG_UF", 'C', 2, 0),
+                     ("CLASSI_FIN", 'C', 2, 0)]
+        linhas_dg = [
+            ["20200315", "4025", "F", "26", "10"],
+            ["20200620", "3006", "M", "26", "5"],
+            ["20200810", "4040", "F", "25", "11"],
+        ]
+        dir = mktempdir()
+        f = escreve_dbc(joinpath(dir, "DENGBR20.dbc"), campos_dg, linhas_dg)
+        t = ler(f; filtro = r -> strip(r[:SG_UF]) == "26")
+        c = Tables.columntable(t)
+        @test length(c.NU_IDADE_N) == 2                 # só residentes 26
+        @test isequal(c.DT_NOTIFIC[1], Date(2020, 3, 15))
+        @test c.NU_IDADE_N[1] == 25.0                   # idade_sinan
+        @test c.NU_IDADE_N[2] == 0.5
+    end
+
     @testset "URLs do FTP" begin
         @test url_arquivo(:sim, "PE"; ano = 2023) ==
               "ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DORES/DOPE2023.dbc"

@@ -67,8 +67,12 @@ function decodifica_texto(bytes::AbstractVector{UInt8}, lo::Int, hi::Int,
     return String(take!(io))
 end
 
-# Language driver ID (byte 29 do cabeçalho DBF) → encoding.
-# 0x00 = não especificado: DATASUS na prática é CP850.
+"""
+    encoding_do_ldid(ldid::UInt8) -> Symbol
+
+Encoding a partir do language driver ID (byte 29 do cabeçalho DBF).
+`0x00` (não especificado) cai em `:cp850`, que é a prática do DATASUS.
+"""
 function encoding_do_ldid(ldid::UInt8)
     ldid == 0x02 && return :cp850
     ldid == 0x64 && return :cp850    # "DOS 852"? na dúvida, DOS multilíngue

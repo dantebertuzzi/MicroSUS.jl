@@ -39,6 +39,30 @@ function decodifica_idade_sim(s::AbstractString)
 end
 decodifica_idade_sim(::Missing) = missing
 
+"""
+    decodifica_idade_sinan(s) -> Union{Missing,Float64}
+
+Idade do SINAN (campo `NU_IDADE_N`, 4 dígitos: 1º = unidade, 3º–4º =
+valor 0–99) convertida para **anos**. Mesma escala de unidades do SIM,
+mas com 4 dígitos: `"4025"` → 25.0; `"3006"` → 0.5 (6 meses);
+`"2015"` → 15/365.25 (15 dias); `"5010"` → 110.0; `"999"`/inválido →
+missing.
+"""
+function decodifica_idade_sinan(s::AbstractString)
+    t = strip(s)
+    (length(t) != 4 || !all(isdigit, t)) && return missing
+    u = t[1] - '0'
+    v = 10 * (t[3] - '0') + (t[4] - '0')
+    u == 0 && return v / 525_960.0        # minutos
+    u == 1 && return v / 8_766.0          # horas
+    u == 2 && return v / 365.25           # dias
+    u == 3 && return v / 12.0             # meses
+    u == 4 && return Float64(v)           # anos
+    u == 5 && return 100.0 + v            # 100+
+    return missing
+end
+decodifica_idade_sinan(::Missing) = missing
+
 # ── parsers de bytes (sem alocar String) ─────────────────────────────
 
 function _parse_int(b::AbstractVector{UInt8}, lo::Int, hi::Int)
@@ -101,6 +125,15 @@ end
 
 # ── registro de schemas ──────────────────────────────────────────────
 
+"""
+    SCHEMAS :: Dict{Symbol,Dict{Symbol,Symbol}}
+
+Registro de schemas por sistema (`:sim`, `:sinasc`, `:sih`, `:sia`,
+`:cnes`): campo → tipo lógico (`:texto`, `:pool`, `:inteiro`, `:float`,
+`:data_ddmmyyyy`, `:data_yyyymmdd`, `:idade_sim`). Campos ausentes caem
+na tipagem do DBF. Mutável de propósito — dá para estender em runtime:
+`MicroSUS.SCHEMAS[:sim][:OCUP] = :texto`.
+"""
 const SCHEMAS = Dict{Symbol,Dict{Symbol,Symbol}}(
     :sim => Dict(
         :DTOBITO => :data_ddmmyyyy, :DTNASC => :data_ddmmyyyy,
@@ -140,13 +173,37 @@ const SCHEMAS = Dict{Symbol,Dict{Symbol,Symbol}}(
         :CODUFMUN => :pool, :TP_UNID => :pool, :NIV_HIER => :pool,
         :ESFERA_A => :pool, :NATUREZA => :pool,
     ),
+    # SINAN — campos comuns às fichas de notificação (arboviroses e
+    # outros agravos compartilham este núcleo). NU_IDADE_N tem 4 dígitos
+    # (≠ SIM), daí o tipo próprio :idade_sinan.
+    :sinan => Dict(
+        :DT_NOTIFIC => :data_yyyymmdd, :DT_SIN_PRI => :data_yyyymmdd,
+        :DT_NASC => :data_yyyymmdd, :DT_OBITO => :data_yyyymmdd,
+        :DT_ENCERRA => :data_yyyymmdd, :DT_INVEST => :data_yyyymmdd,
+        :NU_IDADE_N => :idade_sinan,
+        :NU_ANO => :inteiro, :SEM_NOT => :inteiro, :SEM_PRI => :inteiro,
+        :SG_UF_NOT => :pool, :ID_MUNICIP => :pool, :ID_REGIONA => :pool,
+        :SG_UF => :pool, :ID_MN_RESI => :pool, :ID_PAIS => :pool,
+        :CS_SEXO => :pool, :CS_RACA => :pool, :CS_GESTANT => :pool,
+        :CS_ESCOL_N => :pool, :ID_OCUPA_N => :pool,
+        :CLASSI_FIN => :pool, :CRITERIO => :pool, :EVOLUCAO => :pool,
+        :TP_NOT => :pool, :ID_AGRAVO => :pool,
+    ),
 )
 
-# prefixo do arquivo → sistema
+# prefixo do arquivo → sistema. SINAN detecta pelos 4 primeiros
+# caracteres (DENG/CHIK/ZIKA/...), tratados em detecta_sistema.
 const _PREFIXO_SISTEMA = Dict(
     "DO" => :sim, "DN" => :sinasc, "RD" => :sih, "SP" => :sih,
     "PA" => :sia, "ST" => :cnes, "LT" => :cnes, "PF" => :cnes,
 )
+
+# prefixos de agravo do SINAN (arquivos nacionais AGRAVOBR{aa})
+const _PREFIXO_SINAN = Set([
+    "DENG", "CHIK", "ZIKA", "CHIKV", "DENGON",
+    "LEIV", "LEIP", "LTAN", "ESQU", "FTIF", "MENI", "TUBE",
+    "HANS", "HEPA", "ACBI", "ACGR", "VIOL", "IEXO", "ANIM",
+])
 
 """
     detecta_sistema(caminho) -> Union{Nothing,Symbol}
@@ -157,6 +214,10 @@ Deduz o sistema pelo prefixo do nome do arquivo (`DOPE2023.dbc` → :sim,
 function detecta_sistema(caminho::AbstractString)
     nome = uppercase(basename(caminho))
     length(nome) ≥ 2 || return nothing
+    # SINAN: arquivos nacionais AGRAVOBR{aa} (DENGBR20, CHIKBR20, ...)
+    if length(nome) ≥ 4 && nome[1:4] in _PREFIXO_SINAN
+        return :sinan
+    end
     return get(_PREFIXO_SISTEMA, nome[1:2], nothing)
 end
 

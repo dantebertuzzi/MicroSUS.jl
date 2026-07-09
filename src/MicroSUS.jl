@@ -38,8 +38,10 @@ using Scratch
 using Tables
 
 export ler, materializar, converter, baixar, url_arquivo,
+       baixar_sinan, url_sinan,
        dcl_descomprime, descomprime_dbc_para_dbf,
-       decodifica_idade_sim, capitulo_cid10, eh_agressao,
+       decodifica_idade_sim, decodifica_idade_sinan,
+       capitulo_cid10, eh_agressao,
        dv_ibge, codigo7_ibge, codigo6_ibge,
        CabecalhoDBF, CampoDBF, TabelaDBC
 

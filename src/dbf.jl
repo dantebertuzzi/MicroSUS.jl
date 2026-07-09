@@ -2,6 +2,13 @@
 # DBF (dBase III): cabeçalho, descritores de campo, offsets fixos.
 # ─────────────────────────────────────────────────────────────────────
 
+"""
+    CampoDBF
+
+Descritor de um campo DBF: `nome`, `tipo` (`'C'` texto, `'N'` numérico,
+`'D'` data `aaaammdd`, `'F'`, `'L'`), `largura`, `decimais` e `offset`
+(0-based dentro do registro; o byte 0 é a flag de deleção).
+"""
 struct CampoDBF
     nome::Symbol
     tipo::Char       # 'C' texto, 'N' numérico, 'D' data AAAAMMDD, 'L', 'F'
@@ -10,6 +17,14 @@ struct CampoDBF
     offset::Int      # offset 0-based dentro do registro (byte 0 = flag deleção)
 end
 
+"""
+    CabecalhoDBF
+
+Cabeçalho de um DBF/DBC: contagem de registros, tamanhos do cabeçalho e
+do registro, language driver (`ldid`, decide o encoding) e os
+[`CampoDBF`](@ref) na ordem do arquivo (+ um índice por nome).
+Obtenha com [`MicroSUS.cabecalho`](@ref) sem ler nenhum dado.
+"""
 struct CabecalhoDBF
     n_registros::Int
     tamanho_cabecalho::Int
