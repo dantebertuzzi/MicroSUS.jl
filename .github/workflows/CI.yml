@@ -6,10 +6,11 @@ on:
 jobs:
   test:
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.julia-version == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
-        julia-version: ['1.6', '1', 'nightly']
+        julia-version: ['1.9', '1', 'nightly']
         os: [ubuntu-latest]
         include:
           - julia-version: '1'
