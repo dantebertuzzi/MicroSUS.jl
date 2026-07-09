@@ -30,7 +30,7 @@ multi-ano passa pelo leitor sem precisar caber na RAM.
 ## Instalação
 
 ```julia
-] dev caminho/para/MicroSUS.jl
+] [dev caminho/para/MicroSUS.jl](https://github.com/dantebertuzzi/MicroSUS.jl)
 ] test MicroSUS          # suíte completa, sem depender de rede
 ```
 
