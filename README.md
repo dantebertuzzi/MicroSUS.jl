@@ -1,7 +1,7 @@
 # MicroSUS.jl
 
 <div align="center">
-  <img src="[https://raw.githubusercontent.com/dantebertuzzi/MissingPatterns.jl/main/logo.png](https://raw.githubusercontent.com/dantebertuzzi/MicroSUS.jl/refs/heads/main/logo_microsus.png)" alt="Logo.jl" width="200">
+  <img src="https://raw.githubusercontent.com/dantebertuzzi/MissingPatterns.jl/main/logo.png" alt="Logo" width="200">
 </div>
 
 Microdados do DATASUS em Julia — leitura **streaming** de `.dbc`/`.dbf`
