@@ -1,209 +1,168 @@
 # MicroSUS.jl
-
 <div align="center">
   <img src="https://raw.githubusercontent.com/dantebertuzzi/MicroSUS.jl/refs/heads/main/logo_microsus.png" alt="Logo" width="200">
 </div>
-
-Microdados do DATASUS em Julia — leitura **streaming** de `.dbc`/`.dbf`
-com memória constante, schemas tipados por sistema (SIM, SINASC, SIH,
-SIA, CNES), transcodificação CP850 → UTF-8, download com cache e
-interface Tables.jl com partições.
-
-## Por que streaming
-
-O `.dbc` do DATASUS é um DBF com os registros comprimidos em PKWare DCL
-("implode"). Descomprimido, o arquivo expande 4–8×; materializado como
-`Vector{String}` coluna a coluna, mais algumas vezes isso. O leitor
-daqui nunca faz nada disso: o descompressor é um porte puro Julia do
-`blast.c` de Mark Adler em versão streaming — a janela de 4 KiB é
-emitida em chunks — e o pipeline inteiro (descompressão → montagem de
-registros → filtro → parse → lote) é encadeado por `Channel`s. A
-memória é **O(tamanho_lote)**, nunca O(arquivo): um SINASC nacional
-multi-ano passa pelo leitor sem precisar caber na RAM.
-
+DATASUS microdata in Julia — **streaming** reads of `.dbc`/`.dbf`
+with constant memory, per-system typed schemas (SIM, SINASC, SIH,
+SIA, CNES), CP850 → UTF-8 transcoding, cached downloads, and a
+Tables.jl interface with partitions.
+## Why streaming
+DATASUS's `.dbc` is a DBF whose records are compressed with PKWare DCL
+("implode"). Once decompressed, the file expands 4–8×; materialized as
+a `Vector{String}` column by column, several times more than that. This
+reader never does any of that: the decompressor is a pure-Julia port of
+Mark Adler's `blast.c` in a streaming version — the 4 KiB window is
+emitted in chunks — and the entire pipeline (decompression → record
+assembly → filter → parse → batch) is chained through `Channel`s.
+Memory is **O(batch_size)**, never O(file): a national multi-year
+SINASC passes through the reader without having to fit in RAM.
 ```
-.dbc ──DCL 4KiB/chunk──▶ registros ──filtro──▶ parse tipado ──▶ lotes
-                          (brutos)   (sob      (só colunas      (NamedTuple,
-                                     demanda)   pedidas)         Tables.jl)
+.dbc ──DCL 4KiB/chunk──▶ records ──filter──▶ typed parse ──▶ batches
+                         (raw)     (on        (only          (NamedTuple,
+                                   demand)     requested       Tables.jl)
+                                               columns)
 ```
-
-## Instalação
-
+## Installation
 ```julia
 ] add https://github.com/dantebertuzzi/MicroSUS.jl
-] test MicroSUS          # suíte completa, sem depender de rede
+] test MicroSUS          # full suite, no network required
 ```
-
-Documentação completa (Documenter.jl):
-
+Full documentation (Documenter.jl):
 ```bash
 julia --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
-julia --project=docs docs/make.jl     # saída em docs/build/index.html
+julia --project=docs docs/make.jl     # output at docs/build/index.html
 ```
-
-Julia ≥ 1.9 (extensões condicionais). Dependências: Tables,
-InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow é
-opcional (weak dep).
-
-## Início rápido
-
+Julia ≥ 1.9 (conditional extensions). Dependencies: Tables,
+InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow is
+optional (weak dep).
+## Quick start
 ```julia
 using MicroSUS, DataFrames
-
-# download com cache local (Scratch.jl) — não rebaixa o que já tem
-caminho = baixar(:sim, "PE"; ano = 2023)
-
-# tudo tipado: datas → Date, IDADE do SIM → anos, categóricas →
-# PooledArray, texto → InlineStrings, CP850 → UTF-8
-df = DataFrame(ler(caminho))
-
-# seleção de colunas + filtro de linhas NO LEITOR: campos não pedidos
-# nem viram String; o filtro parseia só o campo consultado
-t = ler(caminho;
+# download with a local cache (Scratch.jl) — won't re-fetch what you already have
+path = baixar(:sim, "PE"; ano = 2023)
+# fully typed: dates → Date, SIM's IDADE → years, categoricals →
+# PooledArray, text → InlineStrings, CP850 → UTF-8
+df = DataFrame(ler(path))
+# column selection + row filtering IN THE READER: unrequested fields
+# never even become Strings; the filter parses only the queried field
+t = ler(path;
         colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO],
         filtro  = r -> eh_agressao(r[:CAUSABAS]))   # CVLI: X85–Y09 + Y87.1
 cvli = DataFrame(t)
-
-# processamento em lotes, memória constante
+# batch processing, constant memory
 using Tables
-for lote in Tables.partitions(ler(caminho; tamanho_lote = 50_000))
-    # `lote` é um NamedTuple de vetores — tabela Tables.jl válida
+for batch in Tables.partitions(ler(path; tamanho_lote = 50_000))
+    # `batch` is a NamedTuple of vectors — a valid Tables.jl table
 end
-
-# .dbc → Arrow em streaming (um record batch por lote)
+# .dbc → Arrow in streaming (one record batch per batch)
 using Arrow
-converter(caminho, "do_pe_2023.arrow";
+converter(path, "do_pe_2023.arrow";
           colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES])
 ```
-
-## `ler` — referência
-
+## `ler` — reference
 ```julia
 ler(caminho; colunas = nothing, filtro = nothing, tamanho_lote = 100_000,
     schema = :auto, encoding = :auto, pool = true) -> TabelaDBC
 ```
-
-| kwarg | default | efeito |
+| kwarg | default | effect |
 |---|---|---|
-| `colunas` | `nothing` (todas) | `Vector{Symbol}`; as demais nem são materializadas |
-| `filtro` | `nothing` | `RegistroDBF -> Bool`, roda **antes** do parse; `r[:CAMPO]` decodifica só o campo consultado |
-| `tamanho_lote` | `100_000` | linhas por partição — é o teto de memória do pipeline |
-| `schema` | `:auto` | deduz pelo prefixo do arquivo; ou `:sim`/`:sinasc`/`:sih`/`:sia`/`:cnes`, um `Dict{Symbol,Symbol}` próprio, ou `nothing` (só a tipagem do DBF) |
-| `encoding` | `:auto` | language driver do cabeçalho (DATASUS ⇒ `:cp850`); ou `:cp850`, `:latin1`, `:cp1252`, `:utf8` |
-| `pool` | `true` | `PooledArray` nas categóricas do schema (análogo ao factor do R) |
-
-`TabelaDBC` é preguiçosa: nada é lido até a iteração. Ela implementa
-`Tables.partitions` (lotes) e `Tables.columns` (materialização via
-[`materializar`](#utilidades)), então funciona direto em
-`DataFrame(t)`, `Arrow.write(saida, t)`, etc.
-
+| `colunas` | `nothing` (all) | `Vector{Symbol}`; the rest aren't even materialized |
+| `filtro` | `nothing` | `RegistroDBF -> Bool`, runs **before** parsing; `r[:FIELD]` decodes only the queried field |
+| `tamanho_lote` | `100_000` | rows per partition — the pipeline's memory ceiling |
+| `schema` | `:auto` | inferred from the file prefix; or `:sim`/`:sinasc`/`:sih`/`:sia`/`:cnes`, your own `Dict{Symbol,Symbol}`, or `nothing` (DBF typing only) |
+| `encoding` | `:auto` | header's language driver (DATASUS ⇒ `:cp850`); or `:cp850`, `:latin1`, `:cp1252`, `:utf8` |
+| `pool` | `true` | `PooledArray` for the schema's categoricals (analogous to R's factor) |
+`TabelaDBC` is lazy: nothing is read until iteration. It implements
+`Tables.partitions` (batches) and `Tables.columns` (materialization via
+[`materializar`](#utilities)), so it works directly in `DataFrame(t)`,
+`Arrow.write(out, t)`, etc.
 ## Schemas
-
-`schema = :auto` deduz o sistema pelo prefixo do nome do arquivo:
-
-| prefixo | sistema | exemplo |
+`schema = :auto` infers the system from the filename prefix:
+| prefix | system | example |
 |---|---|---|
 | `DO` | `:sim` | `DOPE2023.dbc` |
 | `DN` | `:sinasc` | `DNBA2022.dbc` |
 | `RD`, `SP` | `:sih` | `RDPE2301.dbc` |
 | `PA` | `:sia` | `PAPE2301.dbc` |
 | `ST`, `LT`, `PF` | `:cnes` | `STPE2301.dbc` |
-
-Tipos lógicos disponíveis (para schemas próprios via `Dict`):
+Available logical types (for custom schemas via `Dict`):
 `:texto`, `:pool`, `:inteiro`, `:float`, `:data_ddmmyyyy` (SIM/SINASC),
-`:data_yyyymmdd` (SIH e tipo `D` do DBF), `:idade_sim`.
-
-A `IDADE` do SIM (1º dígito = unidade, 2º–3º = valor) vira **anos**:
-
+`:data_yyyymmdd` (SIH and DBF type `D`), `:idade_sim`.
+SIM's `IDADE` (1st digit = unit, 2nd–3rd = value) becomes **years**:
 ```julia
 decodifica_idade_sim("425")   # 25.0
-decodifica_idade_sim("501")   # 101.0  (5 ⇒ 100 + valor)
-decodifica_idade_sim("310")   # 0.833… (10 meses)
+decodifica_idade_sim("501")   # 101.0  (5 ⇒ 100 + value)
+decodifica_idade_sim("310")   # 0.833… (10 months)
 decodifica_idade_sim("999")   # missing
 ```
-
-Unidades: 0 = minutos, 1 = horas, 2 = dias, 3 = meses, 4 = anos,
-5 = 100 + valor, 9 = ignorada.
-
-## Download e FTP
-
+Units: 0 = minutes, 1 = hours, 2 = days, 3 = months, 4 = years,
+5 = 100 + value, 9 = ignored.
+## Download and FTP
 ```julia
-baixar(:sim, "PE"; ano = 2023)                     # um arquivo, com cache
-baixar(:sim, "PE"; anos = 2013:2023)               # vários, em paralelo
-baixar(:sih, "PE"; anos = [2023], meses = 1:12)    # mensais
-url_arquivo(:sinasc, "BA"; ano = 2022)             # só a URL
-MicroSUS.limpar_cache()                            # zera o cache local
+baixar(:sim, "PE"; ano = 2023)                     # one file, cached
+baixar(:sim, "PE"; anos = 2013:2023)               # several, in parallel
+baixar(:sih, "PE"; anos = [2023], meses = 1:12)    # monthly
+url_arquivo(:sinasc, "BA"; ano = 2022)             # URL only
+MicroSUS.limpar_cache()                            # wipes the local cache
 ```
-
-Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
-
-| sistema | pasta | arquivo |
+Current FTP paths (checked against `microdatasus`, Jul 2026):
+| system | folder | file |
 |---|---|---|
-| `:sim` | `SIM/CID10/DORES/` | `DO{UF}{aaaa}.dbc` |
-| `:sinasc` | `SINASC/1996_/Dados/DNRES/` | `DN{UF}{aaaa}.dbc` |
-| `:sih` | `SIHSUS/200801_/Dados/` | `RD{UF}{aamm}.dbc` |
-| `:sia` | `SIASUS/200801_/Dados/` | `PA{UF}{aamm}.dbc` |
-| `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{aamm}.dbc` |
-| SINAN | `SINAN/DADOS/FINAIS/` | `{AGRAVO}BR{aa}.dbc` (nacional — use `baixar_sinan`) |
-
-**Dados preliminares**: se o consolidado não existir (anos recentes do
-SIM/SINASC), `baixar` tenta automaticamente a pasta `PRELIM/`
-correspondente, com um `@warn` — indicador calculado sobre preliminar
-merece asterisco. `url_arquivo(...; prelim = true)` monta a URL
-preliminar diretamente.
-
-**Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995
-vivem em `SINASC/1994_1995/` com outro padrão de nome — monte a URL
-manualmente); SIH/SIA cobrem a estrutura pós-2008.
-
-## Dimensões auxiliares
-
+| `:sim` | `SIM/CID10/DORES/` | `DO{UF}{yyyy}.dbc` |
+| `:sinasc` | `SINASC/1996_/Dados/DNRES/` | `DN{UF}{yyyy}.dbc` |
+| `:sih` | `SIHSUS/200801_/Dados/` | `RD{UF}{yymm}.dbc` |
+| `:sia` | `SIASUS/200801_/Dados/` | `PA{UF}{yymm}.dbc` |
+| `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{yymm}.dbc` |
+| SINAN | `SINAN/DADOS/FINAIS/` | `{DISEASE}BR{yy}.dbc` (national — use `baixar_sinan`) |
+**Preliminary data**: if the consolidated file doesn't exist (recent
+SIM/SINASC years), `baixar` automatically tries the corresponding
+`PRELIM/` folder, with a `@warn` — an indicator computed over
+preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)`
+builds the preliminary URL directly.
+**Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live
+in `SINASC/1994_1995/` with a different naming pattern — build the URL
+manually); SIH/SIA cover the post-2008 structure.
+## Auxiliary dimensions
 ```julia
-dv_ibge(261110)               # 1 — dígito verificador (Petrolina)
-codigo7_ibge(261110)          # 2611101 (SIM/SINASC usam 6 dígitos; IBGE, 7)
-codigo6_ibge(2611101)         # 261110, validando o DV
+dv_ibge(261110)               # 1 — check digit (Petrolina)
+codigo7_ibge(261110)          # 2611101 (SIM/SINASC use 6 digits; IBGE, 7)
+codigo6_ibge(2611101)         # 261110, validating the check digit
 capitulo_cid10("X954")        # (numeral = "XX", nome = "Causas externas …")
-eh_agressao("X954")           # true — X85–Y09 + Y87.1 (recorte CVLI)
+eh_agressao("X954")           # true — X85–Y09 + Y87.1 (CVLI subset)
 ```
-
-## Utilidades
-
+## Utilities
 ```julia
-materializar(t)                                  # todas as partições → NamedTuple
-MicroSUS.cabecalho("DOPE2023.dbc")               # só o cabeçalho (campos, larguras, n)
-descomprime_dbc_para_dbf("a.dbc", "a.dbf")       # dbc → dbf em streaming
-dcl_descomprime(io, chunk -> ...)                # descompressor com sink genérico
-dcl_descomprime(io)                              # ... ou materializado (testes)
+materializar(t)                                  # all partitions → NamedTuple
+MicroSUS.cabecalho("DOPE2023.dbc")               # header only (fields, widths, n)
+descomprime_dbc_para_dbf("a.dbc", "a.dbf")       # dbc → dbf in streaming
+dcl_descomprime(io, chunk -> ...)                # decompressor with a generic sink
+dcl_descomprime(io)                              # ... or materialized (tests)
 ```
-
-## Notas de projeto
-
-- **Encoding**: o language driver do cabeçalho DBF decide; `0x00`
-  (não especificado) cai em CP850, que é a prática do DATASUS. Há fast
-  path ASCII — a transcodificação só paga quando existe byte ≥ 0x80.
-- **Texto**: colunas `C` viram `InlineStrings` dimensionadas pela
-  largura do campo (sem ponteiro, sem pressão de GC); categóricas do
-  schema viram `PooledArray`. `pool = false` desliga.
-- **Registros deletados** (flag `0x2A`) são pulados; o marcador de EOF
-  do dBase (`0x1A`) é ignorado.
-- **Arrow**: `converter` é uma extensão condicional (Julia ≥ 1.9);
-  sem `using Arrow`, chamar dá `MethodError` com hint explicando.
-- **Testes sem rede**: o `runtests.jl` inclui um *compressor* DCL
-  mínimo (literais, matches e código de fim, com os códigos canônicos
-  emitidos na ordem invertida do formato), o que permite round-trip
-  real do descompressor e DBC ≡ DBF sintéticos, incluindo CP850 e
-  travessia de janelas de 4 KiB.
-
-## Limitações conhecidas
-
-- Sem paralelismo intra-arquivo (o DCL é sequencial por natureza);
-  paralelize por arquivo (`baixar(...; anos = ...)` + tasks).
-- Schemas cobrem os campos mais usados de cada sistema; campos fora do
-  schema caem na tipagem do DBF (`N` → inteiro/float, `D` → data,
-  `C` → texto). PRs de schema são bem-vindos.
-- Tabelas de dimensão com *nomes* (municípios, CID-10 4 dígitos, CBO)
-  ficam fora do pacote — junte com a DTB do IBGE.
-
-## Licença
-
+## Design notes
+- **Encoding**: the DBF header's language driver decides; `0x00`
+  (unspecified) falls back to CP850, which is DATASUS practice. There's
+  an ASCII fast path — transcoding only costs when a byte ≥ 0x80 is
+  present.
+- **Text**: `C` columns become `InlineStrings` sized by the field width
+  (no pointer, no GC pressure); the schema's categoricals become
+  `PooledArray`. `pool = false` turns it off.
+- **Deleted records** (flag `0x2A`) are skipped; the dBase EOF marker
+  (`0x1A`) is ignored.
+- **Arrow**: `converter` is a conditional extension (Julia ≥ 1.9);
+  without `using Arrow`, calling it raises a `MethodError` with a hint
+  explaining why.
+- **Network-free tests**: `runtests.jl` includes a minimal DCL
+  *compressor* (literals, matches, and an end code, with the canonical
+  codes emitted in the format's reversed bit order), which enables a
+  real round-trip of the decompressor and synthetic DBC ≡ DBF,
+  including CP850 and 4 KiB window crossings.
+## Known limitations
+- No intra-file parallelism (DCL is sequential by nature); parallelize
+  across files (`baixar(...; anos = ...)` + tasks).
+- Schemas cover the most-used fields of each system; fields outside the
+  schema fall back to DBF typing (`N` → integer/float, `D` → date,
+  `C` → text). Schema PRs are welcome.
+- Dimension tables with *names* (municipalities, 4-digit CID-10, CBO)
+  are out of scope for the package — join with IBGE's DTB.
+## License
 MIT
