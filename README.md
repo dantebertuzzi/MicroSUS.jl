@@ -20,7 +20,7 @@ DATASUS's `.dbc` is a DBF whose records are compressed with PKWare DCL ("implode
 ## Installation
 
 ```julia
-] add https://github.com/dantebertuzzi/MicroSUS.jl
+] add MicroSUS
 ] test MicroSUS          # full suite, no network required
 ```
 
