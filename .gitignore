@@ -3,3 +3,5 @@ Manifest.toml
 *.arrow
 !test/data/*.dbc
 .vscode/
+/docs/build/
+/docs/Manifest.toml

@@ -1,8 +1,16 @@
-# Referência da API
+```@meta
+CurrentModule = MicroSUS
+```
 
-Todos os nomes exportados, mais utilidades públicas não exportadas.
+# API Reference
 
-## Leitura
+All exported names, organized by category.
+
+```@docs
+MicroSUS.MicroSUS
+```
+
+## Reading
 
 ```@docs
 ler
@@ -10,7 +18,7 @@ TabelaDBC
 materializar
 ```
 
-## Conversão
+## Conversion
 
 ```@docs
 converter
@@ -28,7 +36,7 @@ MicroSUS.limpar_cache
 MicroSUS.UFS
 ```
 
-## Schemas e decodificação
+## Schema decoding
 
 ```@docs
 decodifica_idade_sim
@@ -37,7 +45,7 @@ MicroSUS.SCHEMAS
 MicroSUS.detecta_sistema
 ```
 
-## Dimensões
+## Dimensions
 
 ```@docs
 dv_ibge
@@ -47,7 +55,7 @@ capitulo_cid10
 eh_agressao
 ```
 
-## Estruturas DBF
+## DBF structures
 
 ```@docs
 CabecalhoDBF
@@ -55,7 +63,7 @@ CampoDBF
 MicroSUS.cabecalho
 ```
 
-## Baixo nível
+## Low-level
 
 ```@docs
 dcl_descomprime
