@@ -1,0 +1,96 @@
+name: Scheduled checks
+on:
+  schedule:
+    # Toda segunda-feira às 06:00 UTC.
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  # Roda a suíte com MicroSUS_TEST_NETWORK=true: para cada fonte registrada
+  # em fontes(), baixa de verdade o ano mais antigo coberto (o menor
+  # arquivo, tipicamente) e confere que fetch_datasus consegue ler algo.
+  # Pega tanto link quebrado quanto mudança de estrutura do FTP do DATASUS.
+  # FTP público às vezes engasga a partir dos runners do GitHub — repete
+  # antes de reportar falha real.
+  datasus-links:
+    name: Links do DATASUS ainda existem?
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: Roda a suíte com MicroSUS_TEST_NETWORK=true (com retry)
+        env:
+          MicroSUS_TEST_NETWORK: "true"
+        run: |
+          for attempt in 1 2 3; do
+            julia --project -e 'using Pkg; Pkg.test()' && exit 0
+            echo "Tentativa $attempt falhou; aguardando antes de tentar de novo…"
+            sleep 30
+          done
+          exit 1
+
+  # Scripts que já existiam no repo (scripts/testes/) mas não estavam
+  # ligados ao CI. verifica_links.jl varre os .md da documentação atrás de
+  # URLs (http/https/ftp) e confere se ainda respondem; verifica_dados.jl
+  # compara o hash SHA256 do que MicroSUS baixa/lê contra um download FTP
+  # direto, para pegar regressão na nossa própria leitura/descompressão
+  # (não só link quebrado).
+  verifica-links-docs:
+    name: Links citados na documentação
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: scripts/testes/verifica_links.jl (com retry)
+        run: |
+          for attempt in 1 2 3; do
+            julia --project scripts/testes/verifica_links.jl && exit 0
+            echo "Tentativa $attempt falhou; aguardando antes de tentar de novo…"
+            sleep 30
+          done
+          exit 1
+
+  verifica-integridade-dados:
+    name: Integridade dos dados baixados (SHA256 vs. FTP direto)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
+      - name: scripts/testes/verifica_dados.jl (com retry)
+        run: |
+          for attempt in 1 2 3; do
+            julia --project scripts/testes/verifica_dados.jl && exit 0
+            echo "Tentativa $attempt falhou; aguardando antes de tentar de novo…"
+            sleep 30
+          done
+          exit 1
+
+  # Atualiza as dependências (DataFrames.jl, InlineStrings.jl,
+  # PooledArrays.jl, Tables.jl, ...) para as versões mais recentes
+  # compatíveis e roda a suíte offline contra elas — pega quebra de API em
+  # pacotes de terceiros antes de um usuário sentir o problema.
+  latest-deps:
+    name: Testes com dependências mais recentes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: "1"
+      - uses: julia-actions/cache@v2
+      - name: Atualiza dependências para as versões mais recentes compatíveis
+        run: julia --project -e 'using Pkg; Pkg.update()'
+      - uses: julia-actions/julia-buildpkg@v1
+      - uses: julia-actions/julia-runtest@v1

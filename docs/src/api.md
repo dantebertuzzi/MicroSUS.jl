@@ -36,6 +36,16 @@ MicroSUS.limpar_cache
 MicroSUS.UFS
 ```
 
+## Fetch (interface de alto nível)
+
+```@docs
+fetch_datasus
+fontes
+fonte
+process_sim
+process_sinasc
+```
+
 ## Schema decoding
 
 ```@docs

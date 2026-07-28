@@ -1,5 +1,6 @@
 using MicroSUS
 using Test
+using DataFrames
 using Dates
 using Random
 using Tables
@@ -410,5 +411,205 @@ end
               "RDPE2301.dbc"
         @test_throws ArgumentError url_arquivo(:sim, "XX"; ano = 2023)
         @test_throws ArgumentError url_arquivo(:sih, "PE"; ano = 2023)
+    end
+
+    # ═════════════════════════════════════════════════════════════════
+    # fetch_datasus / fontes / fonte — interface de alto nível (sources.jl,
+    # download.jl, fetch.jl, process/*.jl). Usa URLs file:// apontando para
+    # fixtures .dbc sintéticas (mesmo helper escreve_dbc usado acima), então
+    # roda 100% offline: Downloads.download trata file:// como um protocolo
+    # normal (RequestError para arquivo inexistente, igual FTP/HTTP 404).
+    # ═════════════════════════════════════════════════════════════════
+
+    @testset "fontes() e fonte() — catálogo" begin
+        fs = fontes()
+        @test !isempty(fs)
+        ids = Set(f.id for f in fs)
+        @test :SIM_DO in ids
+        @test :SINASC in ids
+        @test :SINAN_DENGUE in ids
+
+        f = fonte(:SIM_DO)
+        @test f.periodicidade == :anual
+        @test f.abrangencia == :uf
+
+        fnac = fonte(:SINAN_DENGUE)
+        @test fnac.abrangencia == :br
+
+        @test_throws ArgumentError fonte(:NAO_EXISTE)
+    end
+
+    @testset "fetch_datasus — fonte sintética particionada por UF" begin
+        dir = mktempdir()
+        campos_fic = [("DTOBITO", 'C', 8, 0), ("IDADE", 'C', 3, 0),
+                      ("SEXO", 'C', 1, 0)]
+        escreve_dbc(joinpath(dir, "FICPE2023.dbc"), campos_fic,
+                    [["15012023", "425", "1"], ["02062023", "430", "2"]])
+        escreve_dbc(joinpath(dir, "FICBA2023.dbc"), campos_fic,
+                    [["10032023", "501", "1"]])
+
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_FIC_UF,
+            nome = "Fonte fictícia (teste, por UF)",
+            periodicidade = :anual,
+            abrangencia = :uf,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, "FIC$(uf)$(ano).dbc")],
+            anos = 2023:2023,
+        ))
+
+        try
+            df = fetch_datasus(:TESTE_FIC_UF; uf = ["PE", "BA"], anos = 2023,
+                               processar = false, cache = false, verbose = false)
+            @test nrow(df) == 3
+            @test Set(df.UF_ARQUIVO) == Set(["PE", "BA"])
+            @test all(==(2023), df.ANO_ARQUIVO)
+            @test "DTOBITO" in names(df)
+
+            # UF sem arquivo correspondente: pulada (com @warn), resultado só
+            # com as encontradas — não lança erro.
+            df2 = @test_logs (:warn,) fetch_datasus(:TESTE_FIC_UF; uf = ["PE", "SP"],
+                                                    anos = 2023, processar = false,
+                                                    cache = false, verbose = false)
+            @test Set(df2.UF_ARQUIVO) == Set(["PE"])
+        finally
+            # não deixa a fonte fictícia vazar para outros testes (ex.: o
+            # teste de rede, que itera fontes() por completo).
+            delete!(MicroSUS.FONTES, :TESTE_FIC_UF)
+        end
+    end
+
+    @testset "fetch_datasus — fonte sintética nacional (abrangência :br)" begin
+        dir = mktempdir()
+        campos_fic = [("DT_NOTIFIC", 'C', 8, 0), ("SG_UF", 'C', 2, 0)]
+        escreve_dbc(joinpath(dir, "FICBR23.dbc"), campos_fic,
+                    [["20230115", "26"], ["20230620", "35"]])
+
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_FIC_BR,
+            nome = "Fonte fictícia (teste, nacional)",
+            periodicidade = :anual,
+            abrangencia = :br,
+            urls = (_, ano, _) -> ["file://" * joinpath(dir, "FICBR$(string(ano % 100; pad = 2)).dbc")],
+            anos = 2023:2023,
+        ))
+
+        try
+            # uf é ignorada em fontes nacionais
+            df = fetch_datasus(:TESTE_FIC_BR; uf = "PE", anos = 2023,
+                               processar = false, cache = false, verbose = false)
+            @test nrow(df) == 2
+            @test only(unique(df.UF_ARQUIVO)) == "BR"
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_FIC_BR)
+        end
+    end
+
+    @testset "fetch_datasus — processar=true aplica process_sim (override de :SIM_DO)" begin
+        dir = mktempdir()
+        campos_sim = [("DTOBITO", 'C', 8, 0), ("IDADE", 'C', 3, 0),
+                      ("SEXO", 'C', 1, 0), ("RACACOR", 'C', 1, 0)]
+        # Nome de arquivo deliberadamente diferente do padrão real (DOxxAAAA)
+        # para nunca colidir com um arquivo já presente no cache real do
+        # usuário (mesmo _dir_cache() usado por baixar/fetch_datasus de verdade).
+        escreve_dbc(joinpath(dir, "TESTEFICSIMPE2023.dbc"), campos_sim,
+                    [["15012023", "425", "1", "4"], ["02062023", "430", "2", "1"]])
+
+        original = MicroSUS.FONTES[:SIM_DO]
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :SIM_DO, nome = original.nome, periodicidade = :anual,
+            abrangencia = :uf,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, "TESTEFICSIM$(uf)$(ano).dbc")],
+            anos = 2023:2023,
+        ))
+        try
+            df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023, cache = false, verbose = false)
+            @test eltype(df.DTOBITO) <: Union{Missing,Date}
+            @test df.DTOBITO[1] == Date(2023, 1, 15)
+            @test df.SEXO == ["Masculino", "Feminino"]
+            @test df.RACACOR == ["Parda", "Branca"]
+            @test "IDADE_ANOS" in names(df)
+            @test df.IDADE_ANOS == [25, 30]
+        finally
+            MicroSUS.registrar!(original)   # restaura a fonte real
+        end
+    end
+
+    @testset "fetch_datasus — validações" begin
+        @test_throws ArgumentError fetch_datasus(:SIM_DO; uf = "XX", anos = 2023, verbose = false)
+        @test_throws ArgumentError fetch_datasus(:SIM_DO; uf = "PE", anos = Int[], verbose = false)
+        @test_throws ArgumentError fetch_datasus(:SIH_RD; uf = "PE", anos = 2023, verbose = false)  # mensal sem `meses`
+
+        dir = mktempdir()
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_FIC_VAZIA,
+            nome = "Fonte fictícia (teste, sempre ausente)",
+            periodicidade = :anual,
+            abrangencia = :uf,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, "NAOEXISTE$(uf)$(ano).dbc")],
+            anos = 2023:2023,
+        ))
+        try
+            @test_throws ErrorException fetch_datasus(:TESTE_FIC_VAZIA; uf = "PE",
+                                                       anos = 2023, verbose = false)
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_FIC_VAZIA)
+        end
+    end
+
+    @testset "process_sim / process_sinasc / rotular! / para_data! / para_int!" begin
+        df = DataFrame(SEXO = ["1", "2", "9"], DTOBITO = ["15012023", "00000000", ""],
+                       IDADE = ["425", "999", "   "], QTDFILVIVO = ["2", "", "abc"])
+        out = MicroSUS.process_sim(df)
+        @test isequal(out.SEXO, ["Masculino", "Feminino", missing])
+        @test out.DTOBITO[1] == Date(2023, 1, 15)
+        @test ismissing(out.DTOBITO[2]) && ismissing(out.DTOBITO[3])
+        @test out.IDADE_ANOS[1] == 25
+        @test ismissing(out.IDADE_ANOS[2])
+        @test isequal(out.QTDFILVIVO, [2, missing, missing])
+
+        dfn = DataFrame(SEXO = ["M", "F"], PARTO = ["1", "2"], PESO = ["3200", ""])
+        outn = MicroSUS.process_sinasc(dfn)
+        @test outn.SEXO == ["Masculino", "Feminino"]
+        @test outn.PARTO == ["Vaginal", "Cesáreo"]
+        @test isequal(outn.PESO, [3200, missing])
+
+        # coluna ausente é ignorada, não lança erro
+        dfsem = DataFrame(OUTRACOISA = [1, 2])
+        @test MicroSUS.process_sim(dfsem) == dfsem
+    end
+
+    # -----------------------------------------------------------------------
+    # Testes de rede (opcionais):
+    # MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'
+    # -----------------------------------------------------------------------
+    if get(ENV, "MicroSUS_TEST_NETWORK", "false") == "true"
+        @testset "Rede (DATASUS) — links de todas as fontes registradas" begin
+            # Para cada fonte de fontes(), baixa de verdade o ano MAIS ANTIGO
+            # coberto (tende a ser o menor arquivo) — PE quando particionado
+            # por UF. Pega tanto link quebrado quanto mudança de estrutura do
+            # FTP; roda para TODAS as fontes, não só uma amostra, porque agora
+            # existe fontes() para enumerá-las.
+            falhas = Tuple{Symbol,String}[]
+            for f in fontes()
+                ano = f.ano_inicial
+                # dez/ano_inicial em vez de jan: alguns sistemas começam no
+                # meio do ano de cobertura (CNES em 08/2005, SIA_PA em
+                # 07/1994) — dezembro já existe em qualquer um dos casos.
+                mes = f.periodicidade == :mensal ? 12 : nothing
+                try
+                    df = fetch_datasus(f.id; uf = "PE", anos = ano, meses = mes,
+                                       processar = false, cache = false,
+                                       verbose = false)
+                    nrow(df) > 0 || push!(falhas, (f.id, "0 linhas retornadas"))
+                catch e
+                    push!(falhas, (f.id, sprint(showerror, e)))
+                end
+            end
+            isempty(falhas) ||
+                @warn "Fontes com problema no FTP do DATASUS" falhas
+            @test isempty(falhas)
+        end
+    else
+        @info "Testes de rede desativados. Ative com MicroSUS_TEST_NETWORK=true."
     end
 end

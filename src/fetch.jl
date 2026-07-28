@@ -17,7 +17,7 @@ Baixa, descomprime, lê e concatena microdados públicos do DATASUS.
   mensais (SIH, SIA, CNES);
 - `processar`: aplica a padronização da fonte quando disponível
   ([`process_sim`](@ref), [`process_sinasc`](@ref));
-- `cache`: reutiliza arquivos já baixados (ver [`cache_dir`](@ref));
+- `cache`: reutiliza arquivos já baixados (ver [`MicroSUS.limpar_cache`](@ref));
 - `verbose`: registra progresso via `@info`/`@warn`.
 
 Arquivos ausentes no FTP (ano ainda não publicado para uma UF, mês sem
@@ -75,7 +75,7 @@ function fetch_datasus(fonte_id::Symbol;
             continue
         end
         for caminho in arquivos
-            df = read_dbc(caminho)
+            df = DataFrame(ler(caminho))
             df[!, :UF_ARQUIVO]  .= u
             df[!, :ANO_ARQUIVO] .= a
             f.periodicidade == :mensal && (df[!, :MES_ARQUIVO] .= m)
@@ -85,8 +85,8 @@ function fetch_datasus(fonte_id::Symbol;
 
     isempty(faltantes) || @warn "arquivos não encontrados no FTP" faltantes
 
-    isempty(partes) && throw(DBCError(
-        "nenhum arquivo encontrado para :$(f.id) com os parâmetros informados"))
+    isempty(partes) && error(
+        "nenhum arquivo encontrado para :$(f.id) com os parâmetros informados")
 
     df = vcat(partes...; cols = :union)
 

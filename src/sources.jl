@@ -162,6 +162,13 @@ function fontes()
             for f in fs]
 end
 
+"""
+    fonte(id::Symbol) -> FonteDATASUS
+
+Devolve a especificação registrada da fonte `id` (ver [`fontes`](@ref) para
+a lista de identificadores disponíveis). Lança `ArgumentError` para um
+identificador desconhecido.
+"""
 function fonte(id::Symbol)
     haskey(FONTES, id) || throw(ArgumentError(
         "fonte desconhecida: :$id. Fontes disponíveis: " *

@@ -30,6 +30,7 @@ Julia do `blast.c` de Mark Adler, com janela de 4 KiB emitida em chunks
 """
 module MicroSUS
 
+using DataFrames
 using Dates
 using Downloads
 using InlineStrings
@@ -43,7 +44,9 @@ export ler, materializar, converter, baixar, url_arquivo,
        decodifica_idade_sim, decodifica_idade_sinan,
        capitulo_cid10, eh_agressao,
        dv_ibge, codigo7_ibge, codigo6_ibge,
-       CabecalhoDBF, CampoDBF, TabelaDBC
+       CabecalhoDBF, CampoDBF, TabelaDBC,
+       fetch_datasus, fontes, fonte,
+       process_sim, process_sinasc
 
 include("dcl.jl")
 include("encoding.jl")
@@ -53,6 +56,12 @@ include("dimensoes.jl")
 include("schema.jl")
 include("tables.jl")
 include("ftp.jl")
+include("download.jl")
+include("sources.jl")
+include("process/process.jl")
+include("process/sim.jl")
+include("process/sinasc.jl")
+include("fetch.jl")
 
 """
     converter(entrada, saida; kwargs...)

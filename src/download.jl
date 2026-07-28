@@ -1,30 +1,8 @@
 # download.jl — Download dos arquivos do FTP do DATASUS com cache local.
-
-const CACHE_DIR = Ref{String}("")
-
-function __init_cache__()
-    CACHE_DIR[] = @get_scratch!("datasus_cache")
-end
-
-"""
-    cache_dir() -> String
-
-Diretório de cache local dos arquivos baixados (gerenciado por Scratch.jl;
-removido automaticamente se o pacote for desinstalado).
-"""
-cache_dir() = CACHE_DIR[]
-
-"""
-    limpar_cache()
-
-Remove todos os arquivos `.dbc` do cache local.
-"""
-function limpar_cache()
-    for f in readdir(cache_dir(); join = true)
-        rm(f; force = true)
-    end
-    return nothing
-end
+#
+# Reaproveita o mesmo cache (_dir_cache(), definido em ftp.jl) usado por
+# baixar/url_arquivo — um único diretório de cache para todo o pacote,
+# limpo por limpar_cache() (também em ftp.jl).
 
 """
     baixar_url(url; cache = true, verbose = true) -> Union{String,Nothing}
@@ -36,7 +14,7 @@ porque a existência de partições (`PA...b.dbc`) e de arquivos preliminares
 só pode ser descoberta tentando.
 """
 function baixar_url(url::AbstractString; cache::Bool = true, verbose::Bool = true)
-    destino = joinpath(cache_dir(), basename(url))
+    destino = joinpath(_dir_cache(), basename(url))
 
     if cache && isfile(destino) && filesize(destino) > 0
         verbose && @info "cache" arquivo = basename(destino)
