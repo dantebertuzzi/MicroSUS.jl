@@ -28,6 +28,12 @@ O `.dbc` do DATASUS é um DBF cujos registros são comprimidos com PKWare DCL ("
 ] test MicroSUS          # suíte completa, sem depender de rede
 ```
 
+```bash
+# opcional: também exercita cada fonte registrada (fontes()) contra o
+# FTP real do DATASUS
+MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'
+```
+
 Documentação completa (Documenter.jl):
 
 ```bash
@@ -35,7 +41,7 @@ julia --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
 julia --project=docs docs/make.jl     # saída em docs/build/index.html
 ```
 
-Julia ≥ 1.9 (extensões condicionais). Dependências: Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow é opcional (weak dep).
+Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow é opcional (weak dep).
 
 ## Início rápido
 
@@ -194,7 +200,7 @@ dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 pa = fetch_datasus(:SIA_PA; uf = "SP", anos = 2023, meses = 1:12)
 ```
 
-`fetch_datasus` concatena por nome de coluna (`cols = :union`), adiciona colunas de origem (`UF_ARQUIVO`, `ANO_ARQUIVO`, `MES_ARQUIVO`) e pula arquivos inexistentes com `@warn`. Use `fontes()` para listar todas as fontes disponíveis com seus identificadores, descrições, periodicidade e faixa de anos.
+`fetch_datasus` concatena por nome de coluna (`cols = :union`), adiciona colunas de origem (`UF_ARQUIVO`, `ANO_ARQUIVO`, `MES_ARQUIVO`) e pula arquivos inexistentes com `@warn`. Use `fontes()` para listar todas as fontes disponíveis com seus identificadores, descrições, periodicidade e faixa de anos, ou `fonte(:SIM_DO)` para inspecionar uma só.
 
 Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 

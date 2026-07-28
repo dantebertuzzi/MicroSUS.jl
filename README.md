@@ -28,6 +28,12 @@ DATASUS's `.dbc` is a DBF whose records are compressed with PKWare DCL ("implode
 ] test MicroSUS          # full suite, no network required
 ```
 
+```bash
+# optional: also exercises every registered source (fontes()) against
+# the real DATASUS FTP
+MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'
+```
+
 Full documentation (Documenter.jl):
 
 ```bash
@@ -35,7 +41,7 @@ julia --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
 julia --project=docs docs/make.jl     # output at docs/build/index.html
 ```
 
-Julia ≥ 1.9 (conditional extensions). Dependencies: Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow is optional (weak dep).
+Julia ≥ 1.9 (conditional extensions). Dependencies: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow is optional (weak dep).
 
 ## Quick start
 
@@ -194,7 +200,7 @@ dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 do_pe.DT_NOTIFIC = coalesce.(do_pe.DT_SIN_PRI, do_pe.DT_NOTIFIC)
 ```
 
-`fetch_datasus` concatenates by column name (`cols = :union`), adds `UF_ARQUIVO`, `ANO_ARQUIVO`, and `MES_ARQUIVO` origin columns, and skips missing files with a `@warn`. Use `fontes()` to list all available sources with their IDs, descriptions, periodicity, and year ranges.
+`fetch_datasus` concatenates by column name (`cols = :union`), adds `UF_ARQUIVO`, `ANO_ARQUIVO`, and `MES_ARQUIVO` origin columns, and skips missing files with a `@warn`. Use `fontes()` to list all available sources with their IDs, descriptions, periodicity, and year ranges, or `fonte(:SIM_DO)` to inspect a single one.
 
 Current FTP paths (checked against `microdatasus`, Jul 2026):
 
