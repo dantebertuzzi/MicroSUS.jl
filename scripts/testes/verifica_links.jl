@@ -19,7 +19,11 @@ end
 
 function verifica_url(url::String)
     try
-        resp = download(url; timeout=10)
+        # timeout generoso: alguns links citados na doc são exemplos de
+        # arquivos .dbc reais de alguns MB, e o FTP do DATASUS pode ser
+        # lento a partir de runners de CI — 10s cortava downloads legítimos
+        # no meio.
+        resp = download(url; timeout=60)
         nothing  # não precisa do corpo
         return (url, true, nothing)
     catch e
