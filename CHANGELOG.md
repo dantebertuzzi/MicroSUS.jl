@@ -9,6 +9,22 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Documentation
+
+- `docs/checa_blocos.jl`, rodado pelo CI antes de construir a documentação. As
+  páginas de exemplos são pipelines — os blocos rodam em ordem e compartilham
+  estado —, mas o Documenter não executa blocos ```julia, então um nome que
+  falta ou uma coluna que o DataFrame não carregou passavam batido e só
+  apareciam para quem tentasse seguir a página. O script parseia cada bloco e
+  acusa três coisas: bloco que não parseia, nome usado antes (ou sem nunca) ser
+  definido, e coluna acessada num DataFrame que não a carregou. Rodado contra
+  as versões da página anteriores a cada correção de hoje, pega todos os sete
+  defeitos.
+- Seção 7: `ip` e a coluna `:mes` nunca eram definidos, e dois números não se
+  reproduziam. A comparação entre semestres em Alagoas é de **2,14×** (média
+  mensal de jul–set contra jan–jun), não 2,24; a amplitude do índice sem
+  Alagoas é de **44** pontos, não 46. O bloco agora calcula os dois.
+
 ## [0.3.1] - 2026-08-29
 
 ### Documentation
