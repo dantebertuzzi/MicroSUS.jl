@@ -30,22 +30,20 @@ println("extração: ", today(), "  ·  MicroSUS.jl v", pkgversion(MicroSUS))
 println("\n── 1. layout do SIH ao longo do tempo ──")
 for ano in (2010, 2011, 2013, 2014, 2022)
     c = baixar(:sih, "PE"; anos = [ano], meses = [6], quieto = true)[1]
-    campos = Set(Symbol(x.nome) for x in MicroSUS.cabecalho(c).campos)
+    campos = Set(Symbol(x.nome) for x in cabecalho(c).campos)
     println("  ", ano, ": ", lpad(length(campos), 3), " campos   DIAGSEC1? ",
             :DIAGSEC1 in campos)
 end
 
 # ── 2. carga com filtro no leitor ────────────────────────────────────────────
-diag_presentes(caminho) = filter(∈(Set(Symbol(c.nome) for c in
-    MicroSUS.cabecalho(caminho).campos)), CAMPOS_DIAG)
+diag_presentes(caminho) = filter(∈(keys(cabecalho(caminho).indice)), CAMPOS_DIAG)
 
 function carregar_iam(ufs, ano, meses)
     partes = DataFrame[]; lidas = 0
     for uf in ufs, c in baixar(:sih, uf; anos = [ano], meses = meses, quieto = true)
-        lidas += MicroSUS.cabecalho(c).n_registros
+        lidas += cabecalho(c).n_registros
         campos = diag_presentes(c)
-        df = DataFrame(ler(c;
-                colunas = intersect(COLS, campos ∪ setdiff(COLS, CAMPOS_DIAG)),
+        df = DataFrame(ler(c; colunas = COLS, ignorar_ausentes = true,
                 filtro = r -> any(startswith(r[k], "I21") for k in campos)))
         df.UF = fill(uf, nrow(df))
         push!(partes, df)

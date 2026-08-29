@@ -11,6 +11,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- `ler(...; ignorar_ausentes = true)` — drops requested columns that do not
+  exist in this file's layout instead of raising. The SIH layout gained fields
+  in 2011, 2013 and 2014, so asking for `:DIAGSEC1` used to abort the read of
+  2010 and force a defensive `cabecalho` call before every file. Dropped
+  columns are reported through `@debug`; if *none* of the requested columns
+  exists it is still an error, since that means a wrong file or a typo.
+- `cabecalho` is now exported and documented in the public API reference. It
+  reads the header without decompressing, which is the first thing any
+  multi-year analysis does, and it required the `MicroSUS.` prefix.
 - `process_sih` and `idade_sih` — standardization for SIH/SUS. Labels `SEXO`,
   `RACA_COR`, `IDENT` and `CAR_INT`, and derives `IDADE_ANOS` from the
   `IDADE` + `COD_IDADE` pair. Applied automatically by
@@ -44,6 +53,12 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `docs/exemplo_intermediario.jl`; every number on the page came from one run
   of it.
 - Shared plotting theme extracted to `docs/tema.jl`.
+- The schemas guide documents two layout traps that break long SIH series: the
+  field count changes (86 → 93 → 95 → 113 between 2010 and 2014), and the
+  secondary-diagnosis field moves — `DIAG_SECUN` is the live field through
+  2014, the `DIAGSEC1`–`DIAGSEC9` block appears empty in the 2014 layout and
+  takes over in January 2015, when the old one goes to zero. Counting only one
+  of them zeroes out half of any series that crosses the boundary.
 - The standardization helpers (`rotular!`, `para_data!`, `para_int!`,
   `processar_fonte`) are now documented under Internals, with a note that an
   unmapped code becomes `missing` — so a partial dictionary erases valid data.

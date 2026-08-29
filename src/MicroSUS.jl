@@ -44,7 +44,7 @@ export ler, materializar, converter, baixar, url_arquivo,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao,
        dv_ibge, codigo7_ibge, codigo6_ibge,
-       CabecalhoDBF, CampoDBF, TabelaDBC,
+       CabecalhoDBF, CampoDBF, TabelaDBC, cabecalho,
        fetch_datasus, fontes, fonte,
        process_sim, process_sinasc, process_sih
 

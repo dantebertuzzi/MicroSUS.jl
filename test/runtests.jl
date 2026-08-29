@@ -578,6 +578,42 @@ end
         @test MicroSUS.process_sim(dfsem) == dfsem
     end
 
+    @testset "ignorar_ausentes e cabecalho pública" begin
+        caminho = joinpath(@__DIR__, "data", "sids.dbc")
+
+        # cabecalho é API pública: acessível sem o prefixo do módulo
+        cab = cabecalho(caminho)
+        @test cab.n_registros > 0
+        @test !isempty(cab.campos)
+        presente = cab.campos[1].nome
+        @test presente in keys(cab.indice)
+        @test !(:NAO_EXISTE_MESMO in keys(cab.indice))
+
+        # comportamento padrão: coluna ausente é erro, listando as disponíveis
+        err = try ler(caminho; colunas = [presente, :NAO_EXISTE_MESMO]); nothing
+              catch e; e end
+        @test err isa ArgumentError
+        @test occursin("NAO_EXISTE_MESMO", sprint(showerror, err))
+
+        # ignorar_ausentes descarta o que não existe e mantém o resto
+        t = ler(caminho; colunas = [presente, :NAO_EXISTE_MESMO],
+                ignorar_ausentes = true)
+        @test [c.nome for c in t.campos] == [presente]
+        @test nrow(DataFrame(t)) == nrow(DataFrame(ler(caminho; colunas = [presente])))
+
+        # mas se NENHUMA existir continua sendo erro: aí o problema é outro
+        @test_throws ArgumentError ler(caminho; colunas = [:NADA_A, :NADA_B],
+                                       ignorar_ausentes = true)
+
+        # a ordem pedida é preservada entre as que sobraram
+        if length(cab.campos) ≥ 2
+            a, b = cab.campos[1].nome, cab.campos[2].nome
+            t2 = ler(caminho; colunas = [b, :NAO_EXISTE_MESMO, a],
+                     ignorar_ausentes = true)
+            @test [c.nome for c in t2.campos] == [b, a]
+        end
+    end
+
     @testset "process_sih / idade_sih" begin
         # SEXO no SIH é 1/3 (não 1/2 como no SIM) e RACA_COR é 01..05 + 99
         df = DataFrame(SEXO = ["1", "3", "9"],

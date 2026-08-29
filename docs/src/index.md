@@ -263,7 +263,7 @@ eh_agressao("Y10")            # false — intenção indeterminada
 
 ```julia
 dcl_descomprime(io, chunk -> processar(chunk))   # descompressor streaming
-MicroSUS.cabecalho("arquivo.dbc")                 # só o cabeçalho (campos, larguras)
+cabecalho("arquivo.dbc")                 # só o cabeçalho (campos, larguras)
 MicroSUS.limpar_cache()                           # limpa o cache de download
 ```
 

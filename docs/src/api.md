@@ -72,7 +72,7 @@ eh_agressao
 ```@docs
 CabecalhoDBF
 CampoDBF
-MicroSUS.cabecalho
+cabecalho
 ```
 
 ## Baixo nível

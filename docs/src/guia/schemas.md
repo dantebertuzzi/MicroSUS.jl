@@ -68,6 +68,32 @@ Ou estenda o registro global (afeta as próximas chamadas com
 MicroSUS.SCHEMAS[:sim][:LINHAA] = :texto
 ```
 
+## Armadilhas de layout por sistema
+
+Campos que existem no cabeçalho não são necessariamente campos preenchidos, e
+o que está preenchido muda com o ano. Dois casos que quebram série longa:
+
+**SIH — diagnóstico secundário.** `DIAG_SECUN` era o campo vivo até 2014; o
+bloco `DIAGSEC1`–`DIAGSEC9` aparece no layout de 2014 ainda vazio e assume em
+janeiro de 2015, quando o antigo zera. Medido em junho de cada ano, em PE:
+
+| ano | `DIAG_SECUN` | `DIAGSEC1` |
+|---|---|---|
+| 2008 | 6,1% | não existe |
+| 2013 | 12,4% | não existe |
+| 2014 | 14,5% | 0,0% (existe, vazio) |
+| 2015 | 0,0% | 17,3% |
+| 2022 | 0,0% | 17,6% |
+
+Contar só `DIAGSEC1` zera tudo antes de 2015; contar só `DIAG_SECUN` zera tudo
+depois de 2014. Numa série que atravesse a virada, use a união e deixe o campo
+consultado variar com o ano.
+
+**SIH — número de campos.** 86 (2010) → 93 (2011–2012) → 95 (2013) → 113
+(2014 em diante). Confira com [`cabecalho`](@ref) antes de empilhar anos, e use
+`ler(...; ignorar_ausentes = true)` para pedir a mesma lista de colunas em
+todos eles.
+
 ## O que os schemas embutidos cobrem
 
 Os campos mais usados de cada sistema — datas, numéricos e as

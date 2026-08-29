@@ -18,6 +18,7 @@ Funciona com `.dbc` e `.dbf`. Devolve uma [`TabelaDBC`](@ref)
 | `schema` | `:auto` | ver [Schemas e tipagem](schemas.md) |
 | `encoding` | `:auto` | language driver do cabeçalho; DATASUS ⇒ `:cp850` |
 | `pool` | `true` | `PooledArray` nas categóricas do schema |
+| `ignorar_ausentes` | `false` | descarta colunas que não existem neste layout em vez de lançar erro |
 
 ## Materializar tudo
 
@@ -36,6 +37,31 @@ t = ler(caminho; colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES])
 A ordem pedida é a ordem das colunas na saída. Nome inexistente lança
 `ArgumentError` listando os disponíveis (útil porque os layouts variam
 entre anos).
+
+## Layouts que mudam entre anos
+
+Os layouts do DATASUS ganham e perdem campos. No SIH, o bloco
+`DIAGSEC1`–`DIAGSEC9` só existe a partir de 2014; pedir `:DIAGSEC1` na leitura
+de 2010 lança `ArgumentError`. Em séries longas isso obriga a inspecionar cada
+arquivo antes de ler — ou a delegar:
+
+```julia
+t = ler(caminho; colunas = [:DT_INTER, :DIAG_PRINC, :DIAGSEC1],
+        ignorar_ausentes = true)      # em 2010 vêm só as duas primeiras
+```
+
+As colunas descartadas saem por `@debug` (habilite com
+`ENV["JULIA_DEBUG"] = "MicroSUS"` para vê-las). Se **nenhuma** das colunas
+pedidas existir, ainda é erro — nesse caso o problema é outro: arquivo errado,
+ou nome digitado errado.
+
+Para decidir por conta própria, [`cabecalho`](@ref) lê só o cabeçalho, sem
+descomprimir:
+
+```julia
+cab = cabecalho(caminho)
+:DIAGSEC1 in keys(cab.indice)     # o campo existe neste ano?
+```
 
 ## Filtrar linhas no leitor
 
@@ -77,7 +103,7 @@ inteiro em memória.
 ## Inspecionar sem ler
 
 ```julia
-cab = MicroSUS.cabecalho(caminho)     # só o cabeçalho
+cab = cabecalho(caminho)     # só o cabeçalho
 cab.n_registros, cab.tamanho_registro
 [c.nome for c in cab.campos]
 ```

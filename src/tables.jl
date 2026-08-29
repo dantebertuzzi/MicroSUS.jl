@@ -42,7 +42,7 @@ end
 """
     ler(caminho; colunas = nothing, filtro = nothing,
         tamanho_lote = 100_000, schema = :auto, encoding = :auto,
-        pool = true) -> TabelaDBC
+        pool = true, ignorar_ausentes = false) -> TabelaDBC
 
 Abre um `.dbc` ou `.dbf` do DATASUS como tabela preguiçosa
 (Tables.jl, com `Tables.partitions`). Nada é lido até a iteração.
@@ -57,6 +57,13 @@ Abre um `.dbc` ou `.dbf` do DATASUS como tabela preguiçosa
   `Dict{Symbol,Symbol}` próprio, ou `nothing` (só a tipagem do DBF).
 - `encoding`: `:auto` (language driver do cabeçalho; DATASUS ⇒ cp850),
   ou `:cp850`, `:latin1`, `:cp1252`, `:utf8`.
+- `ignorar_ausentes`: quando `true`, colunas de `colunas` que não existem no
+  layout deste arquivo são descartadas em vez de lançar `ArgumentError`. É o
+  que torna prática a leitura multi-ano do SIH, cujo layout ganhou campos em
+  2011, 2013 e 2014 — sem isso, pedir `:DIAGSEC1` derruba a leitura de 2010.
+  As colunas descartadas saem por `@debug`; se **nenhuma** das pedidas existir,
+  ainda assim é erro, porque aí o problema é outro (arquivo errado ou nome
+  digitado errado);
 - `pool`: usa `PooledArray` nas colunas categóricas do schema
   (equivalente ao factor do R, opt-in).
 
@@ -70,7 +77,8 @@ function ler(caminho::AbstractString;
              tamanho_lote::Int = 100_000,
              schema = :auto,
              encoding::Symbol = :auto,
-             pool::Bool = true)
+             pool::Bool = true,
+             ignorar_ausentes::Bool = false)
     isfile(caminho) || throw(ArgumentError("arquivo não encontrado: $caminho"))
     tamanho_lote ≥ 1 || throw(ArgumentError("tamanho_lote deve ser ≥ 1"))
 
@@ -89,6 +97,15 @@ function ler(caminho::AbstractString;
 
     campos = if colunas === nothing
         copy(cab.campos)
+    elseif ignorar_ausentes
+        presentes = filter(c -> haskey(cab.indice, c), colunas)
+        faltando = setdiff(colunas, presentes)
+        isempty(faltando) ||
+            @debug "colunas ausentes neste layout, ignoradas" arquivo = basename(caminho) faltando
+        isempty(presentes) && throw(ArgumentError(
+            "nenhuma das colunas pedidas existe em $(basename(caminho)); " *
+            "disponíveis: " * join([f.nome for f in cab.campos], ", ")))
+        [cab.indice[c] for c in presentes]
     else
         [haskey(cab.indice, c) ? cab.indice[c] :
          throw(ArgumentError("coluna $c não existe; disponíveis: " *

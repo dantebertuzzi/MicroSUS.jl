@@ -54,7 +54,7 @@ using MicroSUS
 
 for ano in (2010, 2011, 2013, 2014, 2022)
     c = baixar(:sih, "PE"; anos = [ano], meses = [6], quieto = true)[1]
-    campos = Set(Symbol(x.nome) for x in MicroSUS.cabecalho(c).campos)
+    campos = Set(Symbol(x.nome) for x in cabecalho(c).campos)
     println(ano, ": ", length(campos), " campos   DIAGSEC1? ", :DIAGSEC1 in campos)
 end
 ```
@@ -67,7 +67,7 @@ end
 2022: 113 campos  DIAGSEC1? true
 ```
 
-`MicroSUS.cabecalho` lê **só o cabeçalho** — não descomprime os registros.
+`cabecalho` lê **só o cabeçalho** — não descomprime os registros.
 Verificar o layout de treze anos custa menos de um segundo, e é o primeiro
 comando que você deveria rodar em qualquer estudo multi-ano.
 
@@ -109,17 +109,20 @@ const NE = ["AL","BA","CE","MA","PB","PE","PI","RN","SE"]
 const CAMPOS_DIAG = [:DIAG_PRINC, :DIAG_SECUN,
                      (Symbol("DIAGSEC$i") for i in 1:9)...]
 
+# O `filtro` consulta os campos pelo nome, então precisa saber quais existem
+# neste arquivo — `cabecalho` responde sem descomprimir nada. (Para a lista de
+# `colunas`, `ignorar_ausentes = true` resolve sozinho; o filtro é que não tem
+# como adivinhar.)
 "Campos diagnósticos que existem de fato no layout deste arquivo."
-diag_presentes(caminho) = filter(∈(Set(Symbol(c.nome) for c in
-    MicroSUS.cabecalho(caminho).campos)), CAMPOS_DIAG)
+diag_presentes(caminho) = filter(∈(keys(cabecalho(caminho).indice)), CAMPOS_DIAG)
 
 function carregar_iam(ufs, ano, meses, colunas)
     partes = DataFrame[]; lidas = 0
     for uf in ufs
         for c in baixar(:sih, uf; anos = [ano], meses = meses, quieto = true)
-            lidas += MicroSUS.cabecalho(c).n_registros
-            campos = diag_presentes(c)          # nunca peça um campo que não existe
-            df = DataFrame(ler(c; colunas = colunas,
+            lidas += cabecalho(c).n_registros
+            campos = diag_presentes(c)
+            df = DataFrame(ler(c; colunas = colunas, ignorar_ausentes = true,
                     filtro = r -> any(startswith(r[k], "I21") for k in campos)))
             df.UF = fill(uf, nrow(df))
             push!(partes, df)
@@ -151,11 +154,32 @@ count(isempty, String.(df.DIAGSEC1))    # 36183 de 48562
 
 Dois achados que mudam o recorte:
 
-1. **`DIAG_SECUN` é `"0000"` em 100% dos 3,3 milhões de registros da região.**
-   É um campo legado, morto. Quem filtrar por ele encontra zero e pode concluir
-   que não há diagnóstico secundário nenhum.
-2. **`DIAGSEC1` está preenchido em 15,6% das internações.** Os secundários
-   reais vivem em `DIAGSEC1`–`DIAGSEC9`.
+1. **`DIAG_SECUN` é `"0000"` em 100% dos 3,3 milhões de registros de 2022.**
+   Quem filtrar por ele encontra zero e pode concluir que não há diagnóstico
+   secundário nenhum.
+2. **`DIAGSEC1` está preenchido em 15,6% das internações.** Em 2022 os
+   secundários reais vivem em `DIAGSEC1`–`DIAGSEC9`.
+
+Mas "campo morto" é conclusão apressada — e é aqui que a série longa cobra o
+preço. Medindo o preenchimento em junho de cada ano, em Pernambuco:
+
+| ano | `DIAG_SECUN` | `DIAGSEC1` |
+|---|---|---|
+| 2008 | 6,1% | não existe |
+| 2010 | 6,9% | não existe |
+| 2013 | 12,4% | não existe |
+| 2014 | **14,5%** | 0,0% (existe, vazio) |
+| 2015 | 0,0% | **17,3%** |
+| 2022 | 0,0% | 17,6% |
+
+`DIAG_SECUN` **era o campo vivo até 2014**. O bloco `DIAGSEC1`–`DIAGSEC9`
+aparece no layout de 2014 ainda vazio e assume em janeiro de 2015, quando o
+antigo zera. A troca é limpa e datável.
+
+A consequência para quem monta série longa: **usar só um dos dois quebra a
+série ao meio.** Contando apenas `DIAGSEC1`, tudo antes de 2015 dá zero;
+contando apenas `DIAG_SECUN`, tudo depois de 2014 dá zero. O recorte correto
+é a união dos dois, e o campo a consultar muda com o ano.
 
 E o efeito sobre a contagem depende inteiramente da doença:
 
@@ -609,13 +633,12 @@ encontrados foram corrigidos na **v0.3.0**; três continuam de pé.
 | Tipagem incompleta do schema `:sih` — `MORTE` era `:pool` apesar de ser tipo `N` no DBF, e `COD_IDADE`/`ANO_CMPT`/`MES_CMPT` nem constavam do schema | Os quatro agora são `:inteiro` |
 | Faltava `process_sih` — o SIM tinha `IDADE_ANOS` pronto, o SIH exigia combinar `IDADE` + `COD_IDADE` na mão | [`process_sih`](@ref) e [`idade_sih`](@ref), aplicados por `fetch_datasus(:SIH_RD)` |
 
-**Em aberto**
+| Pedir coluna inexistente era erro fatal — `colunas = [:DIAGSEC1]` derrubava a leitura de 2010 | `ler(...; ignorar_ausentes = true)` |
+| `cabecalho` era API interna, apesar de ser a primeira coisa que toda análise multi-ano faz | Exportada e documentada na referência pública |
+| `DIAG_SECUN` some sem aviso a partir de 2015 | Documentado no [guia de schemas](guia/schemas.md) e na tabela acima |
 
-| Atrito | Efeito |
-|---|---|
-| **Pedir coluna inexistente é erro fatal** | Em multi-ano, `colunas = [:DIAGSEC1]` derruba a leitura de 2010. Um kwarg `ignorar_ausentes = true` dispensaria o `cabecalho` defensivo antes de cada arquivo |
-| **`cabecalho` é API interna** | Inspecionar o layout sem descomprimir é a primeira coisa que qualquer análise multi-ano faz, mas exige o prefixo `MicroSUS.` e não aparece na referência pública |
-| **`DIAG_SECUN` é campo morto e nada avisa** | Vale `"0000"` em 100% dos registros. Uma nota no schema ou na documentação do SIH pouparia o recorte errado |
+Nenhum atrito conhecido em aberto no momento — os cinco viraram as mudanças da
+v0.3.0.
 
 ---
 
