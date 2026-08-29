@@ -172,4 +172,24 @@ for k in 0:4
 end
 @printf("  ≥5 meses : %6d\n", count(≥(5), atraso))
 
+# o tamanho do truncamento: ler só 2022 contra ler 2022+2023
+function iam_por_competencia(uf, anos)
+    partes = DataFrame[]
+    for ano in anos
+        df, _ = carregar_iam([uf], ano, 1:12)
+        push!(partes, df)
+    end
+    df = vcat(partes...; cols = :union)
+    df = df[startswith.(coalesce.(String.(df.DIAG_PRINC), ""), "I21"), :]
+    combine(groupby(DataFrame(mes = firstdayofmonth.(Date.(df.DT_INTER))), :mes),
+            nrow => :n)
+end
+so2022, ate2023 = iam_por_competencia("PE", [2022]), iam_por_competencia("PE", [2022, 2023])
+for m in 10:12
+    k = Date(2022, m, 1)
+    a, b = only(so2022[so2022.mes .== k, :n]), only(ate2023[ate2023.mes .== k, :n])
+    @printf("  %s/2022: só 2022 = %4d   até 2023 = %4d   faltava %.1f%%\n",
+            lpad(m, 2, '0'), a, b, 100 * (b - a) / b)
+end
+
 println("\nconcluído.")

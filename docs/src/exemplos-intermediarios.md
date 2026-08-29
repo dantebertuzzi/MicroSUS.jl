@@ -130,12 +130,23 @@ function carregar_iam(ufs, ano, meses, colunas)
     end
     vcat(partes...; cols = :union), lidas
 end
+
+# As 22 colunas de que o resto da página precisa: os diagnósticos, mais o que
+# as seções 4 a 6 consomem (idade, município de residência, competência).
+const COLS = [CAMPOS_DIAG..., :PROC_REA, :MUNIC_RES, :IDADE, :COD_IDADE, :SEXO,
+              :MORTE, :DT_INTER, :ANO_CMPT, :MES_CMPT, :DIAS_PERM, :VAL_TOT]
+
+t0 = time()
+iam, lidas = carregar_iam(NE, 2022, 1:12, COLS)
+println("internações lidas: ", lidas)
+println("IAM (I21 em qualquer posição): ", nrow(iam))
+println("tempo: ", round(time() - t0; digits = 1), " s")
 ```
 
 ```
-internações lidas no Nordeste 2022: 3.321.519
-IAM (I21 em qualquer posição):          30.809
-tempo: 48,8 s
+internações lidas: 3321519
+IAM (I21 em qualquer posição): 30809
+tempo: 48.8 s
 ```
 
 Custo: **108 arquivos, ~250 MB baixados, 49 segundos**, 3,3 milhões de
@@ -421,6 +432,22 @@ linhas = JSON3.read(String(HTTP.get(url).body))[2:end]
 
 # a checagem que salva a análise
 @assert sum(parse.(Int, String.(getindex.(linhas, "V")))) == 203_080_756
+
+# a resposta traz o código numérico da UF e a faixa por extenso; o topo aberto
+# em cinco categorias vira um único "80+", que é a faixa que o SIH comporta
+const UF_COD = Dict("11"=>"RO","12"=>"AC","13"=>"AM","14"=>"RR","15"=>"PA",
+  "16"=>"AP","17"=>"TO","21"=>"MA","22"=>"PI","23"=>"CE","24"=>"RN","25"=>"PB",
+  "26"=>"PE","27"=>"AL","28"=>"SE","29"=>"BA","31"=>"MG","32"=>"ES","33"=>"RJ",
+  "35"=>"SP","41"=>"PR","42"=>"SC","43"=>"RS","50"=>"MS","51"=>"MT","52"=>"GO",
+  "53"=>"DF")
+const TOPO = ["80 a 84 anos","85 a 89 anos","90 a 94 anos","95 a 99 anos",
+              "100 anos ou mais"]
+
+bruto = DataFrame(uf    = [UF_COD[String(r["D1C"])] for r in linhas],
+                  idade = [String(r["D5N"]) for r in linhas],
+                  n     = [parse(Int, String(r["V"])) for r in linhas])
+bruto.faixa = [i in TOPO ? "80+" : replace(i, " anos" => "") for i in bruto.idade]
+pop = combine(groupby(bruto, [:uf, :faixa]), :n => sum => :pop)
 ```
 
 **Sempre confira o total do denominador contra o valor publicado.** Na primeira
@@ -431,8 +458,22 @@ dava erro.
 
 ### A direção do join importa
 
+O numerador é o subconjunto com I21 no **diagnóstico principal** — o recorte
+que a seção 2 mostrou ser conservador —, agrupado nas mesmas faixas do
+denominador. `idade_sih` resolve o par `IDADE` + `COD_IDADE`; sem ele, `IDADE`
+sozinha mistura dias, meses e anos na mesma coluna.
+
 ```julia
-casos = combine(groupby(iam_p, [:UF, :faixa]), nrow => :casos)
+const FAIXAS = ["0 a 4","5 a 9","10 a 14","15 a 19","20 a 24","25 a 29",
+  "30 a 34","35 a 39","40 a 44","45 a 49","50 a 54","55 a 59","60 a 64",
+  "65 a 69","70 a 74","75 a 79","80+"]
+
+iam_p = iam[startswith.(coalesce.(String.(iam.DIAG_PRINC), ""), "I21"), :]
+faixa_de(a) = ismissing(a) ? missing : (a ≥ 80 ? "80+" : FAIXAS[div(a, 5) + 1])
+iam_p.faixa = faixa_de.(idade_sih.(iam_p.IDADE, iam_p.COD_IDADE))
+
+casos = combine(groupby(dropmissing(iam_p, :faixa), [:UF, :faixa]),
+                nrow => :casos)
 
 # ERRADO: partir dos casos elimina do denominador toda faixa sem nenhum caso
 base = leftjoin(casos, pop, on = [:UF => :uf, :faixa => :faixa])
@@ -441,8 +482,8 @@ base = leftjoin(casos, pop, on = [:UF => :uf, :faixa => :faixa])
 base = leftjoin(filter(:uf => ∈(NE), pop), casos, on = [:uf => :UF, :faixa => :faixa])
 rename!(base, :uf => :UF)
 base.casos = coalesce.(base.casos, 0)
-@assert nrow(base) == 9 * 17          # 9 UFs × 17 faixas
-@assert sum(base.casos) == nrow(iam_p)
+@assert nrow(base) == length(NE) * length(FAIXAS)   # 9 UFs × 17 faixas
+@assert sum(base.casos) == nrow(dropmissing(iam_p, :faixa))
 ```
 
 | | população somada | taxa bruta do Nordeste |
@@ -451,7 +492,7 @@ base.casos = coalesce.(base.casos, 0)
 | join partindo da população | **54.658.515** | **55,6 / 100 mil** |
 
 O primeiro perde 4,7 milhões de pessoas — as faixas jovens, que não têm
-infarto — e **infla a taxa em 9%**. O `@assert` de grade completa custa uma
+infarto — e **infla a taxa em 9,5%** (60,9 contra 55,6). O `@assert` de grade completa custa uma
 linha e teria pego o erro na hora.
 
 ### Por que padronizar
@@ -528,8 +569,11 @@ que o paciente internou. `DT_INTER` é a data da internação; `ANO_CMPT`/
 `MES_CMPT`, a da competência. A distância entre as duas é o atraso:
 
 ```julia
-ip.atraso = [round(Int, Dates.value(c - firstdayofmonth(d)) / 30.44)
-             for (d, c) in zip(Date.(ip.DT_INTER), Date.(ip.ANO_CMPT, ip.MES_CMPT, 1))]
+using Dates
+
+atraso = [round(Int, Dates.value(c - firstdayofmonth(d)) / 30.44)
+          for (d, c) in zip(Date.(iam_p.DT_INTER),
+                            Date.(iam_p.ANO_CMPT, iam_p.MES_CMPT, 1))]
 ```
 
 ```
@@ -543,6 +587,21 @@ as competências de um ano **trunca os últimos meses desse ano**. Para medir o
 tamanho do buraco, basta ler o ano seguinte e comparar:
 
 ```julia
+# Agrupa pelo MÊS DA INTERNAÇÃO (`DT_INTER`), lendo as competências dos anos
+# pedidos. Ler só 2022 é o que um extrato ingênuo faz; ler 2022+2023 recupera
+# as AIH da internação de 2022 que só foram processadas no ano seguinte.
+function iam_por_competencia(uf, anos)
+    partes = DataFrame[]
+    for ano in anos
+        df, _ = carregar_iam([uf], ano, 1:12, COLS)
+        push!(partes, df)
+    end
+    df = vcat(partes...; cols = :union)
+    df = df[startswith.(coalesce.(String.(df.DIAG_PRINC), ""), "I21"), :]
+    combine(groupby(DataFrame(mes = firstdayofmonth.(Date.(df.DT_INTER))), :mes),
+            nrow => :n)
+end
+
 so2022  = iam_por_competencia("PE", [2022])
 ate2023 = iam_por_competencia("PE", [2022, 2023])
 ```
