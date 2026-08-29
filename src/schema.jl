@@ -157,11 +157,17 @@ const SCHEMAS = Dict{Symbol,Dict{Symbol,Symbol}}(
         :DT_INTER => :data_yyyymmdd, :DT_SAIDA => :data_yyyymmdd,
         :NASC => :data_yyyymmdd,
         :IDADE => :inteiro, :DIAS_PERM => :inteiro, :QT_DIARIAS => :inteiro,
+        # COD_IDADE é a unidade de IDADE; ANO_CMPT/MES_CMPT são a competência.
+        # Os três são type C no DBF, mas o conteúdo é numérico.
+        :COD_IDADE => :inteiro, :ANO_CMPT => :inteiro, :MES_CMPT => :inteiro,
         :VAL_TOT => :float, :VAL_SH => :float, :VAL_SP => :float,
         :US_TOT => :float,
+        # MORTE é type N no DBF: tipar como :pool rebaixava um numérico a
+        # texto, e `sum(df.MORTE)` não fazia o que aparentava.
+        :MORTE => :inteiro,
         :SEXO => :pool, :MUNIC_RES => :pool, :MUNIC_MOV => :pool,
         :DIAG_PRINC => :pool, :PROC_REA => :pool, :ESPEC => :pool,
-        :COBRANCA => :pool, :MORTE => :pool, :CAR_INT => :pool,
+        :COBRANCA => :pool, :CAR_INT => :pool,
     ),
     :sia => Dict(
         :PA_QTDAPR => :inteiro, :PA_QTDPRO => :inteiro,

@@ -192,31 +192,27 @@ A letalidade hospitalar foi de **6,7% com procedimento 0406 e 9,9% sem**.
   salvar um recorte em CSV e reler sem forçar `String`, `"0406030022"` vira
   `406030022` e todo `startswith` falha em silêncio. (Aconteceu na preparação
   desta página.)
-- **O schema `:sih` tipa alguns numéricos e outros não.** `IDADE`,
-  `DIAS_PERM`, `VAL_TOT` e as datas vêm convertidos; `COD_IDADE`, `ANO_CMPT`,
-  `MES_CMPT` e `MORTE` vêm como texto:
-
-  ```julia
-  df = DataFrame(ler(caminho))
-  eltype(df.IDADE)      # Union{Missing, Int32}      ← tipado
-  eltype(df.COD_IDADE)  # InlineStrings.String3      ← texto
-  eltype(df.MORTE)      # InlineStrings.String3      ← texto
-  eltype(df.ANO_CMPT)   # InlineStrings.String15     ← texto
-  ```
-
-  `sum(df.MORTE)` não faz o que parece, e `cod == 4` compara `String3` com
-  `Int` e devolve `false` em silêncio — descartando a base inteira sem erro.
-  Converta explicitamente:
-
-  ```julia
-  inteiro(v) = ismissing(v) ? missing : (v isa Integer ? Int(v) :
-               something(tryparse(Int, strip(String(v))), missing))
-  ```
+- **Não deixe o round-trip por CSV definir os seus tipos.** Até a v0.2.1 o
+  schema `:sih` tipava `IDADE`, `DIAS_PERM` e `VAL_TOT`, mas devolvia
+  `COD_IDADE`, `ANO_CMPT`, `MES_CMPT` e `MORTE` como texto. `sum(df.MORTE)`
+  não fazia o que parecia, e `cod == 4` comparava `String3` com `Int`,
+  devolvia `false` em silêncio e descartava a base inteira sem erro nenhum.
 
   Isto derrubou a primeira versão desta página: os números tinham sido
   calculados sobre um cache em CSV, onde o `CSV.jl` fazia a conversão por
-  conta própria. O código publicado não os reproduziria. **Nunca deixe o
-  round-trip por CSV ser quem define os seus tipos.**
+  conta própria, de modo que o código publicado **não os reproduziria**.
+
+  Desde a v0.3.0 os quatro campos vêm tipados e o problema não existe mais:
+
+  ```julia
+  df = DataFrame(ler(caminho))
+  eltype(df.MORTE)      # Union{Missing, Int32}
+  sum(skipmissing(df.MORTE))    # agora faz o que parece
+  ```
+
+  A lição sobrevive à correção: **confira `eltype` do que você recebe** em vez
+  de deduzir do nome da coluna, e desconfie de qualquer número que só apareça
+  depois de passar por CSV.
 
 ---
 
@@ -603,10 +599,20 @@ UF cai de 111 para 46 pontos, sem padrão comum entre estados.
 Levantados enquanto a página era escrita; viram sugestão de melhoria do
 MicroSUS.jl:
 
+Escrever esta página serviu de teste de uso do pacote. Dois dos atritos
+encontrados foram corrigidos na **v0.3.0**; três continuam de pé.
+
+**Corrigidos**
+
+| Atrito | Correção |
+|---|---|
+| Tipagem incompleta do schema `:sih` — `MORTE` era `:pool` apesar de ser tipo `N` no DBF, e `COD_IDADE`/`ANO_CMPT`/`MES_CMPT` nem constavam do schema | Os quatro agora são `:inteiro` |
+| Faltava `process_sih` — o SIM tinha `IDADE_ANOS` pronto, o SIH exigia combinar `IDADE` + `COD_IDADE` na mão | [`process_sih`](@ref) e [`idade_sih`](@ref), aplicados por `fetch_datasus(:SIH_RD)` |
+
+**Em aberto**
+
 | Atrito | Efeito |
 |---|---|
-| **Tipagem incompleta do schema `:sih`** | `IDADE`, `DIAS_PERM`, `VAL_TOT` e datas são tipados, mas `COD_IDADE`, `ANO_CMPT`, `MES_CMPT` e `MORTE` ficam como texto. A inconsistência é pior que a ausência: o leitor confia que numérico vem numérico. Bastaria `:MORTE`, `:COD_IDADE`, `:ANO_CMPT`, `:MES_CMPT => :inteiro` |
-| **Falta `process_sih`** | O SIM tem `IDADE_ANOS` pronto via `process_sim`; no SIH é preciso combinar `IDADE` + `COD_IDADE` na mão, e `MORTE`/`SEXO`/`CAR_INT` continuam como códigos crus |
 | **Pedir coluna inexistente é erro fatal** | Em multi-ano, `colunas = [:DIAGSEC1]` derruba a leitura de 2010. Um kwarg `ignorar_ausentes = true` dispensaria o `cabecalho` defensivo antes de cada arquivo |
 | **`cabecalho` é API interna** | Inspecionar o layout sem descomprimir é a primeira coisa que qualquer análise multi-ano faz, mas exige o prefixo `MicroSUS.` e não aparece na referência pública |
 | **`DIAG_SECUN` é campo morto e nada avisa** | Vale `"0000"` em 100% dos registros. Uma nota no schema ou na documentação do SIH pouparia o recorte errado |

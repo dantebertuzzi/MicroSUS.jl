@@ -9,6 +9,45 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Added
+
+- `process_sih` and `idade_sih` — standardization for SIH/SUS. Labels `SEXO`,
+  `RACA_COR`, `IDENT` and `CAR_INT`, and derives `IDADE_ANOS` from the
+  `IDADE` + `COD_IDADE` pair. Applied automatically by
+  `fetch_datasus(:SIH_RD; ...)`.
+
+  SIH codes differ from SIM's: `SEXO` is 1/3 (not 1/2) and `RACA_COR` is
+  `01`–`05` + `99` (not `1`–`5`, where "Parda" is `4`). Reusing a dictionary
+  across the two systems produces wrong labels with no error.
+
+  `COBRANCA` and `ESPEC` are deliberately left raw: their domains are large and
+  version-dependent, and `rotular!` turns an unmapped code into `missing`, so a
+  partial dictionary would silently erase valid data.
+
+### Changed
+
+- **Breaking:** the `:sih` schema now types `MORTE`, `COD_IDADE`, `ANO_CMPT`
+  and `MES_CMPT` as integers. `MORTE` is DBF type `N`, so the previous `:pool`
+  actively downgraded a numeric field to pooled text and `sum(df.MORTE)` did
+  not do what it appeared to; the other three were absent from the schema and
+  fell back to text. Code comparing these columns to strings
+  (`df.MORTE .== "1"`) must be updated to compare to integers.
+
+### Documentation
+
+- New "Exemplos intermediários" page: end-to-end analyses of AMI
+  hospitalisations in the Northeast, centred on the traps — layout drift across
+  years, the dead `DIAG_SECUN` field, the 6-vs-7-digit IBGE municipality join,
+  cross-system comparison without a shared identifier, age standardisation, and
+  the data-entry lag that truncates the last three months of any
+  competence-based extract. The full pipeline is runnable at
+  `docs/exemplo_intermediario.jl`; every number on the page came from one run
+  of it.
+- Shared plotting theme extracted to `docs/tema.jl`.
+- The standardization helpers (`rotular!`, `para_data!`, `para_int!`,
+  `processar_fonte`) are now documented under Internals, with a note that an
+  unmapped code becomes `missing` — so a partial dictionary erases valid data.
+
 ## [0.2.1] - 2026-08-29
 
 ### Fixed

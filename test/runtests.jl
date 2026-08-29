@@ -578,6 +578,45 @@ end
         @test MicroSUS.process_sim(dfsem) == dfsem
     end
 
+    @testset "process_sih / idade_sih" begin
+        # SEXO no SIH é 1/3 (não 1/2 como no SIM) e RACA_COR é 01..05 + 99
+        df = DataFrame(SEXO = ["1", "3", "9"],
+                       RACA_COR = ["01", "03", "99"],
+                       IDENT = ["1", "5", "9"],
+                       CAR_INT = ["01", "02", "07"],
+                       IDADE = [45, 6, 5], COD_IDADE = [4, 3, 5],
+                       MORTE = [0, 1, 0],
+                       DT_INTER = ["20220115", "00000000", ""])
+        out = MicroSUS.process_sih(df)
+        @test isequal(out.SEXO, ["Masculino", "Feminino", missing])
+        @test isequal(out.RACA_COR, ["Branca", "Parda", missing])   # 99 → missing
+        @test isequal(out.IDENT, ["Normal", "Longa permanência", missing])
+        @test isequal(out.CAR_INT, ["Eletivo", "Urgência", missing])
+        @test out.IDADE_ANOS == [45, 0, 105]      # anos, 6 meses → 0, 5+100
+        @test out.DT_INTER[1] == Date(2022, 1, 15)
+        @test ismissing(out.DT_INTER[2]) && ismissing(out.DT_INTER[3])
+        @test sum(out.MORTE) == 1
+
+        # idade_sih aceita tanto o tipado quanto o texto cru
+        @test MicroSUS.idade_sih(45, 4) == 45
+        @test MicroSUS.idade_sih("45", "4") == 45
+        @test MicroSUS.idade_sih(30, 2) == 0            # dias
+        @test MicroSUS.idade_sih(12, 3) == 0            # meses
+        @test MicroSUS.idade_sih(5, 5) == 105
+        @test ismissing(MicroSUS.idade_sih(45, 9))
+        @test ismissing(MicroSUS.idade_sih(missing, 4))
+        @test ismissing(MicroSUS.idade_sih(45, missing))
+        @test ismissing(MicroSUS.idade_sih("abc", "4"))
+
+        # COBRANCA e ESPEC ficam crus de propósito (domínio extenso e variável)
+        dfc = DataFrame(COBRANCA = ["12", "61"], ESPEC = ["01", "03"])
+        @test MicroSUS.process_sih(dfc).COBRANCA == ["12", "61"]
+        @test MicroSUS.process_sih(dfc).ESPEC == ["01", "03"]
+
+        # coluna ausente é ignorada
+        @test MicroSUS.process_sih(DataFrame(X = [1])) == DataFrame(X = [1])
+    end
+
     # -----------------------------------------------------------------------
     # Testes de rede (opcionais):
     # MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'

@@ -24,12 +24,6 @@ const FAIXAS = ["0 a 4","5 a 9","10 a 14","15 a 19","20 a 24","25 a 29","30 a 34
   "35 a 39","40 a 44","45 a 49","50 a 54","55 a 59","60 a 64","65 a 69","70 a 74",
   "75 a 79","80+"]
 
-# O schema :sih tipa IDADE, DIAS_PERM, VAL_TOT e as datas, mas deixa
-# COD_IDADE, ANO_CMPT, MES_CMPT e MORTE como texto. Converta explicitamente:
-# confiar no round-trip por CSV para fazer isso é fonte de erro silencioso.
-inteiro(v) = ismissing(v) ? missing : (v isa Integer ? Int(v) :
-             something(tryparse(Int, strip(String(v))), missing))
-
 println("extração: ", today(), "  ·  MicroSUS.jl v", pkgversion(MicroSUS))
 
 # ── 1. layout muda entre anos ────────────────────────────────────────────────
@@ -70,7 +64,8 @@ iam_p = iam[startswith.(coalesce.(String.(iam.DIAG_PRINC), ""), "I21"), :]
 println("  DIAG_SECUN — valores distintos: ", unique(String.(iam.DIAG_SECUN)))
 
 # MORTE vem como texto "0"/"1": o schema do SIH não o tipa
-iam_p.morte = inteiro.(iam_p.MORTE)
+# MORTE, COD_IDADE, ANO_CMPT e MES_CMPT vêm tipados desde a v0.3.0
+iam_p.morte = iam_p.MORTE
 @printf("  letalidade hospitalar: %.1f%%\n", 100mean(iam_p.morte))
 
 # ── 3. join com o IBGE ───────────────────────────────────────────────────────
@@ -145,16 +140,8 @@ bruto.faixa = [i in TOPO ? "80+" : replace(i, " anos" => "") for i in bruto.idad
 pop = combine(groupby(bruto, [:uf, :faixa]), :n => sum => :pop)
 println("  população conferida contra o Censo 2022: ", sum(pop.pop))
 
-function idade_anos(idade_bruta, cod_bruto)
-    idade, cod = inteiro(idade_bruta), inteiro(cod_bruto)
-    (ismissing(idade) || ismissing(cod)) && return missing
-    cod == 4 && return idade            # anos
-    cod == 5 && return 100 + idade      # anos acima de 100
-    cod in (0,1,2,3) && return 0        # minutos/horas/dias/meses
-    missing
-end
 faixa_de(a) = ismissing(a) ? missing : (a ≥ 80 ? "80+" : FAIXAS[div(a,5)+1])
-iam_p.faixa = faixa_de.(idade_anos.(iam_p.IDADE, iam_p.COD_IDADE))
+iam_p.faixa = faixa_de.(idade_sih.(iam_p.IDADE, iam_p.COD_IDADE))
 casos = combine(groupby(dropmissing(iam_p, :faixa), [:UF, :faixa]), nrow => :casos)
 
 # a direção do join manda: partir da população mantém as faixas sem casos
@@ -178,7 +165,7 @@ show(res, allrows = true, allcols = true); println()
 
 # ── 6. atraso de digitação ───────────────────────────────────────────────────
 println("\n── 6. atraso entre internação e competência ──")
-comp = Date.(inteiro.(iam_p.ANO_CMPT), inteiro.(iam_p.MES_CMPT), 1)
+comp = Date.(iam_p.ANO_CMPT, iam_p.MES_CMPT, 1)
 atraso = [round(Int, Dates.value(c - firstdayofmonth(d)) / 30.44)
           for (d, c) in zip(iam_p.DT_INTER, comp)]
 for k in 0:4

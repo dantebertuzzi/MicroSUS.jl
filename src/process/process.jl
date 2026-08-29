@@ -15,6 +15,7 @@ rotina implementada devolvem o `DataFrame` inalterado (com um aviso).
 function processar_fonte(id::Symbol, df::DataFrame; verbose::Bool = true)
     id === :SIM_DO  && return process_sim(df)
     id === :SINASC  && return process_sinasc(df)
+    id === :SIH_RD  && return process_sih(df)
     verbose && @info "fonte :$id ainda não tem rotina de padronização; devolvendo dados brutos (use processar = false para silenciar)"
     return df
 end
