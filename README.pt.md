@@ -221,7 +221,7 @@ Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); SIH/SIA cobrem a estrutura pós-2008.
 
-## Padronização: `process_sim` / `process_sinasc`
+## Padronização: `process_sim` / `process_sinasc` / `process_sih`
 
 `fetch_datasus` chama a rotina de padronização da fonte por padrão
 (`processar = true`). Ela troca códigos por rótulos legíveis, converte datas
@@ -235,7 +235,18 @@ process_sim(bruto)                                            # equivalente
 
 No SIM: rotula `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO` e
 afins, e cria `IDADE_ANOS` em anos completos. No SINASC: `PARTO`, `GRAVIDEZ`,
-`ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`.
+`ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`. No SIH: `SEXO`,
+`RACA_COR`, `IDENT`, `CAR_INT`, e `IDADE_ANOS` a partir do par `IDADE` +
+`COD_IDADE`.
+
+> **Atenção ao SIH**: `SEXO` usa 1 = Masculino e **3** = Feminino (no SIM é 1 e
+> 2), e `RACA_COR` usa `01`–`05` + `99` (no SIM é `1`–`5`, e "Parda" é `4`, não
+> `03`). Reaproveitar dicionário entre os dois sistemas produz rótulo errado sem
+> erro nenhum.
+
+`COBRANCA` e `ESPEC` ficam crus de propósito: têm domínio extenso e variável
+entre versões da tabela da AIH, e como código não mapeado vira `missing`, um
+dicionário incompleto apagaria dados válidos em silêncio.
 
 Colunas ausentes no layout do ano são ignoradas em silêncio — o layout do
 DATASUS muda entre anos, e a rotina é escrita para sobreviver a isso. As demais
@@ -308,7 +319,7 @@ para quem prefere pegar o BibTeX direto:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.2.1},
+  version = {0.3.0},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }

@@ -9,6 +9,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-29
+
 ### Added
 
 - `ler(...; ignorar_ausentes = true)` — drops requested columns that do not
@@ -172,7 +174,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dantebertuzzi/MicroSUS.jl/releases/tag/v0.1.0
