@@ -206,10 +206,22 @@ precisa medir isso para o seu recorte antes de decidir.
 
 ### Procedimento realizado
 
+O `df` do trecho anterior só trouxe os dois campos de diagnóstico. O
+procedimento está em `iam_p`, que carrega a lista `COLS` inteira — aqui
+recortada em Pernambuco, no ano completo.
+
 ```julia
-p = String.(df.PROC_REA)
+using Statistics
+
+pe = iam_p[iam_p.UF .== "PE", :]     # 5.207 internações com I21 no principal
+p  = String.(pe.PROC_REA)
+
 count(==("0303060190"), p)          # 2.861 — tratamento clínico do IAM
 count(startswith("0406"), p)        # 1.686 — hemodinâmica/cirurgia cardiovascular
+
+com = startswith.(p, "0406")
+mean(skipmissing(pe[com, :MORTE]))    # 0,067
+mean(skipmissing(pe[.!com, :MORTE]))  # 0,099
 ```
 
 Em Pernambuco, 2022: 55% das internações por IAM tiveram procedimento clínico,
