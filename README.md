@@ -349,8 +349,8 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.3.0},
-  doi     = {10.5281/zenodo.22164179},
+  version = {0.3.1},
+  doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }
@@ -400,10 +400,11 @@ or a transfer. Two DOIs coexist, and they are not interchangeable:
 | DOI | What it identifies |
 |---|---|
 | [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — the project as a whole. Always resolves to the newest version; it is what the badge at the top of this README points at. |
-| [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179) | Version 0.3.0, frozen. Each future release gets its own. |
+| one per release | Each archived version gets its own — 0.3.0 is [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). All of them are listed on the [Zenodo page](https://doi.org/10.5281/zenodo.22164178). |
 
-**In a paper, cite the version DOI**, not the concept one: the concept DOI says
-which project you used, the version DOI says which code actually ran.
+The BibTeX above carries the concept DOI, so it keeps working across releases.
+**In a paper, swap it for the DOI of the version you used**: the concept DOI
+says which project you used, the version DOI says which code actually ran.
 
 ## License
 

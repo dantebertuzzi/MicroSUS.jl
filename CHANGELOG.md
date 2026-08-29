@@ -9,6 +9,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-29
+
 ### Documentation
 
 - "Isenção de responsabilidade" section in both READMEs and on the
@@ -22,9 +24,10 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   identifier: `10.5281/zenodo.22164178` is the concept DOI (always the newest
   version, and what the README badge points at) and `10.5281/zenodo.22164179`
   is v0.3.0. Recorded in `CITATION.cff` (top-level `doi` plus an `identifiers`
-  block), in `CITATION.bib`, and in the "How to cite" section of both READMEs,
-  which now explains why a paper must cite the version DOI and not the concept
-  one.
+  block), in `CITATION.bib` and in the "How to cite" section of both READMEs.
+  The shipped BibTeX carries the concept DOI, which stays valid across
+  releases; the section explains that a paper should swap it for the DOI of the
+  version that actually ran.
 
 ## [0.3.0] - 2026-08-29
 
@@ -191,7 +194,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.1.0...v0.2.0

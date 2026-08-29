@@ -350,8 +350,8 @@ para quem prefere pegar o BibTeX direto:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.3.0},
-  doi     = {10.5281/zenodo.22164179},
+  version = {0.3.1},
+  doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }
@@ -408,9 +408,10 @@ intercambiáveis:
 | DOI | O que identifica |
 |---|---|
 | [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — o projeto como um todo. Resolve sempre para a versão mais recente; é o que o badge no topo deste README aponta. |
-| [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179) | A versão 0.3.0, congelada. Cada release futura ganha o seu. |
+| um por release | Cada versão arquivada ganha o seu — a 0.3.0 é [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). Todos ficam listados na [página do Zenodo](https://doi.org/10.5281/zenodo.22164178). |
 
-**No artigo, cite o DOI da versão**, não o do conceito: o concept DOI diz qual
+O BibTeX acima traz o concept DOI, que continua válido a cada release.
+**No artigo, troque pelo DOI da versão que você usou**: o concept DOI diz qual
 projeto você usou, o DOI da versão diz qual código de fato rodou.
 
 ## Licença
