@@ -18,6 +18,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   content and accuracy are the publishing agency's responsibility, that DATASUS
   republishes retroactively, that preliminary data is flagged, and that
   validating results is the analyst's job.
+- DOI. The repository is archived on Zenodo, so releases now carry a persistent
+  identifier: `10.5281/zenodo.22164178` is the concept DOI (always the newest
+  version, and what the README badge points at) and `10.5281/zenodo.22164179`
+  is v0.3.0. Recorded in `CITATION.cff` (top-level `doi` plus an `identifiers`
+  block), in `CITATION.bib`, and in the "How to cite" section of both READMEs,
+  which now explains why a paper must cite the version DOI and not the concept
+  one.
 
 ## [0.3.0] - 2026-08-29
 

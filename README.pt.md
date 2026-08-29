@@ -6,6 +6,8 @@
   <em>Microdados do DATASUS em Julia — 🇧🇷</em>
   <br>
   <em>See <a href="README.md">README.md</a> for the English version.</em>
+  <br>
+  <a href="https://doi.org/10.5281/zenodo.22164178"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22164178.svg" alt="DOI"></a>
 </div>
 
 Microdados do DATASUS em Julia — leitura **streaming** de `.dbc`/`.dbf` com memória constante, schemas tipados por sistema (SIM, SINASC, SIH, SIA, CNES, SINAN), transcodificação CP850 → UTF-8, download com cache local e interface Tables.jl com partições.
@@ -349,6 +351,7 @@ para quem prefere pegar o BibTeX direto:
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
   version = {0.3.0},
+  doi     = {10.5281/zenodo.22164179},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }
@@ -396,12 +399,19 @@ O que sustenta as recomendações acima:
 | ABNT NBR 6023:2018 | Referências em publicações brasileiras. Cobre documento eletrônico e exige `Disponível em` + `Acesso em`. |
 | [Zenodo + GitHub](https://docs.github.com/en/repositories/archiving-a-github-repository/referencing-and-citing-content) | Emite DOI persistente por release, mais um *concept DOI* que sempre aponta para a versão mais recente. |
 
-**O que ainda falta neste projeto**: um **DOI**. Hoje a citação aponta para uma
-URL do GitHub, que não é um identificador persistente — se o repositório mudar
-de nome ou de dono, a referência quebra. Conectar o repositório ao
-[Zenodo](https://zenodo.org) resolve isso: cada release passa a receber um DOI
-automaticamente. Depois do primeiro DOI emitido, acrescente ao `CITATION.cff`
-um campo `doi:` e ao BibTeX um `doi = {...}`.
+**Os DOIs deste projeto**: o repositório está conectado ao
+[Zenodo](https://zenodo.org), então cada release é arquivada e recebe um
+identificador persistente — a citação deixa de depender de a URL do GitHub
+sobreviver a uma mudança de nome ou de dono. Existem dois DOIs, e eles não são
+intercambiáveis:
+
+| DOI | O que identifica |
+|---|---|
+| [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — o projeto como um todo. Resolve sempre para a versão mais recente; é o que o badge no topo deste README aponta. |
+| [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179) | A versão 0.3.0, congelada. Cada release futura ganha o seu. |
+
+**No artigo, cite o DOI da versão**, não o do conceito: o concept DOI diz qual
+projeto você usou, o DOI da versão diz qual código de fato rodou.
 
 ## Licença
 

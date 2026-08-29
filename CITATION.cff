@@ -29,3 +29,13 @@ keywords:
 license: MIT
 version: 0.3.0
 date-released: 2026-08-29
+doi: 10.5281/zenodo.22164178
+identifiers:
+  - type: doi
+    value: 10.5281/zenodo.22164178
+    description: >-
+      Concept DOI — always resolves to the most recent
+      version of MicroSUS.jl.
+  - type: doi
+    value: 10.5281/zenodo.22164179
+    description: DOI of version 0.3.0.

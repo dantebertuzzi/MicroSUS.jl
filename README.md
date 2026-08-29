@@ -6,6 +6,8 @@
   <em>Microdados do DATASUS em Julia — 🇧🇷</em>
   <br>
   <em>Ver <a href="README.pt.md">README.pt.md</a> para a versão em português.</em>
+  <br>
+  <a href="https://doi.org/10.5281/zenodo.22164178"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22164178.svg" alt="DOI"></a>
 </div>
 
 DATASUS microdata in Julia — **streaming** reads of `.dbc`/`.dbf` with constant memory, per-system typed schemas (SIM, SINASC, SIH, SIA, CNES, SINAN), CP850 → UTF-8 transcoding, cached downloads, and a Tables.jl interface with partitions.
@@ -348,6 +350,7 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
   version = {0.3.0},
+  doi     = {10.5281/zenodo.22164179},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }
@@ -389,11 +392,18 @@ falls back to that folder.
 | ABNT NBR 6023:2018 | References in Brazilian publications; requires `Disponível em` + `Acesso em` for electronic documents. |
 | [Zenodo + GitHub](https://docs.github.com/en/repositories/archiving-a-github-repository/referencing-and-citing-content) | Mints a persistent DOI per release, plus a *concept DOI* always pointing at the newest version. |
 
-**Still missing here**: a **DOI**. The citation currently points at a GitHub
-URL, which is not a persistent identifier — if the repository is renamed or
-transferred, the reference breaks. Connecting the repository to
-[Zenodo](https://zenodo.org) fixes that. Once the first DOI is minted, add a
-`doi:` field to `CITATION.cff` and a `doi = {...}` to the BibTeX.
+**The DOIs of this project**: the repository is connected to
+[Zenodo](https://zenodo.org), so every release is archived and gets a persistent
+identifier — the citation no longer depends on the GitHub URL surviving a rename
+or a transfer. Two DOIs coexist, and they are not interchangeable:
+
+| DOI | What it identifies |
+|---|---|
+| [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — the project as a whole. Always resolves to the newest version; it is what the badge at the top of this README points at. |
+| [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179) | Version 0.3.0, frozen. Each future release gets its own. |
+
+**In a paper, cite the version DOI**, not the concept one: the concept DOI says
+which project you used, the version DOI says which code actually ran.
 
 ## License
 
