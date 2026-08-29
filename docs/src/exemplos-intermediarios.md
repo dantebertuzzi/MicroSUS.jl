@@ -138,14 +138,21 @@ const COLS = [CAMPOS_DIAG..., :PROC_REA, :MUNIC_RES, :IDADE, :COD_IDADE, :SEXO,
 
 t0 = time()
 iam, lidas = carregar_iam(NE, 2022, 1:12, COLS)
+
+# O subconjunto com I21 no diagnóstico principal. É o numerador de tudo que
+# vem depois — as seções 2 a 6 partem daqui, não de `iam`.
+iam_p = iam[startswith.(coalesce.(String.(iam.DIAG_PRINC), ""), "I21"), :]
+
 println("internações lidas: ", lidas)
 println("IAM (I21 em qualquer posição): ", nrow(iam))
+println("IAM no diagnóstico principal: ", nrow(iam_p))
 println("tempo: ", round(time() - t0; digits = 1), " s")
 ```
 
 ```
 internações lidas: 3321519
 IAM (I21 em qualquer posição): 30809
+IAM no diagnóstico principal: 30395
 tempo: 48.8 s
 ```
 
@@ -470,17 +477,16 @@ dava erro.
 
 ### A direção do join importa
 
-O numerador é o subconjunto com I21 no **diagnóstico principal** — o recorte
-que a seção 2 mostrou ser conservador —, agrupado nas mesmas faixas do
-denominador. `idade_sih` resolve o par `IDADE` + `COD_IDADE`; sem ele, `IDADE`
-sozinha mistura dias, meses e anos na mesma coluna.
+O numerador é o `iam_p` da seção 2 — I21 no **diagnóstico principal** —,
+agrupado nas mesmas faixas do denominador. `idade_sih` resolve o par `IDADE` +
+`COD_IDADE`; sem ele, `IDADE` sozinha mistura dias, meses e anos na mesma
+coluna.
 
 ```julia
 const FAIXAS = ["0 a 4","5 a 9","10 a 14","15 a 19","20 a 24","25 a 29",
   "30 a 34","35 a 39","40 a 44","45 a 49","50 a 54","55 a 59","60 a 64",
   "65 a 69","70 a 74","75 a 79","80+"]
 
-iam_p = iam[startswith.(coalesce.(String.(iam.DIAG_PRINC), ""), "I21"), :]
 faixa_de(a) = ismissing(a) ? missing : (a ≥ 80 ? "80+" : FAIXAS[div(a, 5) + 1])
 iam_p.faixa = faixa_de.(idade_sih.(iam_p.IDADE, iam_p.COD_IDADE))
 
