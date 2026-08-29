@@ -41,6 +41,8 @@ julia --project=docs -e 'using Pkg; Pkg.develop(path="."); Pkg.instantiate()'
 julia --project=docs docs/make.jl     # saída em docs/build/index.html
 ```
 
+Documentação: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** — comece pelos [Exemplos práticos (iniciantes)](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos/) se for a sua primeira vez. Histórico de versões em [CHANGELOG.md](CHANGELOG.md).
+
 Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow é opcional (weak dep).
 
 ## Início rápido
@@ -179,6 +181,8 @@ pe_dengue = DataFrame(ler(baixar_sinan(:dengue; ano = 2024);
 
 Agravos disponíveis: `:dengue`, `:chikungunya`, `:zika`, `:malaria`, `:tuberculose`, `:hanseniase`, `:meningite`, `:violencia`, `:leishmaniose_visceral`, `:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`, `:hepatites`, `:intoxicacao_exogena`, `:acidente_animais`.
 
+> **Malária**: o arquivo do SINAN cobre apenas a notificação **extra-amazônica**. Os casos da região amazônica — a grande maioria — são notificados no SIVEP-Malária, que não faz parte do SINAN e não é servido por este FTP. Um `MALABR{aa}.dbc` de poucas centenas de KB é o esperado, não um download truncado.
+
 O SINAN finaliza com atraso; `baixar_sinan` tenta `FINAIS/` e cai automaticamente para `PRELIM/` se o consolidado não existir.
 
 ### `fetch_datasus` — tudo-em-um: download + leitura + concatenação
@@ -216,6 +220,27 @@ Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 **Dados preliminares**: se o arquivo consolidado não existir (anos recentes do SIM/SINASC), o `baixar` tenta automaticamente a pasta `PRELIM/` correspondente, com um `@warn` — indicador calculado sobre dado preliminar merece asterisco. `url_arquivo(...; prelim = true)` monta a URL preliminar diretamente.
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); SIH/SIA cobrem a estrutura pós-2008.
+
+## Padronização: `process_sim` / `process_sinasc`
+
+`fetch_datasus` chama a rotina de padronização da fonte por padrão
+(`processar = true`). Ela troca códigos por rótulos legíveis, converte datas
+em texto para `Date` e numéricos guardados como texto para número:
+
+```julia
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023)          # já padronizado
+bruto = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023, processar = false)
+process_sim(bruto)                                            # equivalente
+```
+
+No SIM: rotula `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO` e
+afins, e cria `IDADE_ANOS` em anos completos. No SINASC: `PARTO`, `GRAVIDEZ`,
+`ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`.
+
+Colunas ausentes no layout do ano são ignoradas em silêncio — o layout do
+DATASUS muda entre anos, e a rotina é escrita para sobreviver a isso. As demais
+fontes (SIH, SIA, CNES, SINAN) ainda não têm rotina: devolvem os códigos brutos
+com um `@info`.
 
 ## Dimensões auxiliares
 
@@ -263,6 +288,80 @@ fontes() |> DataFrame
 - Sem paralelismo intra-arquivo (DCL é sequencial por natureza); paralelize entre arquivos (`baixar(...; anos = ...)` + tasks).
 - Schemas cobrem os campos mais usados de cada sistema; campos fora do schema caem na tipagem do DBF (`N` → inteiro/float, `D` → data, `C` → texto). PRs de schema são bem-vindos.
 - Tabelas de dimensão com *nomes* (municípios, CID-10 4-dígitos, CBO) estão fora do escopo do pacote — faça join com a DTB do IBGE.
+
+## Como citar
+
+Se o MicroSUS.jl entrou no seu fluxo de análise, cite **duas coisas
+separadamente**: o software e os dados. São objetos distintos, com
+responsabilidades distintas — o pacote responde pela leitura e tipagem, o
+DATASUS responde pelo conteúdo.
+
+### 1. O software
+
+O repositório traz um [`CITATION.cff`](CITATION.cff), que o GitHub lê
+nativamente: o botão **"Cite this repository"**, na barra lateral da página do
+projeto, gera APA e BibTeX prontos. Há também um [`CITATION.bib`](CITATION.bib)
+para quem prefere pegar o BibTeX direto:
+
+```bibtex
+@software{bertuzzi_microsus_2026,
+  author  = {Bertuzzi, Dante},
+  title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
+  year    = {2026},
+  version = {0.2.1},
+  url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
+  note    = {Julia package}
+}
+```
+
+**Cite a versão que você usou**, não "a última". Os resultados dependem dela: a
+0.2.1, por exemplo, corrigiu um defeito que devolvia colunas de data vazias no
+SIM. Rode `pkg> status MicroSUS` e use o número que aparecer.
+
+### 2. Os dados do DATASUS
+
+O DATASUS é a fonte primária e precisa ser citado como tal, com **a data de
+extração** — as bases são republicadas retroativamente, e a mesma consulta feita
+em datas diferentes pode devolver números diferentes. No formato ABNT
+(NBR 6023), a forma usual é:
+
+> BRASIL. Ministério da Saúde. DATASUS. *Sistema de Informações sobre
+> Mortalidade (SIM)*: microdados. Brasília: Ministério da Saúde, 2023.
+> Disponível em: https://datasus.saude.gov.br. Acesso em: 29 ago. 2026.
+
+Troque o sistema pelo que você usou (SIM, SINASC, SIH/SUS, SIA/SUS, CNES,
+SINAN) e a data de acesso pela sua.
+
+### 3. Reprodutibilidade
+
+Para que outra pessoa chegue ao seu número, registre no artigo ou no material
+suplementar:
+
+- a **versão do MicroSUS.jl** e do Julia;
+- o `Project.toml` e o `Manifest.toml` do ambiente — o `Manifest.toml` fixa a
+  árvore inteira de dependências e é o que torna o ambiente reconstituível com
+  `Pkg.instantiate()`;
+- a **data de extração** dos arquivos do DATASUS;
+- se você usou dados **preliminares** (`PRELIM/`), diga — o `baixar` avisa com
+  `@warn` quando cai nessa pasta.
+
+### As normas por trás disso
+
+O que sustenta as recomendações acima:
+
+| Norma | O que estabelece |
+|---|---|
+| [FORCE11 — Software Citation Principles](https://force11.org/info/software-citation-principles-published-2016/) | Software é produto de pesquisa citável. Os seis princípios: importância, crédito, identificação unívoca, persistência, acessibilidade e **especificidade** (citar a versão exata). |
+| [Citation File Format (CFF) 1.2.0](https://citation-file-format.github.io/) | Formato legível por máquina para metadados de citação. É o que o GitHub e o Zenodo consomem. |
+| ABNT NBR 6023:2018 | Referências em publicações brasileiras. Cobre documento eletrônico e exige `Disponível em` + `Acesso em`. |
+| [Zenodo + GitHub](https://docs.github.com/en/repositories/archiving-a-github-repository/referencing-and-citing-content) | Emite DOI persistente por release, mais um *concept DOI* que sempre aponta para a versão mais recente. |
+
+**O que ainda falta neste projeto**: um **DOI**. Hoje a citação aponta para uma
+URL do GitHub, que não é um identificador persistente — se o repositório mudar
+de nome ou de dono, a referência quebra. Conectar o repositório ao
+[Zenodo](https://zenodo.org) resolve isso: cada release passa a receber um DOI
+automaticamente. Depois do primeiro DOI emitido, acrescente ao `CITATION.cff`
+um campo `doi:` e ao BibTeX um `doi = {...}`.
 
 ## Licença
 
