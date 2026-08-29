@@ -6,6 +6,8 @@
   <em>Microdados do DATASUS em Julia — 🇧🇷</em>
   <br>
   <em>See <a href="README.md">README.md</a> for the English version.</em>
+  <br>
+  <a href="https://doi.org/10.5281/zenodo.22164178"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22164178.svg" alt="DOI"></a>
 </div>
 
 Microdados do DATASUS em Julia — leitura **streaming** de `.dbc`/`.dbf` com memória constante, schemas tipados por sistema (SIM, SINASC, SIH, SIA, CNES, SINAN), transcodificação CP850 → UTF-8, download com cache local e interface Tables.jl com partições.
@@ -300,6 +302,35 @@ fontes() |> DataFrame
 - Schemas cobrem os campos mais usados de cada sistema; campos fora do schema caem na tipagem do DBF (`N` → inteiro/float, `D` → data, `C` → texto). PRs de schema são bem-vindos.
 - Tabelas de dimensão com *nomes* (municípios, CID-10 4-dígitos, CBO) estão fora do escopo do pacote — faça join com a DTB do IBGE.
 
+## Isenção de responsabilidade
+
+O MicroSUS.jl é uma **ferramenta de leitura**, não uma fonte de dados. Ele
+baixa e decodifica arquivos publicados pelo DATASUS/Ministério da Saúde; o
+conteúdo, a exatidão e a completude desses arquivos são de responsabilidade do
+órgão que os publica, não deste projeto.
+
+Três consequências práticas:
+
+- **O DATASUS republica bases retroativamente.** A mesma consulta em datas
+  diferentes pode devolver números diferentes. Registre a data de extração
+  (ver [Como citar](#como-citar)).
+- **Dados preliminares existem e são sinalizados.** Quando o `baixar` cai numa
+  pasta `PRELIM/`, ele emite `@warn`. Indicador calculado sobre dado
+  preliminar merece asterisco.
+- **Os microdados têm defeitos próprios.** Códigos implausíveis, campos que
+  deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
+  A documentação registra os que conhecemos — ver
+  [Exemplos intermediários](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos-intermediarios/)
+  e o [CHANGELOG](CHANGELOG.md) —, mas a lista não é exaustiva.
+
+O software é distribuído **como está**, sob [licença MIT](LICENSE), sem
+garantia de qualquer espécie e sem responsabilidade por danos decorrentes do
+uso. Validar os resultados, conferir a plausibilidade dos números e responder
+pelas conclusões publicadas é de quem faz a análise.
+
+Encontrou um defeito? [Abra uma issue](https://github.com/dantebertuzzi/MicroSUS.jl/issues) —
+é assim que a lista de armadilhas conhecidas cresce.
+
 ## Como citar
 
 Se o MicroSUS.jl entrou no seu fluxo de análise, cite **duas coisas
@@ -319,7 +350,8 @@ para quem prefere pegar o BibTeX direto:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.3.0},
+  version = {0.3.1},
+  doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }
@@ -367,12 +399,20 @@ O que sustenta as recomendações acima:
 | ABNT NBR 6023:2018 | Referências em publicações brasileiras. Cobre documento eletrônico e exige `Disponível em` + `Acesso em`. |
 | [Zenodo + GitHub](https://docs.github.com/en/repositories/archiving-a-github-repository/referencing-and-citing-content) | Emite DOI persistente por release, mais um *concept DOI* que sempre aponta para a versão mais recente. |
 
-**O que ainda falta neste projeto**: um **DOI**. Hoje a citação aponta para uma
-URL do GitHub, que não é um identificador persistente — se o repositório mudar
-de nome ou de dono, a referência quebra. Conectar o repositório ao
-[Zenodo](https://zenodo.org) resolve isso: cada release passa a receber um DOI
-automaticamente. Depois do primeiro DOI emitido, acrescente ao `CITATION.cff`
-um campo `doi:` e ao BibTeX um `doi = {...}`.
+**Os DOIs deste projeto**: o repositório está conectado ao
+[Zenodo](https://zenodo.org), então cada release é arquivada e recebe um
+identificador persistente — a citação deixa de depender de a URL do GitHub
+sobreviver a uma mudança de nome ou de dono. Existem dois DOIs, e eles não são
+intercambiáveis:
+
+| DOI | O que identifica |
+|---|---|
+| [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — o projeto como um todo. Resolve sempre para a versão mais recente; é o que o badge no topo deste README aponta. |
+| um por release | Cada versão arquivada ganha o seu — a 0.3.0 é [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). Todos ficam listados na [página do Zenodo](https://doi.org/10.5281/zenodo.22164178). |
+
+O BibTeX acima traz o concept DOI, que continua válido a cada release.
+**No artigo, troque pelo DOI da versão que você usou**: o concept DOI diz qual
+projeto você usou, o DOI da versão diz qual código de fato rodou.
 
 ## Licença
 

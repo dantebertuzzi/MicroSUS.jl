@@ -6,6 +6,8 @@
   <em>Microdados do DATASUS em Julia — 🇧🇷</em>
   <br>
   <em>Ver <a href="README.pt.md">README.pt.md</a> para a versão em português.</em>
+  <br>
+  <a href="https://doi.org/10.5281/zenodo.22164178"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22164178.svg" alt="DOI"></a>
 </div>
 
 DATASUS microdata in Julia — **streaming** reads of `.dbc`/`.dbf` with constant memory, per-system typed schemas (SIM, SINASC, SIH, SIA, CNES, SINAN), CP850 → UTF-8 transcoding, cached downloads, and a Tables.jl interface with partitions.
@@ -300,6 +302,35 @@ fontes() |> DataFrame
 - Schemas cover the most-used fields of each system; fields outside the schema fall back to DBF typing (`N` → integer/float, `D` → date, `C` → text). Schema PRs are welcome.
 - Dimension tables with *names* (municipalities, 4-digit CID-10, CBO) are out of scope for the package — join with IBGE's DTB.
 
+## Disclaimer
+
+MicroSUS.jl is a **reading tool**, not a data source. It downloads and decodes
+files published by DATASUS / the Brazilian Ministry of Health; the content,
+accuracy and completeness of those files are the publishing agency's
+responsibility, not this project's.
+
+Three practical consequences:
+
+- **DATASUS republishes databases retroactively.** The same query on different
+  dates can return different numbers. Record your extraction date (see
+  [How to cite](#how-to-cite)).
+- **Preliminary data exists and is flagged.** When `baixar` falls back to a
+  `PRELIM/` folder it emits a `@warn`. An indicator computed over preliminary
+  data deserves an asterisk.
+- **The microdata has defects of its own.** Implausible codes, fields that stop
+  being filled mid-series, layouts that change between years. The documentation
+  records the ones we know — see
+  [Exemplos intermediários](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos-intermediarios/)
+  and the [CHANGELOG](CHANGELOG.md) — but the list is not exhaustive.
+
+The software is distributed **as is**, under the [MIT license](LICENSE), with
+no warranty of any kind and no liability for damages arising from its use.
+Validating results, checking the plausibility of the numbers and standing
+behind published conclusions is the analyst's job.
+
+Found a defect? [Open an issue](https://github.com/dantebertuzzi/MicroSUS.jl/issues) —
+that is how the list of known traps grows.
+
 ## How to cite
 
 If MicroSUS.jl was part of your analysis pipeline, cite **two things
@@ -318,7 +349,8 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.3.0},
+  version = {0.3.1},
+  doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }
@@ -360,11 +392,19 @@ falls back to that folder.
 | ABNT NBR 6023:2018 | References in Brazilian publications; requires `Disponível em` + `Acesso em` for electronic documents. |
 | [Zenodo + GitHub](https://docs.github.com/en/repositories/archiving-a-github-repository/referencing-and-citing-content) | Mints a persistent DOI per release, plus a *concept DOI* always pointing at the newest version. |
 
-**Still missing here**: a **DOI**. The citation currently points at a GitHub
-URL, which is not a persistent identifier — if the repository is renamed or
-transferred, the reference breaks. Connecting the repository to
-[Zenodo](https://zenodo.org) fixes that. Once the first DOI is minted, add a
-`doi:` field to `CITATION.cff` and a `doi = {...}` to the BibTeX.
+**The DOIs of this project**: the repository is connected to
+[Zenodo](https://zenodo.org), so every release is archived and gets a persistent
+identifier — the citation no longer depends on the GitHub URL surviving a rename
+or a transfer. Two DOIs coexist, and they are not interchangeable:
+
+| DOI | What it identifies |
+|---|---|
+| [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — the project as a whole. Always resolves to the newest version; it is what the badge at the top of this README points at. |
+| one per release | Each archived version gets its own — 0.3.0 is [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). All of them are listed on the [Zenodo page](https://doi.org/10.5281/zenodo.22164178). |
+
+The BibTeX above carries the concept DOI, so it keeps working across releases.
+**In a paper, swap it for the DOI of the version you used**: the concept DOI
+says which project you used, the version DOI says which code actually ran.
 
 ## License
 

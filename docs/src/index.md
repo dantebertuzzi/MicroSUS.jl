@@ -310,6 +310,27 @@ Cada estágio é encadeado por `Channel`s com buffers pequenos: o
 `O(tamanho_lote)` — o lote em construção mais um em trânsito —
 independente do tamanho do arquivo original.
 
+## Isenção de responsabilidade
+
+O MicroSUS.jl é uma **ferramenta de leitura**, não uma fonte de dados. Ele
+baixa e decodifica arquivos publicados pelo DATASUS/Ministério da Saúde; o
+conteúdo, a exatidão e a completude desses arquivos são de responsabilidade do
+órgão que os publica.
+
+- O DATASUS **republica bases retroativamente**: a mesma consulta em datas
+  diferentes pode devolver números diferentes. Registre a data de extração.
+- Dados **preliminares** existem e são sinalizados por `@warn` quando o
+  `baixar` cai numa pasta `PRELIM/`.
+- Os microdados têm **defeitos próprios** — códigos implausíveis, campos que
+  deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
+  Os que conhecemos estão em [Exemplos intermediários](exemplos-intermediarios.md)
+  e no guia de [Schemas e tipagem](guia/schemas.md); a lista não é exaustiva.
+
+O software é distribuído **como está**, sob licença MIT, sem garantia de
+qualquer espécie e sem responsabilidade por danos decorrentes do uso. Validar
+os resultados, conferir a plausibilidade dos números e responder pelas
+conclusões publicadas é de quem faz a análise.
+
 ## Referência da API
 
 Veja a página [Referência da API](api.md) para a lista completa das funções
