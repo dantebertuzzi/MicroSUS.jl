@@ -17,6 +17,7 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
+        "Exemplos práticos (iniciantes)" => "exemplos.md",
         "O formato .dbc e o streaming" => "formato.md",
         "Guia" => [
             "Leitura: ler, filtro, partições" => "guia/leitura.md",
@@ -25,8 +26,8 @@ makedocs(;
             "Conversão para Arrow" => "guia/arrow.md",
             "Dimensões: IBGE e CID-10" => "guia/dimensoes.md",
         ],
-        "API Reference" => "api.md",
-        "Internals" => "internos.md",
+        "Referência da API" => "api.md",
+        "Internos" => "internos.md",
     ],
     checkdocs = :exports,
     warnonly = [:missing_docs, :cross_references],

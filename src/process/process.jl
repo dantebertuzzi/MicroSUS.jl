@@ -45,13 +45,16 @@ end
     para_data!(df, col; formato = dateformat"ddmmyyyy") -> df
 
 Converte uma coluna de datas em texto (`"01072026"`) para `Date`. Valores
-inválidos, vazios ou zerados viram `missing`.
+inválidos, vazios ou zerados viram `missing`. Colunas que o leitor já
+tipou como `Date` (schemas `:data_ddmmyyyy`/`:data_yyyymmdd`) passam
+intactas.
 """
 function para_data!(df::DataFrame, col::Symbol;
                     formato::DateFormat = dateformat"ddmmyyyy")
     hasproperty(df, col) || return df
     df[!, col] = map(df[!, col]) do v
         v === missing && return missing
+        v isa Date && return v
         s = string(_limpa(v))
         (isempty(s) || all(==('0'), s)) && return missing
         length(s) == 7 && (s = "0" * s)   # dia sem zero à esquerda

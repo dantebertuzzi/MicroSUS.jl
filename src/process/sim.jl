@@ -59,9 +59,13 @@ Decodifica o campo `IDADE` do SIM (unidade + valor) em idade em anos
 completos. O primeiro dígito indica a unidade: `0` minutos, `1` horas,
 `2` dias, `3` meses, `4` anos, `5` centenas de anos (`"501"` = 101 anos).
 Idades abaixo de um ano resultam em `0`.
+
+Valores já decodificados em anos pelo leitor (schema `:idade_sim`, que
+devolve `Float64`) passam intactos, truncados para anos completos.
 """
 function idade_sim(v)
     v === missing && return missing
+    v isa Real && return floor(Int, v)
     s = string(_limpa(v))
     length(s) < 3 && return missing
     unidade = s[1]

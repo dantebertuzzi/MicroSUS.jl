@@ -11,54 +11,94 @@ CP850/Latin-1 → UTF-8, download com cache local (Scratch.jl) e
 interface [Tables.jl](https://github.com/JuliaData/Tables.jl) com
 partições.
 
-## Installation
+!!! tip "Nunca programou antes?"
+    Comece pela página [Exemplos práticos (iniciantes)](exemplos.md):
+    um passo a passo do zero, da instalação ao primeiro gráfico, com
+    cada linha de código explicada.
+
+## Instalação
 
 ```julia
 using Pkg
 Pkg.add("MicroSUS")
 ```
 
-Julia ≥ 1.9. Dependencies: Tables, InlineStrings, PooledArrays, Scratch,
-Downloads, Dates. Arrow is optional (conditional extension).
+Julia ≥ 1.9. Dependências: DataFrames, Tables, InlineStrings,
+PooledArrays, Scratch, Downloads, Dates. Arrow é opcional (extensão
+condicional).
 
-## Quick Start
+## Começo rápido
 
 ```julia
 using MicroSUS, DataFrames
 
-# download with local cache — won't re-download
+# download com cache local — não rebaixa o que já está no disco
 caminho = baixar(:sim, "PE"; ano = 2023)
 
-# fully typed: dates → Date, SIM's IDADE → years, categoricals →
-# PooledArray, text → InlineStrings, CP850 → UTF-8
+# totalmente tipado: datas → Date, a IDADE do SIM → anos, categóricas →
+# PooledArray, texto → InlineStrings, CP850 → UTF-8
 df = DataFrame(ler(caminho))
 
-# column selection + row filtering IN THE READER
+# seleção de colunas + filtro de linhas DENTRO DO LEITOR
 t = ler(caminho;
         colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO],
         filtro  = r -> eh_agressao(r[:CAUSABAS]))   # CVLI: X85–Y09 + Y87.1
 cvli = DataFrame(t)
 
-# batch processing, constant memory
+# processamento em lotes, memória constante
 using Tables
 for lote in Tables.partitions(ler(caminho; tamanho_lote = 50_000))
-    # `lote` is a NamedTuple of vectors — a valid Tables.jl table
+    # `lote` é um NamedTuple de vetores — uma tabela Tables.jl válida
 end
 
-# .dbc → Arrow in streaming
+# .dbc → Arrow em streaming
 using Arrow
 converter(caminho, "do_pe_2023.arrow";
           colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES])
 ```
 
-## Functions
+## Funções
 
-### `ler` — Streaming table reader
+### `fetch_datasus` — tudo em um: baixa, lê e concatena
 
-Opens a `.dbc` or `.dbf` as a lazy `TabelaDBC`. Nothing is read until
-iteration. Column selection and row filtering happen in the reader —
-unrequested columns are never materialized, and the filter parses only
-the queried field before deciding whether to keep the row.
+A interface de mais alto nível: resolve a URL, baixa (com cache), lê,
+concatena as partes e opcionalmente padroniza os códigos em rótulos
+legíveis.
+
+```julia
+# óbitos de Pernambuco, 2019–2023, já padronizados
+do_pe = fetch_datasus(:SIM_DO; uf = "PE", anos = 2019:2023)
+
+# nascidos vivos de PE e BA, com os códigos brutos
+dn = fetch_datasus(:SINASC; uf = ["PE", "BA"], anos = 2022, processar = false)
+
+# internações hospitalares de PE no primeiro semestre de 2024
+rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
+
+# dengue no Brasil inteiro (fonte nacional: uf é ignorada)
+dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
+```
+
+O resultado concatena por nome de coluna (`cols = :union`) e acrescenta
+as colunas de origem `UF_ARQUIVO`, `ANO_ARQUIVO` e, nas fontes mensais,
+`MES_ARQUIVO`. Arquivos ausentes no FTP geram `@warn` e são pulados.
+
+Use [`fontes`](@ref) para listar todas as fontes disponíveis com seus
+identificadores, descrições, periodicidade e faixa de anos, ou
+[`fonte`](@ref) para inspecionar uma só:
+
+```julia
+fontes() |> DataFrame
+fonte(:SIM_DO)
+```
+
+### `ler` — leitor de tabelas em streaming
+
+Abre um `.dbc` ou `.dbf` como uma `TabelaDBC` preguiçosa. Nada é lido
+até a iteração. A seleção de colunas e o filtro de linhas acontecem
+**dentro do leitor**: colunas não pedidas nunca são materializadas, e o
+filtro decodifica só o campo consultado antes de decidir se guarda a
+linha.
 
 ```julia
 ler(caminho)
@@ -68,150 +108,171 @@ ler(caminho; schema = :auto, encoding = :cp850, pool = false)
 ler(caminho; tamanho_lote = 50_000)
 ```
 
-| Kwarg | Default | Description |
+| kwarg | default | descrição |
 |---|---|---|
-| `colunas` | `nothing` (all) | `Vector{Symbol}`; unlisted columns are never materialized |
-| `filtro` | `nothing` | `RegistroDBF -> Bool`, runs **before** column parsing |
-| `tamanho_lote` | `100_000` | Rows per partition — the pipeline's memory ceiling |
-| `schema` | `:auto` | Inferred from the file prefix; or `:sim`, `:sinasc`, `:sih`, `:sia`, `:cnes`, `:sinan`, your own `Dict{Symbol,Symbol}`, or `nothing` (DBF typing only) |
-| `encoding` | `:auto` | Header's language driver (DATASUS ⇒ `:cp850`); or `:cp850`, `:latin1`, `:cp1252`, `:utf8` |
-| `pool` | `true` | `PooledArray` for the schema's categoricals |
+| `colunas` | `nothing` (todas) | `Vector{Symbol}`; colunas fora da lista nunca são materializadas |
+| `filtro` | `nothing` | `RegistroDBF -> Bool`, roda **antes** do parse das colunas |
+| `tamanho_lote` | `100_000` | linhas por partição — o teto de memória do pipeline |
+| `schema` | `:auto` | deduzido do prefixo do arquivo; ou `:sim`, `:sinasc`, `:sih`, `:sia`, `:cnes`, `:sinan`, um `Dict{Symbol,Symbol}` seu, ou `nothing` (só a tipagem do DBF) |
+| `encoding` | `:auto` | language driver do cabeçalho (DATASUS ⇒ `:cp850`); ou `:cp850`, `:latin1`, `:cp1252`, `:utf8` |
+| `pool` | `true` | `PooledArray` nas categóricas do schema |
 
-Returns a [`TabelaDBC`](@ref) — a lazy table implementing `Tables.partitions`
-(batches) and `Tables.columns` (full materialization). Works directly with
-`DataFrame(t)`, `Arrow.write(out, t)`, etc.
+Devolve uma [`TabelaDBC`](@ref) — uma tabela preguiçosa que implementa
+`Tables.partitions` (lotes) e `Tables.columns` (materialização
+completa). Funciona direto em `DataFrame(t)`, `Arrow.write(saida, t)` etc.
 
-### `baixar` / `baixar_sinan` — Download with cache
+### `baixar` / `baixar_sinan` — download com cache
 
-Downloads `.dbc` files from DATASUS's FTP server with local caching
-(Scratch.jl). Duplicate calls return the cached path without re-downloading.
+Baixam arquivos `.dbc` do servidor FTP do DATASUS com cache local
+(Scratch.jl). Chamadas repetidas devolvem o caminho em cache, sem
+rebaixar.
 
 ```julia
-# SIM, SINASC, SIH, SIA, CNES — by UF
-baixar(:sim, "PE"; ano = 2023)                     # single file
-baixar(:sim, "PE"; anos = 2013:2023)               # multiple, parallel
-baixar(:sih, "PE"; anos = [2023], meses = 1:12)    # monthly
+# SIM, SINASC, SIH, SIA, CNES — por UF
+baixar(:sim, "PE"; ano = 2023)                     # um arquivo
+baixar(:sim, "PE"; anos = 2013:2023)               # vários, em paralelo
+baixar(:sih, "PE"; anos = [2023], meses = 1:12)    # mensal
 
-# SINAN — national files (no UF: filter by residence in ler)
+# SINAN — arquivos nacionais (sem UF: filtre pela residência no `ler`)
 baixar_sinan(:dengue; ano = 2024)                  # DENGBR24.dbc
-baixar_sinan(:zika; anos = 2016:2020)              # multiple years, parallel
+baixar_sinan(:zika; anos = 2016:2020)              # vários anos, em paralelo
 ```
 
-| Function | System | Periodicity |
+| Função | Sistema | Periodicidade |
 |---|---|---|
-| `baixar(:sim, uf)` | SIM (Mortality) | Annual |
-| `baixar(:sinasc, uf)` | SINASC (Live Births) | Annual |
-| `baixar(:sih, uf)` | SIH (Hospital) | Monthly |
-| `baixar(:sia, uf)` | SIA (Outpatient) | Monthly |
-| `baixar(:cnes, uf)` | CNES (Facilities) | Monthly |
-| `baixar_sinan(agravo)` | SINAN (Notifiable Diseases) | Annual (national) |
+| `baixar(:sim, uf)` | SIM (Mortalidade) | anual |
+| `baixar(:sinasc, uf)` | SINASC (Nascidos Vivos) | anual |
+| `baixar(:sih, uf)` | SIH (Hospitalar) | mensal |
+| `baixar(:sia, uf)` | SIA (Ambulatorial) | mensal |
+| `baixar(:cnes, uf)` | CNES (Estabelecimentos) | mensal |
+| `baixar_sinan(agravo)` | SINAN (Agravos de notificação) | anual (nacional) |
 
-Both functions automatically fall back to preliminary data folders
-(`PRELIM/`) when consolidated files don't exist yet, with a `@warn`.
+As duas funções caem automaticamente nas pastas de dados preliminares
+(`PRELIM/`) quando o arquivo consolidado ainda não existe, com um
+`@warn`.
 
-#### SINAN diseases
+#### Agravos do SINAN
 
 `:dengue`, `:chikungunya`, `:zika`, `:meningite`, `:tuberculose`,
 `:hanseniase`, `:hepatites`, `:violencia`, `:leishmaniose_visceral`,
 `:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`,
 `:intoxicacao_exogena`, `:acidente_animais`
 
-#### URL functions
+#### Funções de URL
 
 ```julia
-url_arquivo(:sinasc, "BA"; ano = 2022)      # URL only
+url_arquivo(:sinasc, "BA"; ano = 2022)      # só a URL
 url_arquivo(:sim, "PE"; ano = 2025, prelim = true)
 url_sinan(:meningite; ano = 2023)
 ```
 
-### `converter` — Streaming `.dbc` → Arrow
+### `converter` — `.dbc` → Arrow em streaming
 
-Converts `.dbc`/`.dbf` to Arrow in streaming (one record batch per
-batch). Memory is O(`tamanho_lote`). Requires `using Arrow`.
+Converte `.dbc`/`.dbf` para Arrow em streaming (um *record batch* por
+lote). Memória O(`tamanho_lote`). Requer `using Arrow`.
 
 ```julia
 using Arrow
-converter(caminho, "output.arrow")
-converter(caminho, "output.arrow";
+converter(caminho, "saida.arrow")
+converter(caminho, "saida.arrow";
           colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
           filtro  = r -> eh_agressao(r[:CAUSABAS]))
 ```
 
-### `materializar` — Materialize partitions
+### `materializar` — materializar as partições
 
-Consumes all partitions and concatenates columns into a `NamedTuple` of
-vectors. Equivalent to what `DataFrame(t)` calls internally.
+Consome todas as partições e concatena as colunas num `NamedTuple` de
+vetores. Equivale ao que `DataFrame(t)` chama internamente.
 
 ```julia
 nt = materializar(ler(caminho))
 ```
 
-### `descomprime_dbc_para_dbf` — Raw DBC → DBF
+### `descomprime_dbc_para_dbf` — DBC → DBF cru
 
-Converts `.dbc` → `.dbf` in streaming (constant memory, equivalent to
-`dbc2dbf` in the R package `read.dbc`).
+Converte `.dbc` → `.dbf` em streaming (memória constante, equivalente
+ao `dbc2dbf` do pacote R `read.dbc`).
 
 ```julia
-descomprime_dbc_para_dbf("input.dbc", "output.dbf")
+descomprime_dbc_para_dbf("entrada.dbc", "saida.dbf")
 ```
 
-### Schema decoding
+### Padronização das fontes
+
+[`process_sim`](@ref) e [`process_sinasc`](@ref) convertem os códigos
+crus em rótulos legíveis, datas em texto em `Date` e numéricos
+armazenados como texto em números. São chamados automaticamente por
+[`fetch_datasus`](@ref) quando `processar = true` (o default).
+
+```julia
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023)   # já padronizado
+bruto = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023, processar = false)
+padronizado = process_sim(bruto)                       # equivalente
+```
+
+No SIM isso rotula sexo, raça/cor, estado civil, escolaridade, local de
+ocorrência e circunstância do óbito, e cria a coluna `IDADE_ANOS` em
+anos completos. No SINASC, rotula tipo de parto, gravidez, escolaridade
+e estado civil da mãe, consultas de pré-natal e local de nascimento.
+
+### Decodificação de idade
 
 #### `decodifica_idade_sim` / `decodifica_idade_sinan`
 
-Converts SIM's 3-digit or SINAN's 4-digit age encoding to **years**:
+Convertem a codificação de idade do SIM (3 dígitos) ou do SINAN
+(4 dígitos) para **anos**:
 
 ```julia
 decodifica_idade_sim("425")   # 25.0
 decodifica_idade_sim("501")   # 101.0
-decodifica_idade_sim("310")   # 0.833… (10 months)
+decodifica_idade_sim("310")   # 0.833… (10 meses)
 decodifica_idade_sim("999")   # missing
 
 decodifica_idade_sinan("4025")  # 25.0
 decodifica_idade_sinan("5010")  # 110.0
 ```
 
-| Digit 1 | Unit | Example (SIM) | Years |
+| 1º dígito | unidade | exemplo (SIM) | anos |
 |---|---|---|---|
-| 0 | Minutes | `"030"` | 30 / 525960 |
-| 1 | Hours | `"112"` | 12 / 8766 |
-| 2 | Days | `"230"` | 30 / 365.25 |
-| 3 | Months | `"310"` | 10 / 12 |
-| 4 | Years | `"425"` | 25.0 |
-| 5 | 100 + value | `"501"` | 101.0 |
-| 9 | Ignored | `"999"` | `missing` |
+| 0 | minutos | `"030"` | 30 / 525 960 |
+| 1 | horas | `"112"` | 12 / 8 766 |
+| 2 | dias | `"230"` | 30 / 365,25 |
+| 3 | meses | `"310"` | 10 / 12 |
+| 4 | anos | `"425"` | 25,0 |
+| 5 | 100 + valor | `"501"` | 101,0 |
+| 9 | ignorada | `"999"` | `missing` |
 
-### IBGE municipality codes
+### Códigos de município do IBGE
 
 ```julia
-dv_ibge(261110)               # 1 (check digit)
-codigo7_ibge(261110)          # 2611101 (SIM/SINASC use 6; IBGE uses 7)
-codigo6_ibge(2611101)         # 261110, validating the check digit
+dv_ibge(261110)               # 1 (dígito verificador)
+codigo7_ibge(261110)          # 2611101 (SIM/SINASC usam 6; o IBGE, 7)
+codigo6_ibge(2611101)         # 261110, validando o DV
 ```
 
-### CID-10 chapters
+### Capítulos da CID-10
 
 ```julia
 capitulo_cid10("X954")        # (numeral="XX", nome="Causas externas …")
 capitulo_cid10("I219")        # (numeral="IX", nome="Doenças do aparelho circulatório")
-eh_agressao("X954")           # true — X85–Y09 + Y87.1 (CVLI subset)
-eh_agressao("Y10")            # false — indeterminate intent
+eh_agressao("X954")           # true — X85–Y09 + Y87.1 (recorte CVLI)
+eh_agressao("Y10")            # false — intenção indeterminada
 ```
 
-### Low-level
+### Baixo nível
 
 ```julia
-dcl_descomprime(io, chunk -> processar(chunk))   # streaming decompressor
-MicroSUS.cabecalho("file.dbc")                    # header only (fields, widths)
-MicroSUS.limpar_cache()                           # clear download cache
+dcl_descomprime(io, chunk -> processar(chunk))   # descompressor streaming
+MicroSUS.cabecalho("arquivo.dbc")                 # só o cabeçalho (campos, larguras)
+MicroSUS.limpar_cache()                           # limpa o cache de download
 ```
 
-## Tables.jl Compatibility
+## Compatibilidade com Tables.jl
 
-All reading functions produce [`TabelaDBC`](@ref) objects that implement the
-[Tables.jl](https://github.com/JuliaData/Tables.jl) interface. This means
-they work directly with DataFrames, Arrow, CSV, and any other Tables.jl
-consumer:
+Todas as funções de leitura produzem objetos [`TabelaDBC`](@ref), que
+implementam a interface [Tables.jl](https://github.com/JuliaData/Tables.jl).
+Ou seja, funcionam direto com DataFrames, Arrow, CSV e qualquer outro
+consumidor de Tables.jl:
 
 ```julia
 using DataFrames, Arrow
@@ -220,36 +281,37 @@ using DataFrames, Arrow
 df = DataFrame(ler(caminho))
 
 # Arrow
-Arrow.write("output.arrow", ler(caminho))
+Arrow.write("saida.arrow", ler(caminho))
 
-# Iterate in batches
-for batch in Tables.partitions(ler(caminho))
-    # batch is a NamedTuple of vectors
+# iterar em lotes
+for lote in Tables.partitions(ler(caminho))
+    # `lote` é um NamedTuple de vetores
 end
 ```
 
-## Streaming architecture
+## Arquitetura do streaming
 
 ```
-.dbc ──DCL 4KiB/chunk──▶ records ──filter──▶ typed parse ──▶ batches
-                         (raw)     (on        (only          (NamedTuple,
-                                   demand)     requested       Tables.jl)
-                                               columns)
+.dbc ──DCL 4KiB/chunk──▶ registros ──filtro──▶ parse tipado ──▶ lotes
+                         (crus)      (sob        (só as         (NamedTuple,
+                                      demanda)    colunas        Tables.jl)
+                                                  pedidas)
 ```
 
-The `.dbc` format is a DBF header in clear + 4 bytes CRC + PKWare DCL
-compressed records. The decompressor is a pure-Julia port of Mark Adler's
-`blast.c`, with the 4 KiB window emitted via a `sink` callback — this is
-what enables constant-memory reading regardless of file size.
+O formato `.dbc` é um cabeçalho DBF em claro + 4 bytes de CRC +
+registros comprimidos em PKWare DCL. O descompressor é um porte puro
+Julia do `blast.c` de Mark Adler, com a janela de 4 KiB emitida por um
+callback `sink` — é isso que permite a leitura com memória constante,
+qualquer que seja o tamanho do arquivo.
 
-Every stage is chained through `Channel`s with small buffers:
-back-pressure is automatic. If the consumer (your `for` loop or
-`Arrow.write`) slows down, decompression waits. The memory ceiling is
-`O(tamanho_lote)` — the batch being built plus one in transit —
-regardless of the original file size.
+Cada estágio é encadeado por `Channel`s com buffers pequenos: o
+*backpressure* é automático. Se o consumidor (seu laço `for` ou o
+`Arrow.write`) desacelera, a descompressão espera. O teto de memória é
+`O(tamanho_lote)` — o lote em construção mais um em trânsito —
+independente do tamanho do arquivo original.
 
-## API Reference
+## Referência da API
 
-See the [API Reference](api.md) page for the complete list of exported
-functions and types with their full signatures and docstrings. For
-internal implementation details, see the [Internals](internos.md) page.
+Veja a página [Referência da API](api.md) para a lista completa das funções
+e tipos exportados, com assinaturas e docstrings. Para detalhes de
+implementação, veja [Internos](internos.md).
