@@ -571,6 +571,9 @@ descartar essas linhas antes de contar.
 
 ## Para onde ir agora
 
+- [Exemplos intermediários](exemplos-intermediarios.md) — análises completas
+  com dados reais e, principalmente, as armadilhas do dado: denominador
+  populacional, padronização por idade, atraso de digitação, join com o IBGE.
 - [Leitura: `ler`, filtro, partições](guia/leitura.md) — como ler
   arquivos muito grandes sem estourar a memória do computador, e como
   filtrar as linhas já na leitura.

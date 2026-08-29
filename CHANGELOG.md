@@ -9,20 +9,70 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-29
+
 ### Added
 
+- `ler(...; ignorar_ausentes = true)` — drops requested columns that do not
+  exist in this file's layout instead of raising. The SIH layout gained fields
+  in 2011, 2013 and 2014, so asking for `:DIAGSEC1` used to abort the read of
+  2010 and force a defensive `cabecalho` call before every file. Dropped
+  columns are reported through `@debug`; if *none* of the requested columns
+  exists it is still an error, since that means a wrong file or a typo.
+- `cabecalho` is now exported and documented in the public API reference. It
+  reads the header without decompressing, which is the first thing any
+  multi-year analysis does, and it required the `MicroSUS.` prefix.
+- `process_sih` and `idade_sih` — standardization for SIH/SUS. Labels `SEXO`,
+  `RACA_COR`, `IDENT` and `CAR_INT`, and derives `IDADE_ANOS` from the
+  `IDADE` + `COD_IDADE` pair. Applied automatically by
+  `fetch_datasus(:SIH_RD; ...)`.
+
+  SIH codes differ from SIM's: `SEXO` is 1/3 (not 1/2) and `RACA_COR` is
+  `01`–`05` + `99` (not `1`–`5`, where "Parda" is `4`). Reusing a dictionary
+  across the two systems produces wrong labels with no error.
+
+  `COBRANCA` and `ESPEC` are deliberately left raw: their domains are large and
+  version-dependent, and `rotular!` turns an unmapped code into `missing`, so a
+  partial dictionary would silently erase valid data.
+- `baixar_sinan(:malaria)` / `url_sinan(:malaria)` — the agravo was registered
+  for `fetch_datasus` as `:SINAN_MALARIA` but missing from `_SINAN_AGRAVO`, so
+  the `baixar_sinan` path raised `ArgumentError` for a disease both READMEs
+  listed as available.
 - `CITATION.cff` and `CITATION.bib`, so GitHub's "Cite this repository" button
   works and a BibTeX entry is available. Both READMEs gained a "How to cite"
   section covering the software, the DATASUS data (with extraction date, since
   the databases are republished retroactively) and reproducibility, plus the
   standards behind those recommendations (FORCE11, CFF 1.2.0, ABNT NBR 6023).
-- `baixar_sinan(:malaria)` / `url_sinan(:malaria)` — the agravo was registered
-  for `fetch_datasus` as `:SINAN_MALARIA` but missing from `_SINAN_AGRAVO`, so
-  the `baixar_sinan` path raised `ArgumentError` for a disease both READMEs
-  listed as available.
+
+### Changed
+
+- **Breaking:** the `:sih` schema now types `MORTE`, `COD_IDADE`, `ANO_CMPT`
+  and `MES_CMPT` as integers. `MORTE` is DBF type `N`, so the previous `:pool`
+  actively downgraded a numeric field to pooled text and `sum(df.MORTE)` did
+  not do what it appeared to; the other three were absent from the schema and
+  fell back to text. Code comparing these columns to strings
+  (`df.MORTE .== "1"`) must be updated to compare to integers.
 
 ### Documentation
 
+- New "Exemplos intermediários" page: end-to-end analyses of AMI
+  hospitalisations in the Northeast, centred on the traps — layout drift across
+  years, the secondary-diagnosis field that moves between columns mid-series,
+  the 6-vs-7-digit IBGE municipality join, cross-system comparison without a
+  shared identifier, age standardisation, and the data-entry lag that truncates
+  the last three months of any competence-based extract. The full pipeline is
+  runnable at `docs/exemplo_intermediario.jl`; every number on the page came
+  from one run of it.
+- Shared plotting theme extracted to `docs/tema.jl`.
+- The schemas guide documents two layout traps that break long SIH series: the
+  field count changes (86 → 93 → 95 → 113 between 2010 and 2014), and the
+  secondary-diagnosis field moves — `DIAG_SECUN` is the live field through
+  2014, the `DIAGSEC1`–`DIAGSEC9` block appears empty in the 2014 layout and
+  takes over in January 2015, when the old one goes to zero. Counting only one
+  of them zeroes out half of any series that crosses the boundary.
+- The standardization helpers (`rotular!`, `para_data!`, `para_int!`,
+  `processar_fonte`) are now documented under Internals, with a note that an
+  unmapped code becomes `missing` — so a partial dictionary erases valid data.
 - Both READMEs document `process_sim` / `process_sinasc`, exported since 0.2.0
   but never mentioned.
 - Noted that SINAN's malaria file only covers extra-Amazonian notification —
@@ -124,7 +174,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/dantebertuzzi/MicroSUS.jl/releases/tag/v0.1.0

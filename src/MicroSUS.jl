@@ -41,12 +41,12 @@ using Tables
 export ler, materializar, converter, baixar, url_arquivo,
        baixar_sinan, url_sinan,
        dcl_descomprime, descomprime_dbc_para_dbf,
-       decodifica_idade_sim, decodifica_idade_sinan,
+       decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao,
        dv_ibge, codigo7_ibge, codigo6_ibge,
-       CabecalhoDBF, CampoDBF, TabelaDBC,
+       CabecalhoDBF, CampoDBF, TabelaDBC, cabecalho,
        fetch_datasus, fontes, fonte,
-       process_sim, process_sinasc
+       process_sim, process_sinasc, process_sih
 
 include("dcl.jl")
 include("encoding.jl")
@@ -61,6 +61,7 @@ include("sources.jl")
 include("process/process.jl")
 include("process/sim.jl")
 include("process/sinasc.jl")
+include("process/sih.jl")
 include("fetch.jl")
 
 """

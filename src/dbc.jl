@@ -123,7 +123,20 @@ end
     cabecalho(caminho) -> CabecalhoDBF
 
 Lê apenas o cabeçalho de um `.dbc` ou `.dbf` (campos, larguras,
-contagem de registros), sem tocar nos dados.
+contagem de registros), **sem descomprimir nem tocar nos dados**.
+
+É o primeiro comando de qualquer análise multi-ano: o layout do DATASUS muda
+entre anos, e conferir treze cabeçalhos custa menos que uma leitura.
+
+```julia
+cab = cabecalho("RDPE2201.dbc")
+cab.n_registros                              # 48562
+[c.nome for c in cab.campos]                 # nomes disponíveis
+:DIAGSEC1 in keys(cab.indice)                # o campo existe neste ano?
+```
+
+Para ler apenas as colunas que existem em cada arquivo de uma série, combine
+com `ler(...; ignorar_ausentes = true)`.
 """
 function cabecalho(caminho::AbstractString)
     if _eh_dbc(caminho)

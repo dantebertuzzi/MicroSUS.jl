@@ -221,7 +221,7 @@ Current FTP paths (checked against `microdatasus`, Jul 2026):
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); SIH/SIA cover the post-2008 structure.
 
-## Standardization: `process_sim` / `process_sinasc`
+## Standardization: `process_sim` / `process_sinasc` / `process_sih`
 
 `fetch_datasus` calls the source's standardization routine by default
 (`processar = true`). It replaces codes with readable labels, converts text
@@ -235,7 +235,18 @@ process_sim(raw)                                              # equivalent
 
 For SIM it labels `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO`
 and friends, and derives `IDADE_ANOS` in whole years. For SINASC: `PARTO`,
-`GRAVIDEZ`, `ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`.
+`GRAVIDEZ`, `ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`. For SIH:
+`SEXO`, `RACA_COR`, `IDENT`, `CAR_INT`, plus `IDADE_ANOS` from the `IDADE` +
+`COD_IDADE` pair.
+
+> **Careful with SIH**: `SEXO` is 1 = Male and **3** = Female (SIM uses 1 and
+> 2), and `RACA_COR` is `01`–`05` + `99` (SIM uses `1`–`5`, and "Parda" is `4`,
+> not `03`). Reusing a dictionary across the two systems yields wrong labels
+> with no error.
+
+`COBRANCA` and `ESPEC` are deliberately left raw: their domains are large and
+version-dependent, and since an unmapped code becomes `missing`, a partial
+dictionary would silently erase valid data.
 
 Columns absent from a given year's layout are silently skipped — DATASUS
 layouts change between years, and the routine is written to survive that. The
@@ -307,7 +318,7 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.2.1},
+  version = {0.3.0},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
 }

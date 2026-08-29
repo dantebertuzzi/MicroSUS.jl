@@ -19,6 +19,24 @@ largura fixa atravessando fronteiras de chunk e emite lotes de
 registros brutos por um `Channel`; `MicroSUS._canal_lotes` (em
 `src/tables.jl`) aplica filtro e parse e emite `NamedTuple`s prontos.
 
+## Helpers de padronização
+
+Usados por [`process_sim`](@ref), [`process_sinasc`](@ref) e
+[`process_sih`](@ref); são o que você reaproveita ao escrever a rotina de uma
+fonte ainda não coberta.
+
+```@docs
+MicroSUS.processar_fonte
+MicroSUS.rotular!
+MicroSUS.para_data!
+MicroSUS.para_int!
+```
+
+`rotular!` converte código **não mapeado em `missing`**. É deliberado — "9",
+"99" e afins significam "ignorado" —, mas implica que um dicionário incompleto
+apaga dados válidos em silêncio. Ao escrever um dicionário novo, cubra o
+domínio inteiro ou deixe a coluna crua.
+
 ## Encoding
 
 ```@docs

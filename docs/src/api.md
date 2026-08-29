@@ -44,6 +44,7 @@ fontes
 fonte
 process_sim
 process_sinasc
+process_sih
 ```
 
 ## Decodificação de schemas
@@ -51,6 +52,7 @@ process_sinasc
 ```@docs
 decodifica_idade_sim
 decodifica_idade_sinan
+idade_sih
 MicroSUS.SCHEMAS
 MicroSUS.detecta_sistema
 ```
@@ -70,7 +72,7 @@ eh_agressao
 ```@docs
 CabecalhoDBF
 CampoDBF
-MicroSUS.cabecalho
+cabecalho
 ```
 
 ## Baixo nível
