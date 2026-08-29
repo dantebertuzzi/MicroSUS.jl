@@ -1,0 +1,31 @@
+cff-version: 1.2.0
+title: MicroSUS.jl
+message: >-
+  If you use this software in academic work, please cite it
+  using the metadata in this file, and cite the DATASUS
+  microdata you analysed as a separate data source.
+type: software
+authors:
+  - given-names: Dante
+    family-names: Bertuzzi
+    email: dantesbertuzzi@gmail.com
+repository-code: 'https://github.com/dantebertuzzi/MicroSUS.jl'
+url: 'https://dantebertuzzi.github.io/MicroSUS.jl/'
+abstract: >-
+  Julia package for reading Brazilian public health
+  microdata (DATASUS): constant-memory streaming reads of
+  .dbc (PKWare DCL) and .dbf files, per-system typed schemas
+  (SIM, SINASC, SIH, SIA, CNES, SINAN), CP850 to UTF-8
+  transcoding, cached downloads, and a Tables.jl interface
+  with partitions.
+keywords:
+  - julia
+  - datasus
+  - public-health
+  - epidemiology
+  - microdata
+  - brazil
+  - dbc
+license: MIT
+version: 0.2.1
+date-released: '2026-08-29'

@@ -32,6 +32,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `COBRANCA` and `ESPEC` are deliberately left raw: their domains are large and
   version-dependent, and `rotular!` turns an unmapped code into `missing`, so a
   partial dictionary would silently erase valid data.
+- `baixar_sinan(:malaria)` / `url_sinan(:malaria)` — the agravo was registered
+  for `fetch_datasus` as `:SINAN_MALARIA` but missing from `_SINAN_AGRAVO`, so
+  the `baixar_sinan` path raised `ArgumentError` for a disease both READMEs
+  listed as available.
+- `CITATION.cff` and `CITATION.bib`, so GitHub's "Cite this repository" button
+  works and a BibTeX entry is available. Both READMEs gained a "How to cite"
+  section covering the software, the DATASUS data (with extraction date, since
+  the databases are republished retroactively) and reproducibility, plus the
+  standards behind those recommendations (FORCE11, CFF 1.2.0, ABNT NBR 6023).
 
 ### Changed
 
@@ -46,12 +55,12 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 - New "Exemplos intermediários" page: end-to-end analyses of AMI
   hospitalisations in the Northeast, centred on the traps — layout drift across
-  years, the dead `DIAG_SECUN` field, the 6-vs-7-digit IBGE municipality join,
-  cross-system comparison without a shared identifier, age standardisation, and
-  the data-entry lag that truncates the last three months of any
-  competence-based extract. The full pipeline is runnable at
-  `docs/exemplo_intermediario.jl`; every number on the page came from one run
-  of it.
+  years, the secondary-diagnosis field that moves between columns mid-series,
+  the 6-vs-7-digit IBGE municipality join, cross-system comparison without a
+  shared identifier, age standardisation, and the data-entry lag that truncates
+  the last three months of any competence-based extract. The full pipeline is
+  runnable at `docs/exemplo_intermediario.jl`; every number on the page came
+  from one run of it.
 - Shared plotting theme extracted to `docs/tema.jl`.
 - The schemas guide documents two layout traps that break long SIH series: the
   field count changes (86 → 93 → 95 → 113 between 2010 and 2014), and the
@@ -62,6 +71,11 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 - The standardization helpers (`rotular!`, `para_data!`, `para_int!`,
   `processar_fonte`) are now documented under Internals, with a note that an
   unmapped code becomes `missing` — so a partial dictionary erases valid data.
+- Both READMEs document `process_sim` / `process_sinasc`, exported since 0.2.0
+  but never mentioned.
+- Noted that SINAN's malaria file only covers extra-Amazonian notification —
+  Amazon cases go through SIVEP-Malária, which is not in this FTP. A file of a
+  few hundred KB is expected, not a truncated download.
 
 ## [0.2.1] - 2026-08-29
 
