@@ -9,6 +9,26 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Added
+
+- `CITATION.cff` and `CITATION.bib`, so GitHub's "Cite this repository" button
+  works and a BibTeX entry is available. Both READMEs gained a "How to cite"
+  section covering the software, the DATASUS data (with extraction date, since
+  the databases are republished retroactively) and reproducibility, plus the
+  standards behind those recommendations (FORCE11, CFF 1.2.0, ABNT NBR 6023).
+- `baixar_sinan(:malaria)` / `url_sinan(:malaria)` — the agravo was registered
+  for `fetch_datasus` as `:SINAN_MALARIA` but missing from `_SINAN_AGRAVO`, so
+  the `baixar_sinan` path raised `ArgumentError` for a disease both READMEs
+  listed as available.
+
+### Documentation
+
+- Both READMEs document `process_sim` / `process_sinasc`, exported since 0.2.0
+  but never mentioned.
+- Noted that SINAN's malaria file only covers extra-Amazonian notification —
+  Amazon cases go through SIVEP-Malária, which is not in this FTP. A file of a
+  few hundred KB is expected, not a truncated download.
+
 ## [0.2.1] - 2026-08-29
 
 ### Fixed

@@ -133,7 +133,7 @@ const _FTP_SINAN = "$_FTP_BASE/SINAN/DADOS"
 # agravo → prefixo do arquivo nacional (AGRAVOBR{aa})
 const _SINAN_AGRAVO = Dict(
     :dengue => "DENGBR", :chikungunya => "CHIKBR", :chik => "CHIKBR",
-    :zika => "ZIKABR",
+    :zika => "ZIKABR", :malaria => "MALABR",
     :leishmaniose_visceral => "LEIVBR", :leishmaniose_tegumentar => "LTANBR",
     :esquistossomose => "ESQUBR", :febre_tifoide => "FTIFBR",
     :meningite => "MENIBR", :tuberculose => "TUBEBR", :hanseniase => "HANSBR",
