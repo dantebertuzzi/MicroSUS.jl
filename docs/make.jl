@@ -17,6 +17,7 @@ makedocs(;
     ),
     pages = [
         "Home" => "index.md",
+        "Exemplos práticos (iniciantes)" => "exemplos.md",
         "O formato .dbc e o streaming" => "formato.md",
         "Guia" => [
             "Leitura: ler, filtro, partições" => "guia/leitura.md",
