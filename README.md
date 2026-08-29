@@ -300,6 +300,35 @@ fontes() |> DataFrame
 - Schemas cover the most-used fields of each system; fields outside the schema fall back to DBF typing (`N` → integer/float, `D` → date, `C` → text). Schema PRs are welcome.
 - Dimension tables with *names* (municipalities, 4-digit CID-10, CBO) are out of scope for the package — join with IBGE's DTB.
 
+## Disclaimer
+
+MicroSUS.jl is a **reading tool**, not a data source. It downloads and decodes
+files published by DATASUS / the Brazilian Ministry of Health; the content,
+accuracy and completeness of those files are the publishing agency's
+responsibility, not this project's.
+
+Three practical consequences:
+
+- **DATASUS republishes databases retroactively.** The same query on different
+  dates can return different numbers. Record your extraction date (see
+  [How to cite](#how-to-cite)).
+- **Preliminary data exists and is flagged.** When `baixar` falls back to a
+  `PRELIM/` folder it emits a `@warn`. An indicator computed over preliminary
+  data deserves an asterisk.
+- **The microdata has defects of its own.** Implausible codes, fields that stop
+  being filled mid-series, layouts that change between years. The documentation
+  records the ones we know — see
+  [Exemplos intermediários](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos-intermediarios/)
+  and the [CHANGELOG](CHANGELOG.md) — but the list is not exhaustive.
+
+The software is distributed **as is**, under the [MIT license](LICENSE), with
+no warranty of any kind and no liability for damages arising from its use.
+Validating results, checking the plausibility of the numbers and standing
+behind published conclusions is the analyst's job.
+
+Found a defect? [Open an issue](https://github.com/dantebertuzzi/MicroSUS.jl/issues) —
+that is how the list of known traps grows.
+
 ## How to cite
 
 If MicroSUS.jl was part of your analysis pipeline, cite **two things

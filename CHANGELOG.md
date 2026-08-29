@@ -9,6 +9,16 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Documentation
+
+- "Isenção de responsabilidade" section in both READMEs and on the
+  documentation home page. The MIT disclaimer already does the legal work, but
+  it is in English, in all caps, in a file nobody opens. This states in plain
+  language that the package is a reading tool rather than a data source, that
+  content and accuracy are the publishing agency's responsibility, that DATASUS
+  republishes retroactively, that preliminary data is flagged, and that
+  validating results is the analyst's job.
+
 ## [0.3.0] - 2026-08-29
 
 ### Added

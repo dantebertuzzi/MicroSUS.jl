@@ -300,6 +300,35 @@ fontes() |> DataFrame
 - Schemas cobrem os campos mais usados de cada sistema; campos fora do schema caem na tipagem do DBF (`N` → inteiro/float, `D` → data, `C` → texto). PRs de schema são bem-vindos.
 - Tabelas de dimensão com *nomes* (municípios, CID-10 4-dígitos, CBO) estão fora do escopo do pacote — faça join com a DTB do IBGE.
 
+## Isenção de responsabilidade
+
+O MicroSUS.jl é uma **ferramenta de leitura**, não uma fonte de dados. Ele
+baixa e decodifica arquivos publicados pelo DATASUS/Ministério da Saúde; o
+conteúdo, a exatidão e a completude desses arquivos são de responsabilidade do
+órgão que os publica, não deste projeto.
+
+Três consequências práticas:
+
+- **O DATASUS republica bases retroativamente.** A mesma consulta em datas
+  diferentes pode devolver números diferentes. Registre a data de extração
+  (ver [Como citar](#como-citar)).
+- **Dados preliminares existem e são sinalizados.** Quando o `baixar` cai numa
+  pasta `PRELIM/`, ele emite `@warn`. Indicador calculado sobre dado
+  preliminar merece asterisco.
+- **Os microdados têm defeitos próprios.** Códigos implausíveis, campos que
+  deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
+  A documentação registra os que conhecemos — ver
+  [Exemplos intermediários](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos-intermediarios/)
+  e o [CHANGELOG](CHANGELOG.md) —, mas a lista não é exaustiva.
+
+O software é distribuído **como está**, sob [licença MIT](LICENSE), sem
+garantia de qualquer espécie e sem responsabilidade por danos decorrentes do
+uso. Validar os resultados, conferir a plausibilidade dos números e responder
+pelas conclusões publicadas é de quem faz a análise.
+
+Encontrou um defeito? [Abra uma issue](https://github.com/dantebertuzzi/MicroSUS.jl/issues) —
+é assim que a lista de armadilhas conhecidas cresce.
+
 ## Como citar
 
 Se o MicroSUS.jl entrou no seu fluxo de análise, cite **duas coisas
