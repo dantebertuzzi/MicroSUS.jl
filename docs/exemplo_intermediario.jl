@@ -192,4 +192,18 @@ for m in 10:12
             lpad(m, 2, '0'), a, b, 100 * (b - a) / b)
 end
 
+# ── 7. sazonalidade, ou o degrau administrativo ──────────────────────────────
+println("\n── 7. índice mensal por UF (jan–set) ──")
+ip = copy(iam_p); ip.mes = month.(Date.(ip.DT_INTER))
+mm = combine(groupby(filter(:mes => ≤(9), ip), [:UF, :mes]), nrow => :n)
+mm = leftjoin(mm, combine(groupby(mm, :UF), :n => mean => :media), on = :UF)
+mm.indice = 100 .* mm.n ./ mm.media
+al = sort(mm[mm.UF .== "AL", :], :mes)
+println("  AL por mês: ", al.n)
+@printf("  média mensal jul–set / jan–jun em AL: %.2f\n",
+        mean(al[al.mes .≥ 7, :n]) / mean(al[al.mes .≤ 6, :n]))
+amp = combine(groupby(mm, :UF), :indice => (x -> maximum(x) - minimum(x)) => :a)
+@printf("  amplitude do índice: com AL %.0f, sem AL %.0f\n",
+        maximum(amp.a), maximum(amp[amp.UF .!= "AL", :a]))
+
 println("\nconcluído.")

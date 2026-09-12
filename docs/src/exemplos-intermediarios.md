@@ -259,8 +259,9 @@ A letalidade hospitalar foi de **6,7% com procedimento 0406 e 9,9% sem**.
   Desde a v0.3.0 os quatro campos vêm tipados e o problema não existe mais:
 
   ```julia
-  df = DataFrame(ler(caminho))
-  eltype(df.MORTE)      # Union{Missing, Int32}
+  df = DataFrame(ler(baixar(:sih, "PE"; anos = [2022], meses = [6],
+                            quieto = true)[1]; colunas = [:MORTE]))
+  eltype(df.MORTE)              # Union{Missing, Int32}
   sum(skipmissing(df.MORTE))    # agora faz o que parece
   ```
 
@@ -653,9 +654,17 @@ meses recentes.
 **Pergunta:** existe sazonalidade no infarto no Nordeste?
 
 ```julia
+ip = copy(iam_p)
+ip.mes = month.(Date.(ip.DT_INTER))   # mês da internação, não da competência
+
 mm = combine(groupby(filter(:mes => ≤(9), ip), [:UF, :mes]), nrow => :n)
 mm = leftjoin(mm, combine(groupby(mm, :UF), :n => mean => :media), on = :UF)
 mm.indice = 100 .* mm.n ./ mm.media          # 100 = mês típico daquela UF
+
+# amplitude do índice em cada UF, com e sem Alagoas
+amp = combine(groupby(mm, :UF), :indice => (x -> maximum(x) - minimum(x)) => :a)
+maximum(amp.a)                        # 111
+maximum(amp[amp.UF .!= "AL", :a])     #  44
 ```
 
 Normalizei cada UF pela própria média mensal porque o objeto da pergunta é o
@@ -673,14 +682,15 @@ inverno.
 A resposta à pergunta é **não** — e o gráfico entrega outra coisa no lugar.
 
 Alagoas sai de 44 internações em janeiro para 139 em setembro, em rampa
-monotônica a partir de junho: 2,24 vezes mais no segundo semestre que no
-primeiro. Isso não é um ciclo, é um **degrau**. A forma — subida sustentada sem
+monotônica a partir de junho — 44, 45, 69, 51, 66, 96, 125, 133, 139. A média
+mensal de julho a setembro é **2,14 vezes** a de janeiro a junho. Isso não é um
+ciclo, é um **degrau**. A forma — subida sustentada sem
 retorno — descarta sazonalidade e aponta para entrada de serviço novo,
 habilitação de leito ou mudança de registro. Investigar exigiria olhar o campo
 `CNES` e ver se apareceram estabelecimentos novos no meio do ano.
 
 Excluída Alagoas, a amplitude entre o mês mais alto e o mais baixo de qualquer
-UF cai de 111 para 46 pontos, sem padrão comum entre estados.
+UF cai de 111 para 44 pontos, sem padrão comum entre estados.
 
 **O que pode dar errado aqui**
 

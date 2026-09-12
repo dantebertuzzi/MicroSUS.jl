@@ -39,6 +39,11 @@ jobs:
             using Pkg
             Pkg.develop(PackageSpec(path=pwd()))
             Pkg.instantiate()'
+      # Os blocos das páginas de exemplos formam um pipeline: rodam em ordem e
+      # compartilham estado. O Documenter não os executa, então nome faltando
+      # ou coluna ausente só apareceria para quem tentasse seguir a página.
+      - name: Nomes e colunas dos blocos das páginas
+        run: julia --project=docs docs/checa_blocos.jl
       - run: |
           julia --project=docs -e '
             using Documenter: DocMeta, doctest
