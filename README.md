@@ -8,6 +8,7 @@
   <em>Ver <a href="README.pt.md">README.pt.md</a> para a versão em português.</em>
   <br>
   <a href="https://doi.org/10.5281/zenodo.22164178"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22164178.svg" alt="DOI"></a>
+  <a href="https://colab.research.google.com/github/dantebertuzzi/MicroSUS.jl/blob/main/notebooks/sim-pe-2023.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
 </div>
 
 DATASUS microdata in Julia — **streaming** reads of `.dbc`/`.dbf` with constant memory, per-system typed schemas (SIM, SINASC, SIH, SIA, CNES, SINAN), CP850 → UTF-8 transcoding, cached downloads, and a Tables.jl interface with partitions.
@@ -46,6 +47,23 @@ julia --project=docs docs/make.jl     # output at docs/build/index.html
 Documentation: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** (in Portuguese). Version history in [CHANGELOG.md](CHANGELOG.md).
 
 Julia ≥ 1.9 (conditional extensions). Dependencies: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow is optional (weak dep).
+
+## Notebook
+
+Nothing to install to try it: Google Colab runs Julia natively, and the badge above opens
+[`notebooks/sim-pe-2023.ipynb`](notebooks/sim-pe-2023.ipynb) there. Pick the Julia runtime under
+*Runtime ▸ Change runtime type* and run the cells.
+
+It takes one year of death certificates from Pernambuco (SIM, 2023 — 68,527 records), audits what
+is absent from them with [MissingPatterns.jl](https://github.com/dantebertuzzi/MissingPatterns.jl)
+— DATASUS codes absence as `9` or as a blank field, so the raw table reads as complete when a
+tenth of those cells are not — and only then does the statistics: deaths by month, age at death by
+cause, a Mann-Whitney and a chi-square, and a logistic regression, with the audit deciding what
+the model is allowed to claim. It is committed with the outputs of a real run, so it also reads on
+GitHub without being executed.
+
+The download needs a runtime that can open an FTP connection: DATASUS publishes over
+`ftp://ftp.datasus.gov.br` and has no HTTPS mirror.
 
 ## Quick start
 
