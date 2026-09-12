@@ -8,6 +8,7 @@
   <em>See <a href="README.md">README.md</a> for the English version.</em>
   <br>
   <a href="https://doi.org/10.5281/zenodo.22164178"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.22164178.svg" alt="DOI"></a>
+  <a href="https://colab.research.google.com/github/dantebertuzzi/MicroSUS.jl/blob/main/notebooks/sim-pe-2023.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open in Colab"></a>
 </div>
 
 Microdados do DATASUS em Julia — leitura **streaming** de `.dbc`/`.dbf` com memória constante, schemas tipados por sistema (SIM, SINASC, SIH, SIA, CNES, SINAN), transcodificação CP850 → UTF-8, download com cache local e interface Tables.jl com partições.
@@ -46,6 +47,23 @@ julia --project=docs docs/make.jl     # saída em docs/build/index.html
 Documentação: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** — comece pelos [Exemplos práticos (iniciantes)](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos/) se for a sua primeira vez. Histórico de versões em [CHANGELOG.md](CHANGELOG.md).
 
 Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow é opcional (weak dep).
+
+## Notebook
+
+Nada a instalar para experimentar: o Google Colab roda Julia nativamente, e o badge acima abre lá
+o [`notebooks/sim-pe-2023.ipynb`](notebooks/sim-pe-2023.ipynb). Escolha o runtime Julia em
+*Runtime ▸ Change runtime type* e execute as células.
+
+Ele pega um ano de declarações de óbito de Pernambuco (SIM, 2023 — 68.527 registros), audita o que
+está ausente nelas com o [MissingPatterns.jl](https://github.com/dantebertuzzi/MissingPatterns.jl)
+— o DATASUS codifica ausência como `9` ou campo em branco, então a tabela bruta se lê como
+completa quando um décimo dessas células não está lá — e só então faz a estatística: óbitos por
+mês, idade ao morrer por causa, um Mann-Whitney e um qui-quadrado, e uma regressão logística, com
+a auditoria decidindo o que o modelo tem direito de afirmar. Está commitado com as saídas de uma
+execução real, então também se lê no GitHub sem ser executado.
+
+O download exige um runtime capaz de abrir conexão FTP: o DATASUS publica em
+`ftp://ftp.datasus.gov.br` e não tem espelho HTTPS.
 
 ## Início rápido
 

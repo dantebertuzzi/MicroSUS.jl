@@ -9,6 +9,23 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Added
+
+- `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
+  Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
+  (SIM, 2023 — 68,527 records) with `fetch_datasus(...; processar = false)`, audits the raw codes
+  with [MissingPatterns.jl](https://github.com/dantebertuzzi/MissingPatterns.jl) — DATASUS codes
+  absence as `9` or as a blank field, so `isna` is what makes it visible — and then does the
+  statistics the audit supports: deaths by month, age at death by cause with `eh_agressao`, a
+  Mann-Whitney, a chi-square, and a logistic regression whose complete-case cost is the number
+  the audit already priced. Committed with the outputs of a real run, so it reads on GitHub
+  without being executed.
+
+  Two things the notebook establishes about this package's own output: the `isna` audit of the
+  raw frame reproduces `process_sim`'s `missing` counts exactly, field by field; and `OCUP`, which
+  `process_sim` deliberately leaves unlabelled, keeps 8,067 blank occupations that survive
+  standardisation looking like data.
+
 ### Documentation
 
 - `docs/checa_blocos.jl`, rodado pelo CI antes de construir a documentação. As
