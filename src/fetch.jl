@@ -89,7 +89,8 @@ function fetch_datasus(fonte_id::Symbol;
     end
 
     for a in anos_
-        a in f.anos || @warn "ano $a fora da faixa de cobertura conhecida de :$(f.id) ($(first(f.anos))+)"
+        a in f.anos || @warn "ano $a fora da faixa de cobertura conhecida de :$(f.id) " *
+            (last(f.anos) ≥ 2100 ? "($(first(f.anos))+)" : "($(first(f.anos))–$(last(f.anos)))")
     end
 
     arquivos = String[]
@@ -189,6 +190,20 @@ function _baixar_periodo(f::FonteDATASUS, uf, ano, mes; cache, verbose)
         achou = false
         candidatas = [_inserir_sufixo(u, sufixo) for u in f.urls(uf, ano, mes)]
         for (i, url_suf) in enumerate(candidatas)
+            if cache && i < length(candidatas) && _eh_url_prelim(url_suf) &&
+               _cache_valido(_destino_cache(url_suf))
+                # fonte que tenta o PRELIM primeiro (SIM_DOFET e afins): o
+                # preliminar do cache só vale enquanto estiver no FTP — saiu
+                # de lá, o ano foi consolidado e a próxima candidata é a certa.
+                # Sem rede, fica o do cache.
+                t = try
+                    _tamanho_remoto(url_suf)
+                catch e
+                    e isa ErroDeRede || rethrow()
+                    missing
+                end
+                t === nothing && continue
+            end
             url_usada = url_suf
             caminho = try
                 baixar_url(url_suf; cache, verbose)

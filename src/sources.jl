@@ -55,6 +55,28 @@ registrar!(FonteDATASUS(
     anos = 1996:2100,
 ))
 
+# Recortes nacionais do SIM (um arquivo por ano, Brasil inteiro, ano com dois
+# dígitos): óbitos fetais, infantis, por causas externas e maternos. O PRELIM
+# vem primeiro: o DATASUS põe o preliminar também em CID10/DOFET (DOFET25
+# idêntico nas duas pastas, com DOPE2025 só no PRELIM), e a ordem inversa o
+# daria como consolidado. Consolidado o ano, ele sai do PRELIM (2024 já saiu).
+for (id, pref, nome) in ((:SIM_DOFET, "DOFET", "óbitos fetais"),
+                         (:SIM_DOINF, "DOINF", "óbitos infantis (menores de 1 ano)"),
+                         (:SIM_DOEXT, "DOEXT", "óbitos por causas externas"),
+                         (:SIM_DOMAT, "DOMAT", "óbitos maternos"))
+    registrar!(FonteDATASUS(
+        id = id,
+        nome = "SIM — $nome (arquivo nacional)",
+        periodicidade = :anual,
+        abrangencia = :br,
+        urls = (_, ano, _) -> [
+            "$FTP_RAIZ/SIM/PRELIM/DOFET/$pref$(aa(ano)).dbc",
+            "$FTP_RAIZ/SIM/CID10/DOFET/$pref$(aa(ano)).dbc",
+        ],
+        anos = 1996:2100,
+    ))
+end
+
 # ---------------------------------------------------------------------------
 # SINASC — Sistema de Informações sobre Nascidos Vivos
 # ---------------------------------------------------------------------------
@@ -85,6 +107,23 @@ registrar!(FonteDATASUS(
         ["$FTP_RAIZ/SIHSUS/199201_200712/Dados/RD$(uf)$(aa(ano))$(mm(mes)).dbc"],
     anos = 1992:2100,
 ))
+
+# Os outros arquivos da AIH, na mesma pasta do RD. Início conferido no FTP
+# (PE): SP em 06/1997, RJ em 04/2006, ER em 2011.
+for (id, pref, nome, anos) in (
+        (:SIH_SP, "SP", "Serviços profissionais da AIH (arquivo SP)", 1997:2100),
+        (:SIH_RJ, "RJ", "AIHs rejeitadas (arquivo RJ)", 2006:2100),
+        (:SIH_ER, "ER", "AIHs rejeitadas, com o código do erro (arquivo ER)", 2011:2100))
+    registrar!(FonteDATASUS(
+        id = id,
+        nome = "SIH — $nome",
+        periodicidade = :mensal,
+        urls = (uf, ano, mes) -> ano >= 2008 ?
+            ["$FTP_RAIZ/SIHSUS/200801_/Dados/$pref$(uf)$(aa(ano))$(mm(mes)).dbc"] :
+            ["$FTP_RAIZ/SIHSUS/199201_200712/Dados/$pref$(uf)$(aa(ano))$(mm(mes)).dbc"],
+        anos = anos,
+    ))
+end
 
 # ---------------------------------------------------------------------------
 # SIA — Sistema de Informações Ambulatoriais (Produção Ambulatorial)
@@ -122,6 +161,37 @@ registrar!(FonteDATASUS(
     anos = 2005:2100,
 ))
 
+# As demais tabelas do CNES, uma pasta cada. Início conferido no FTP (PE):
+# LT em 10/2005, EQ e SR em 08/2005, as outras em 2007; EE parou em 12/2018.
+for (id, pref, nome, anos) in (
+        (:CNES_LT, "LT", "Leitos", 2005:2100),
+        (:CNES_EQ, "EQ", "Equipamentos", 2005:2100),
+        (:CNES_SR, "SR", "Serviços especializados", 2005:2100),
+        (:CNES_HB, "HB", "Habilitações", 2007:2100),
+        (:CNES_EP, "EP", "Equipes de saúde", 2007:2100),
+        (:CNES_RC, "RC", "Regras contratuais", 2007:2100),
+        (:CNES_IN, "IN", "Incentivos", 2007:2100),
+        (:CNES_EE, "EE", "Estabelecimentos de ensino", 2007:2018),
+        (:CNES_EF, "EF", "Estabelecimentos filantrópicos", 2007:2100),
+        (:CNES_GM, "GM", "Gestão e metas", 2007:2100))
+    registrar!(FonteDATASUS(
+        id = id,
+        nome = "CNES — $nome (arquivo $pref)",
+        periodicidade = :mensal,
+        urls = (uf, ano, mes) ->
+            ["$FTP_RAIZ/CNES/200508_/Dados/$pref/$pref$(uf)$(aa(ano))$(mm(mes)).dbc"],
+        anos = anos,
+    ))
+end
+
+# Prefixo do nome do arquivo mensal → fonte, para reconhecer arquivos do cache
+const _FONTE_MENSAL_DO_PREFIXO = Dict(
+    "RD" => :SIH_RD, "SP" => :SIH_SP, "RJ" => :SIH_RJ, "ER" => :SIH_ER,
+    "PA" => :SIA_PA, "ST" => :CNES_ST, "PF" => :CNES_PF, "LT" => :CNES_LT,
+    "EQ" => :CNES_EQ, "SR" => :CNES_SR, "HB" => :CNES_HB, "EP" => :CNES_EP,
+    "RC" => :CNES_RC, "IN" => :CNES_IN, "EE" => :CNES_EE, "EF" => :CNES_EF,
+    "GM" => :CNES_GM)
+
 # ---------------------------------------------------------------------------
 # SINAN — Agravos de notificação (arquivos nacionais)
 # ---------------------------------------------------------------------------
@@ -149,7 +219,8 @@ end
     fontes() -> Vector{NamedTuple}
 
 Lista as fontes de microdados disponíveis no pacote, com identificador,
-descrição, periodicidade, abrangência e faixa de anos.
+descrição, periodicidade, abrangência e faixa de anos (`ano_final` é
+`missing` para fontes ainda publicadas).
 
 # Exemplo
 ```julia
@@ -160,7 +231,8 @@ DataFrame(fontes())
 function fontes()
     fs = sort!(collect(values(FONTES)); by = f -> string(f.id))
     return [(id = f.id, nome = f.nome, periodicidade = f.periodicidade,
-             abrangencia = f.abrangencia, ano_inicial = first(f.anos))
+             abrangencia = f.abrangencia, ano_inicial = first(f.anos),
+             ano_final = last(f.anos) ≥ 2100 ? missing : last(f.anos))
             for f in fs]
 end
 

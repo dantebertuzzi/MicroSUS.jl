@@ -68,11 +68,15 @@ function _urls_candidatas(caminho::AbstractString)
         j === nothing && return vazio
         f = fonte(_fonte_sinan(AGRAVOS_SINAN[j].agravo))
         (f.urls(nothing, 2000 + parse(Int, m[2]), nothing), "")
+    elseif (m = match(r"^(DOFET|DOINF|DOEXT|DOMAT)(\d{2})$"i, nome)) !== nothing
+        aa = parse(Int, m[2])
+        (fonte(Symbol("SIM_", uppercase(m[1]))).urls(nothing, aa ≥ 90 ? 1900 + aa : 2000 + aa, nothing), "")
     elseif (m = match(r"^(DO|DN)([A-Za-z]{2})(\d{4})$"i, nome)) !== nothing
         f = fonte(uppercase(m[1]) == "DO" ? :SIM_DO : :SINASC)
         (f.urls(uppercase(m[2]), parse(Int, m[3]), nothing), "")
-    elseif (m = match(r"^(RD|PA|ST|PF)([A-Za-z]{2})(\d{2})(\d{2})([a-z]?)$"i, nome)) !== nothing
-        id = Dict("RD" => :SIH_RD, "PA" => :SIA_PA, "ST" => :CNES_ST, "PF" => :CNES_PF)[uppercase(m[1])]
+    elseif (m = match(r"^([A-Za-z]{2})([A-Za-z]{2})(\d{2})(\d{2})([a-z]?)$"i, nome)) !== nothing &&
+           haskey(_FONTE_MENSAL_DO_PREFIXO, uppercase(m[1]))
+        id = _FONTE_MENSAL_DO_PREFIXO[uppercase(m[1])]
         aa = parse(Int, m[3])
         (fonte(id).urls(uppercase(m[2]), aa ≥ 90 ? 1900 + aa : 2000 + aa, parse(Int, m[4])), m[5])
     else
@@ -200,6 +204,12 @@ function _verifica_um(caminho::AbstractString)
     end
 end
 
+# O consolidado `cons` (url, bytes) existe; o preliminar `prel` (ou nothing,
+# se saiu do FTP) também. Consolidou de fato, a menos que seja o próprio
+# preliminar copiado na pasta dos consolidados (DOFET25 em CID10/DOFET e em
+# PRELIM/DOFET, o mesmo arquivo): conta se o preliminar saiu ou se diferem.
+_consolidou(cons, prel) = prel === nothing || prel[2] != cons[2]
+
 function _verifica_um_sem_rede(caminho::AbstractString)
     reg = _le_origem(caminho)
     prelim = eh_preliminar(caminho)
@@ -214,10 +224,11 @@ function _verifica_um_sem_rede(caminho::AbstractString)
     end
     if prelim
         # o consolidado saiu? então o preliminar do cache está para ser trocado
-        achado = _primeira_existente(consolidadas)
-        achado === nothing ||
-            return linha(:consolidado_disponivel, achado[2], achado[1])
         urls = reg === nothing ? preliminares : [reg.url]
+        achado = _primeira_existente(consolidadas)
+        if achado !== nothing && _consolidou(achado, _primeira_existente(urls))
+            return linha(:consolidado_disponivel, achado[2], achado[1])
+        end
     else
         urls = reg === nothing ? consolidadas : [reg.url]
     end

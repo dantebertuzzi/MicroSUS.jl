@@ -890,6 +890,20 @@ end
         fnac = fonte(:SINAN_DENGUE)
         @test fnac.abrangencia == :br
 
+        # catálogo ampliado: todo prefixo mensal reconhecido é uma fonte, e
+        # cada fonte mensal tem prefixo reconhecido (o cache sabe a origem)
+        @test all(id -> haskey(MicroSUS.FONTES, id), values(MicroSUS._FONTE_MENSAL_DO_PREFIXO))
+        @test all(f -> f.id in values(MicroSUS._FONTE_MENSAL_DO_PREFIXO),
+                  filter(f -> f.periodicidade === :mensal, fs))
+        for id in (:SIM_DOFET, :SIM_DOINF, :SIM_DOEXT, :SIM_DOMAT)
+            @test fonte(id).abrangencia == :br
+            u = fonte(id).urls(nothing, 2025, nothing)
+            @test occursin("/PRELIM/", u[1]) && occursin("/CID10/", u[2])
+        end
+        ee = only(f for f in fs if f.id === :CNES_EE)
+        @test ee.ano_final == 2018
+        @test only(f for f in fs if f.id === :CNES_LT).ano_final === missing
+
         @test_throws ArgumentError fonte(:NAO_EXISTE)
     end
 
@@ -1068,6 +1082,55 @@ end
         @test first(c("DENGBR23.dbc")[1]) == url_sinan(:dengue; ano = 2023)
         @test first(c("SRCBR21.dbc")[1]) == url_sinan(:rubeola_congenita; ano = 2021)
         @test c("QUALQUER.dbc") == (String[], String[])
+        # fontes novas: SIM nacional (PRELIM primeiro), outros SIH e CNES
+        @test endswith(only(c("DOFET25.dbc")[1]), "SIM/CID10/DOFET/DOFET25.dbc")
+        @test endswith(only(c("DOFET25.dbc")[2]), "SIM/PRELIM/DOFET/DOFET25.dbc")
+        @test endswith(only(c("DOMAT96.dbc")[1]), "SIM/CID10/DOFET/DOMAT96.dbc")
+        @test endswith(only(c("LTPE2501.dbc")[1]), "CNES/200508_/Dados/LT/LTPE2501.dbc")
+        @test endswith(only(c("SPPE0601.dbc")[1]), "SIHSUS/199201_200712/Dados/SPPE0601.dbc")
+        @test endswith(only(c("ERSP2501.dbc")[1]), "SIHSUS/200801_/Dados/ERSP2501.dbc")
+        @test c("XXPE2501.dbc") == (String[], String[])
+    end
+
+    @testset "preliminar copiado na pasta dos consolidados (SIM_DOFET e afins)" begin
+        # o DATASUS põe DOFET25 em PRELIM/DOFET e, idêntico, em CID10/DOFET
+        dir = mktempdir()
+        mkpath(joinpath(dir, "FINAIS")); mkpath(joinpath(dir, "PRELIM"))
+        campos = [("SEXO", 'C', 1, 0)]
+        nome = "TESTECOPIA25.dbc"
+        for p in ("FINAIS", "PRELIM")
+            escreve_dbc(joinpath(dir, p, nome), campos, [["1"]])
+        end
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_COPIA, nome = "t", periodicidade = :anual, abrangencia = :br,
+            urls = (_, ano, _) -> ["file://" * joinpath(dir, p, "TESTECOPIA$(ano % 100).dbc")
+                                   for p in ("PRELIM", "FINAIS")],
+            anos = 2025:2025))
+        cache_prelim = joinpath(MicroSUS._dir_cache(), "PRELIM", nome)
+        cache_final = joinpath(MicroSUS._dir_cache(), nome)
+        f(; kw...) = fetch_datasus(:TESTE_COPIA; anos = 2025, processar = false,
+                                   verbose = false, kw...)
+        try
+            df = @test_logs (:warn, r"PRELIMINARES") f()
+            @test df.PRELIMINAR == [true]
+            # ainda no FTP: o preliminar do cache é usado
+            @test (@test_logs (:warn, r"PRELIMINARES") f()).PRELIMINAR == [true]
+
+            # consolidado: sai do PRELIM, e o da outra pasta muda
+            rm(joinpath(dir, "PRELIM", nome))
+            escreve_dbc(joinpath(dir, "FINAIS", nome), campos, [["1"], ["2"]])
+            df2 = @test_logs f()
+            @test df2.PRELIMINAR == [false, false]
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_COPIA)
+            rm(cache_final; force = true); rm(cache_prelim; force = true)
+            rm(cache_final * ".origem"; force = true); rm(cache_prelim * ".origem"; force = true)
+        end
+        # verificar_cache: a cópia (mesmo tamanho, preliminar ainda no FTP)
+        # não é consolidação; preliminar fora do FTP ou arquivo diferente, é
+        @test !MicroSUS._consolidou(("c", 10), ("p", 10))
+        @test MicroSUS._consolidou(("c", 10), nothing)
+        @test MicroSUS._consolidou(("c", 12), ("p", 10))
     end
 
     @testset "erro de rede não é arquivo ausente" begin

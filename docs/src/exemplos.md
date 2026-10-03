@@ -339,17 +339,25 @@ fontes() |> DataFrame
 | Identificador | Sistema | Periodicidade |
 |---|---|---|
 | `:SIM_DO` | Óbitos (SIM) | anual, por estado |
+| `:SIM_DOFET`, `:SIM_DOINF`, `:SIM_DOEXT`, `:SIM_DOMAT` | Óbitos fetais, infantis, por causas externas e maternos | anual, nacional |
 | `:SINASC` | Nascidos vivos | anual, por estado |
 | `:SIH_RD` | Internações hospitalares | mensal, por estado |
+| `:SIH_SP`, `:SIH_RJ`, `:SIH_ER` | Serviços profissionais da AIH; AIHs rejeitadas (com o erro, no ER) | mensal, por estado |
 | `:SIA_PA` | Produção ambulatorial | mensal, por estado |
 | `:CNES_ST` | Estabelecimentos de saúde | mensal, por estado |
 | `:CNES_PF` | Profissionais de saúde | mensal, por estado |
+| `:CNES_LT`, `:CNES_EQ`, `:CNES_SR` | Leitos, equipamentos, serviços especializados | mensal, por estado |
+| `:CNES_HB`, `:CNES_EP`, `:CNES_RC`, `:CNES_IN`, `:CNES_EF`, `:CNES_GM`, `:CNES_EE` | Habilitações, equipes, regras contratuais, incentivos, filantrópicos, gestão e metas, ensino (até 2018) | mensal, por estado |
 | `:SINAN_DENGUE` | Dengue | anual, nacional |
 | `:SINAN_CHIKUNGUNYA` | Chikungunya | anual, nacional |
 | `:SINAN_ZIKA` | Zika | anual, nacional |
 | `:SINAN_MALARIA` | Malária | anual, nacional |
 | `:SINAN_TUBERCULOSE` | Tuberculose | anual, nacional |
 | `:SINAN_VIOLENCIA` | Violência interpessoal/autoprovocada | anual, nacional |
+
+As fontes novas (os recortes nacionais do SIM, SP/RJ/ER do SIH e as demais
+tabelas do CNES) vêm brutas: ainda não têm rotina de padronização, e
+`fetch_datasus` avisa isso — `processar = false` silencia.
 
 ---
 
