@@ -46,7 +46,7 @@ export ler, materializar, converter, baixar, url_arquivo,
        normaliza_cid, cid_casa, cids_em, menciona_cid,
        dv_ibge, codigo7_ibge, codigo6_ibge,
        uf_de, regiao, municipio, municipios,
-       CabecalhoDBF, CampoDBF, TabelaDBC, cabecalho,
+       CabecalhoDBF, CampoDBF, TabelaDBC, TabelaConcatenada, cabecalho,
        fetch_datasus, fontes, fonte,
        process_sim, process_sinasc, process_sih, process_sinan
 
@@ -58,6 +58,7 @@ include("dimensoes.jl")
 include("agravos.jl")
 include("schema.jl")
 include("tables.jl")
+include("multi.jl")
 include("ftp.jl")
 include("download.jl")
 include("sources.jl")
@@ -74,6 +75,14 @@ include("fetch.jl")
 Converte um `.dbc`/`.dbf` para Arrow em streaming (um record batch por
 lote), sem materializar o arquivo inteiro. Requer `using Arrow` na
 sessão (extensão condicional). Aceita os mesmos kwargs de [`ler`](@ref).
+
+`entrada` também pode ser um vetor de caminhos: os arquivos vão para um
+único `.arrow`, com schema unificado (ver `ler(caminhos::AbstractVector)`).
+
+As colunas categóricas são gravadas como texto simples, sem dicionário:
+o leitor do Arrow.jl falha de forma intermitente em arquivos cujo
+dicionário cresce de um lote para outro. Por isso `converter` é o caminho
+recomendado em vez de `Arrow.write(saida, ler(caminho))`.
 """
 function converter end
 

@@ -101,12 +101,10 @@ dengue = DataFrame(ler(sinan_caminho;
     colunas = [:DT_NOTIFIC, :SG_UF, :ID_MN_RESI, :CLASSI_FIN, :NU_IDADE_N],
     filtro = r -> r[:SG_UF] == "26"))   # Pernambuco
 
-# download multi-ano em paralelo
+# download multi-ano em paralelo, um .arrow só
 caminhos = baixar(:sim, "PE"; anos = 2019:2023)
-for c in caminhos
-    converter(c, replace(basename(c), ".dbc" => ".arrow");
-              colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
-end
+converter(caminhos, "do_pe_2019_2023.arrow";
+          colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
 ```
 
 ## `ler` — referência
@@ -136,6 +134,25 @@ TabelaDBC — DOPE2023.dbc
     IDADE       C(3)     → idade_sim
     SEXO        C(1)     → pool
 ```
+
+### Vários arquivos
+
+`ler` também aceita um vetor de caminhos e devolve uma tabela só, em streaming
+— os lotes saem de um arquivo depois do outro, memória O(`tamanho_lote`):
+
+```julia
+t = ler(baixar(:sim, "PE"; anos = 2014:2023);
+        colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))
+DataFrame(t)          # + coluna :ARQUIVO com o arquivo de cada linha
+```
+
+Com `uniao = false` (padrão), arquivos com colunas diferentes são erro, e a
+mensagem diz quais faltam onde; `uniao = true` faz a união e preenche com
+`missing`. `origem = nothing` dispensa a coluna `:ARQUIVO`. Os tipos são
+unificados por coluna entre os arquivos — o DATASUS alarga campos e troca o
+tipo DBF de alguns entre anos —, então todo lote tem o mesmo schema e
+`converter(caminhos, "saida.arrow")` grava um `.arrow` só.
 
 ## Schemas
 

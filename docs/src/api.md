@@ -15,6 +15,7 @@ MicroSUS.MicroSUS
 ```@docs
 ler
 TabelaDBC
+TabelaConcatenada
 materializar
 ```
 

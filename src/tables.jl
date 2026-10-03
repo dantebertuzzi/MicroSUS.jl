@@ -132,7 +132,10 @@ function _novo_vetor(tl::Symbol, c::CampoDBF)
     (tl === :data_ddmmyyyy || tl === :data_yyyymmdd) &&
         return Vector{Union{Missing,Date}}()
     T = _tipo_texto(c.largura)
-    tl === :pool && return PooledArray(T[])
+    # pool de String, não de InlineString: o Arrow não grava dicionário de
+    # InlineString em mais de um record batch ("fatal error writing arrow
+    # data"), e o pool guarda só os valores distintos — custo desprezível.
+    tl === :pool && return PooledArray(String[])
     return T[]
 end
 

@@ -121,6 +121,30 @@ Devolve uma [`TabelaDBC`](@ref) — uma tabela preguiçosa que implementa
 `Tables.partitions` (lotes) e `Tables.columns` (materialização
 completa). Funciona direto em `DataFrame(t)`, `Arrow.write(saida, t)` etc.
 
+#### Vários arquivos
+
+Um vetor de caminhos vira uma tabela só, ainda em streaming: os lotes
+saem de um arquivo depois do outro, e a memória continua
+O(`tamanho_lote`) — dez anos de SIM passam como passaria um.
+
+```julia
+caminhos = baixar(:sim, "PE"; anos = 2014:2023)
+t = ler(caminhos; colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))
+cvli = DataFrame(t)        # + coluna :ARQUIVO ("DOPE2014.dbc", …)
+```
+
+Os kwargs de sempre valem para cada arquivo. Dois a mais:
+
+| kwarg | default | descrição |
+|---|---|---|
+| `uniao` | `false` | com `false`, arquivos com colunas diferentes são erro (a mensagem diz quais faltam onde); com `true`, a saída tem a união e as que faltam num arquivo vêm `missing` |
+| `origem` | `:ARQUIVO` | nome da coluna com o arquivo de cada linha; `nothing` para não criar |
+
+Os tipos são unificados por coluna — o DATASUS alarga campos e troca o
+tipo DBF de alguns entre anos —, então todo lote sai com o mesmo
+schema, como o Arrow exige. Devolve uma [`TabelaConcatenada`](@ref).
+
 ### `baixar` / `baixar_sinan` — download com cache
 
 Baixam arquivos `.dbc` do servidor FTP do DATASUS com cache local
@@ -181,6 +205,11 @@ converter(caminho, "saida.arrow")
 converter(caminho, "saida.arrow";
           colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
           filtro  = r -> eh_agressao(r[:CAUSABAS]))
+
+# vários arquivos num .arrow só, com schema unificado
+converter(baixar(:sih, "PE"; anos = 2010:2016, meses = 1:12), "rd_pe.arrow";
+          colunas = [:DIAG_PRINC, :DIAGSEC1, :VAL_TOT],
+          ignorar_ausentes = true, uniao = true)   # DIAGSEC1 só existe a partir de 2011
 ```
 
 ### `materializar` — materializar as partições

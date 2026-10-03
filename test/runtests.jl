@@ -5,6 +5,7 @@ using Dates
 using Random
 using Tables
 using PooledArrays
+using Arrow
 
 # ═════════════════════════════════════════════════════════════════════
 # Infra de teste 1: compressor DCL mínimo (literais crus + matches +
@@ -314,6 +315,86 @@ end
         mat = materializar(t)
         @test length(mat.ID) == n
         @test mat.ID == Int32.(1:n)
+    end
+
+    @testset "ler(caminhos) — vários arquivos como uma tabela" begin
+        dir = mktempdir()
+        # mesmo layout, larguras diferentes: COD C(3) num, C(10) noutro
+        a = escreve_dbc(joinpath(dir, "a.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 3, 0)],
+                        [[string(i), "x$(i % 3)"] for i in 1:2_500])
+        b = escreve_dbc(joinpath(dir, "b.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 10, 0)],
+                        [[string(i), "y$(i % 2)"] for i in 2_501:4_000])
+
+        t = ler([a, b]; tamanho_lote = 1_000)
+        @test t isa TabelaConcatenada
+        lotes = collect(Tables.partitions(t))
+        @test length(lotes) == 5                       # 3 de a + 2 de b
+        @test length(unique(map(l -> map(typeof, values(l)), lotes))) == 1
+        @test eltype(lotes[1].COD) == eltype(lotes[end].COD)   # largura unificada
+        d = DataFrame(t)
+        @test d.ID == Int32.(1:4_000)
+        @test d.COD[1] == "x1" && d.COD[end] == "y0"
+        @test d.ARQUIVO == [fill("a.dbc", 2_500); fill("b.dbc", 1_500)]
+        @test propertynames(DataFrame(ler([a, b]; origem = nothing))) == [:ID, :COD]
+        @test propertynames(DataFrame(ler([a, b]; origem = :FONTE))) == [:ID, :COD, :FONTE]
+        @test_throws ArgumentError ler([a, b]; origem = :ID)
+        @test_throws ArgumentError ler(String[])
+
+        # filtro e colunas valem para cada arquivo
+        f = DataFrame(ler([a, b]; colunas = [:COD], filtro = r -> r[:COD] in ("x0", "y0")))
+        @test nrow(f) == 833 + 750
+        @test propertynames(f) == [:COD, :ARQUIVO]
+
+        # layouts diferentes: erro por padrão, união com missing se pedido
+        c = escreve_dbc(joinpath(dir, "c.dbc"), [("ID", 'N', 6, 0), ("NOVO", 'C', 2, 0)],
+                        [["9001", "n1"], ["9002", "n2"]])
+        e = try ler([a, c]); nothing catch err; err end
+        @test e isa ArgumentError && occursin("faltam em", e.msg) && occursin("uniao = true", e.msg)
+        u = DataFrame(ler([a, c]; uniao = true))
+        @test propertynames(u) == [:ID, :COD, :NOVO, :ARQUIVO]
+        @test all(ismissing, u.COD[2_501:end]) && all(ismissing, u.NOVO[1:2_500])
+        @test u.NOVO[end] == "n2"
+        # com `colunas`, a ordem é a pedida mesmo que o 1º arquivo não tenha a coluna
+        o = DataFrame(ler([c, a]; colunas = [:COD, :NOVO, :ID], ignorar_ausentes = true,
+                          uniao = true))
+        @test propertynames(o) == [:COD, :NOVO, :ID, :ARQUIVO]
+
+        # campo que muda de tipo: inteiro + decimal → Float64; N + C → texto, com aviso
+        g = escreve_dbc(joinpath(dir, "g.dbc"), [("ID", 'N', 8, 2), ("COD", 'C', 3, 0)],
+                        [["1.50", "z"]])
+        @test eltype(DataFrame(ler([a, g])).ID) == Union{Missing,Float64}
+        h = escreve_dbc(joinpath(dir, "h.dbc"), [("ID", 'C', 6, 0), ("COD", 'C', 3, 0)],
+                        [["abc", "z"]])
+        th = @test_logs (:warn, r"ID muda de tipo") ler([a, h])
+        dh = DataFrame(th)
+        @test eltype(dh.ID) == String && dh.ID[1] == "1" && dh.ID[end] == "abc"
+
+        # colunas categóricas: pool de String em todo arquivo e lote
+        pa = DataFrame(ler([a, b]; schema = Dict(:COD => :pool), tamanho_lote = 1_000))
+        @test pa.COD isa PooledArray && eltype(pa.COD) == String
+    end
+
+    @testset "Arrow: vários lotes com coluna categórica, e vários arquivos" begin
+        dir = mktempdir()
+        a = escreve_dbc(joinpath(dir, "a.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 3, 0)],
+                        [[string(i), "x$(i % 3)"] for i in 1:2_500])
+        b = escreve_dbc(joinpath(dir, "b.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 10, 0)],
+                        [[string(i), "y$(i % 2)"] for i in 2_501:4_000])
+        pool = Dict(:COD => :pool)
+        # regressão: o dicionário de InlineString quebrava o Arrow no 2º lote
+        s1 = converter(a, joinpath(dir, "a.arrow"); schema = pool, tamanho_lote = 1_000)
+        @test DataFrame(Arrow.Table(s1)) == DataFrame(ler(a; schema = pool))
+        s2 = converter([a, b], joinpath(dir, "ab.arrow"); schema = pool, tamanho_lote = 1_000)
+        r = DataFrame(Arrow.Table(s2))
+        @test nrow(r) == 4_000
+        @test r == DataFrame(ler([a, b]; schema = pool))
+        # valores novos de categoria em lotes posteriores: com dicionário, o
+        # leitor do Arrow.jl falhava de vez em quando; sem ele, nunca
+        c = escreve_dbc(joinpath(dir, "c.dbc"), [("COD", 'C', 3, 0)],
+                        [["z$(i ÷ 500)"] for i in 1:2_500])
+        s3 = converter(c, joinpath(dir, "c.arrow"); schema = pool, tamanho_lote = 500)
+        @test all(_ -> length(Arrow.Table(s3).COD) == 2_500, 1:20)
+        @test !(Arrow.Table(s3).COD isa Arrow.DictEncoded)
     end
 
     @testset "idade SIM — tabela de unidades" begin

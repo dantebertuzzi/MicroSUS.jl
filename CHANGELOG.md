@@ -42,6 +42,18 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 - `rotular!(...; ignora_zeros = true)`: `"01"` e `"1"` dão o mesmo rótulo. O
   SINAN grava as duas formas no mesmo arquivo (ZIKABR23: 1.101 `"01"` e 502
   `"1"` em `CS_ESCOL_N`); sem isso, metade dos registros viraria `missing`.
+- `ler(caminhos::AbstractVector)`: vários `.dbc`/`.dbf` como uma tabela só
+  (`TabelaConcatenada`), em streaming — os lotes saem de um arquivo depois do
+  outro e a memória continua O(`tamanho_lote`). Os tipos são unificados por
+  coluna (texto de larguras diferentes vira a `InlineString` mais larga,
+  inteiro + decimal vira `Float64`, outra mudança de tipo vira `String` com
+  aviso), então todo lote tem o mesmo schema. `uniao = true` faz a união de
+  layouts diferentes com `missing`; sem ele, a diferença é erro e a mensagem
+  diz o que falta onde. `origem` (padrão `:ARQUIVO`) acrescenta o arquivo de
+  cada linha. Com `colunas`, a ordem da saída é a pedida. Validado com o SIM de
+  PE 2010–2023 (902.936 registros, 100 colunas na união) e o SIH de 2010 + 2016
+  (`DIAGSEC1` só a partir de 2011): idêntico à leitura arquivo a arquivo.
+- `converter` aceita um vetor de caminhos e grava um `.arrow` só.
 
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
@@ -69,6 +81,9 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   aceitos.
 - `:SINAN_CHIKUNGUNYA` começa em 2014 (era 2015) e `:SINAN_ZIKA` em 2015 (era
   2016): os dois anos estão publicados.
+- O tipo do elemento das colunas categóricas (`pool = true`) passou de
+  `InlineString` para `String`. Comparações (`== "261110"`) não mudam; código
+  que dependia do tipo exato do elemento, sim.
 
 ### Fixed
 
@@ -82,6 +97,21 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 - `detecta_sistema` olhava só as 4 primeiras letras do nome, o que não serve
   para prefixos de 3 (`SRCBR21.dbc`, rubéola congênita); agora casa o nome
   inteiro (`{PREFIXO}BR{aa}.dbc`).
+- `converter` — e `Arrow.write(saida, ler(caminho))`, como a docstring de `ler`
+  sugere — falhava com `fatal error writing arrow data` em todo arquivo que
+  produzisse mais de um lote e tivesse uma coluna categórica: o Arrow não grava
+  o dicionário de um `PooledArray` de `InlineString` em mais de um record batch.
+  Com o lote padrão de 100.000 linhas, isso derrubava a conversão de qualquer
+  UF grande (`DOSP2023`, 334.303 registros). As colunas categóricas agora usam
+  `PooledArray{String}`; o pool guarda só os valores distintos, e a leitura do
+  `DOSP2023` inteiro não mudou de tempo nem de memória. Arrow entrou nas
+  dependências de teste, com um teste de regressão.
+- `converter` grava as colunas categóricas como texto simples, sem
+  dicionário. Com dicionário, um valor que só aparece num lote posterior vira
+  um *delta*, e o leitor do Arrow.jl 2.8 falha de forma intermitente ao abrir
+  o arquivo (`MethodError` em `resize!` de um `DictEncoded`) — o que acontece
+  ao juntar UFs ou anos num `.arrow` só. O `DOSP2023` sai 13% maior (161 MiB
+  contra 142 MiB) e é gravado 3× mais rápido.
 ### Documentation
 
 - `docs/checa_blocos.jl`, rodado pelo CI antes de construir a documentação. As

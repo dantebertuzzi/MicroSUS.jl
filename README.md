@@ -101,12 +101,10 @@ dengue = DataFrame(ler(sinan_path;
     colunas = [:DT_NOTIFIC, :SG_UF, :ID_MN_RESI, :CLASSI_FIN, :NU_IDADE_N],
     filtro = r -> r[:SG_UF] == "26"))   # Pernambuco
 
-# multi-year download in parallel
+# multi-year download in parallel, a single .arrow
 caminhos = baixar(:sim, "PE"; anos = 2019:2023)
-for c in caminhos
-    converter(c, replace(basename(c), ".dbc" => ".arrow");
-              colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
-end
+converter(caminhos, "do_pe_2019_2023.arrow";
+          colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
 ```
 
 ## `ler` — reference
@@ -136,6 +134,25 @@ TabelaDBC — DOPE2023.dbc
     IDADE       C(3)     → idade_sim
     SEXO        C(1)     → pool
 ```
+
+### Several files
+
+`ler` also takes a vector of paths and returns a single table, still streaming
+— batches come out of one file after the other, memory O(`tamanho_lote`):
+
+```julia
+t = ler(baixar(:sim, "PE"; anos = 2014:2023);
+        colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))
+DataFrame(t)          # + an :ARQUIVO column with each row's file
+```
+
+With `uniao = false` (the default), files with different columns are an error,
+and the message says which are missing where; `uniao = true` takes the union and
+fills with `missing`. `origem = nothing` drops the `:ARQUIVO` column. Types are
+unified per column across files — DATASUS widens fields and changes some
+fields' DBF type between years — so every batch has the same schema and
+`converter(caminhos, "out.arrow")` writes a single `.arrow`.
 
 ## Schemas
 
