@@ -20,6 +20,20 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `colunas` e `filtro`, `cid_casa`/`menciona_cid`, `municipio`/`uf_de`/`regiao`
   e `populacao`.
 
+- `process_cnes`, aplicado por `fetch_datasus` a `:CNES_ST` e `:CNES_PF`:
+  rotula 119 campos categóricos do CNES (tipo de unidade, esfera, natureza
+  jurídica, nível de hierarquia, gestão, vínculo com o SUS, turno, clientela,
+  os indicadores de serviços). Os dicionários (`data/rotulos_cnes.tsv`) vêm do
+  `microdatasus` (MIT, `data/LICENSE-microdatasus`), restritos aos campos cujos
+  códigos observados em arquivos reais de 2005, 2019 e 2023 estão todos
+  cobertos; corrigido "luvrativa" → "lucrativa". Nos cinco arquivos de
+  validação, um único valor (código `3301` de `NAT_JUR`) fica sem rótulo. Os
+  rótulos não foram conferidos contra as tabelas oficiais (`TAB_CNES`).
+- `rotular!(...; avisar = true, ignorados)`: código fora do dicionário vira
+  `missing` com um `@warn` que diz qual e em quantos registros — contados por
+  linha, mesmo em colunas categóricas. `process_cnes` usa; as rotinas com
+  dicionários próprios (SIM, SINASC, SIH, SINAN) seguem sem aviso.
+
 - Busca de CID-10: `cid_casa(cid, alvos)` aceita prefixos (`"A81"`) e faixas de
   categorias (`"X85" => "Y09"`), normalizando ponto, espaço e caixa
   (`normaliza_cid`); `cids_em(texto)` separa os códigos concatenados das linhas

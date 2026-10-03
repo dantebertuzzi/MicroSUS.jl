@@ -265,7 +265,7 @@ Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); SIH/SIA cobrem a estrutura pós-2008.
 
-## Padronização: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan`
+## Padronização: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan` / `process_cnes`
 
 `fetch_datasus` chama a rotina de padronização da fonte por padrão
 (`processar = true`). Ela troca códigos por rótulos legíveis, converte datas
@@ -303,9 +303,16 @@ entre versões da tabela da AIH, e como código não mapeado vira `missing`, um
 dicionário incompleto apagaria dados válidos em silêncio.
 
 Colunas ausentes no layout do ano são ignoradas em silêncio — o layout do
-DATASUS muda entre anos, e a rotina é escrita para sobreviver a isso. As demais
-fontes (SIA, CNES) ainda não têm rotina: devolvem os códigos brutos com um
-`@info`.
+DATASUS muda entre anos, e a rotina é escrita para sobreviver a isso.
+
+No CNES (estabelecimentos e profissionais), `process_cnes` rotula 119 campos —
+tipo de unidade, esfera, natureza jurídica, nível de hierarquia, gestão,
+vínculo com o SUS, turno, os indicadores de serviços. Os dicionários vêm do
+[microdatasus](https://github.com/rfsaldanha/microdatasus) (MIT) e só entram
+campos cujos códigos observados em arquivos reais estão todos cobertos; como
+os rótulos não foram conferidos contra as tabelas oficiais, um código fora do
+dicionário vira `missing` **com aviso**, nunca em silêncio. O SIA ainda não tem
+rotina: devolve os códigos brutos com um `@info`.
 
 ## Dimensões auxiliares
 

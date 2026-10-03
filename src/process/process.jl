@@ -17,6 +17,7 @@ function processar_fonte(id::Symbol, df::DataFrame; verbose::Bool = true,
     id === :SIM_DO  && return process_sim(df; copiar)
     id === :SINASC  && return process_sinasc(df; copiar)
     id === :SIH_RD  && return process_sih(df; copiar)
+    id in (:CNES_ST, :CNES_PF) && return process_cnes(df; copiar)
     if startswith(string(id), "SINAN_")
         agravo = Symbol(lowercase(string(id)[7:end]))
         return process_sinan(df; agravo = haskey(SINAN_AGRAVOS, agravo) ? agravo : nothing,
@@ -40,19 +41,37 @@ do DATASUS varia entre anos.
 Com `ignora_zeros = true`, zeros à esquerda são descartados antes da
 consulta (`"01"` e `"1"` dão o mesmo rótulo; `"00"` vira `"0"`): o SINAN
 grava as duas formas no mesmo arquivo.
+
+Com `avisar = true`, códigos que não estão em `labels` nem em `ignorados`
+(os códigos de "ignorado", que viram `missing` por definição) geram um
+`@warn` com quais são e quantos valores viraram `missing` — para os
+dicionários que vêm de fora e podem não cobrir todo código de todo ano.
 """
 function rotular!(df::DataFrame, col::Symbol, labels::Dict{String,String};
-                  ignora_zeros::Bool = false)
+                  ignora_zeros::Bool = false, avisar::Bool = false,
+                  ignorados = ())
     hasproperty(df, col) || return df
-    df[!, col] = map(df[!, col]) do v
-        v === missing && return missing
+    chave(v) = begin
+        v === missing && return ""
         s = string(_limpa(v))
-        isempty(s) && return missing
-        if ignora_zeros && all(isdigit, s)
+        if ignora_zeros && !isempty(s) && all(isdigit, s)
             s = lstrip(s, '0')
             isempty(s) && (s = "0")
         end
-        get(labels, s, missing)
+        s
+    end
+    original = df[!, col]
+    df[!, col] = map(v -> (s = chave(v); isempty(s) ? missing : get(labels, s, missing)), original)
+    if avisar
+        # por linha, não pelo map: numa coluna categórica o map só visita o dicionário
+        fora = Dict{String,Int}()
+        for v in original
+            s = chave(v)
+            (isempty(s) || haskey(labels, s) || s in ignorados) && continue
+            fora[s] = get(fora, s, 0) + 1
+        end
+        isempty(fora) || @warn "coluna $col: $(sum(values(fora))) valor(es) com código sem " *
+            "rótulo viraram missing" codigos = sort!(collect(fora); by = last, rev = true)
     end
     return df
 end

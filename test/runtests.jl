@@ -1116,6 +1116,31 @@ end
         @test process_sinan(DataFrame(OUTRACOISA = [1])) == DataFrame(OUTRACOISA = [1])
     end
 
+    @testset "process_cnes e rotular!(...; avisar)" begin
+        df = DataFrame(TP_UNID = ["02", "2", "36", "999"], TPGESTAO = ["M", "E", "D", "M"],
+                       VINC_SUS = ["1", "0", "1", ""], ESFERA_A = ["-99", "3", "03", "4"],
+                       OUTRA = ["x", "y", "z", "w"])
+        out = @test_logs (:warn, r"TP_UNID: 1 valor") match_mode = :any process_cnes(df)
+        @test isequal(out.TP_UNID, ["Centro de saúde / Unidade básica",
+                                    "Centro de saúde / Unidade básica",
+                                    out.TP_UNID[3], missing])          # 999 não existe: aviso
+        @test out.TP_UNID[3] isa String && startswith(out.TP_UNID[3], "Clínica")
+        @test out.TPGESTAO == ["Municipal", "Estadual", "Dupla", "Municipal"]
+        @test isequal(out.VINC_SUS, ["Sim", "Não", "Sim", missing])
+        @test isequal(out.ESFERA_A, [missing, "Municipal", "Municipal", "Privada"])   # -99: ignorado, sem aviso
+        @test out.OUTRA == df.OUTRA && df.TP_UNID[1] == "02"                          # original intacto
+        @test MicroSUS.processar_fonte(:CNES_ST, df; verbose = false).TPGESTAO[2] == "Estadual"
+        @test MicroSUS.processar_fonte(:CNES_PF, DataFrame(PF_PJ = ["3"])).PF_PJ == ["Pessoa jurídica"]
+
+        # rotular!: sem `avisar`, o comportamento de sempre (sem log)
+        r = DataFrame(X = PooledArray(["1", "9", "1", "9", "8"]))
+        @test_logs MicroSUS.rotular!(copy(r), :X, Dict("1" => "um"))
+        # com `avisar`, a contagem é por linha, mesmo numa coluna categórica
+        @test_logs (:warn, r"3 valor") MicroSUS.rotular!(copy(r), :X, Dict("1" => "um"); avisar = true)
+        @test_logs (:warn, r"1 valor") MicroSUS.rotular!(copy(r), :X, Dict("1" => "um");
+                                                          avisar = true, ignorados = ("9",))
+    end
+
     @testset "rotular! — ignora_zeros" begin
         df = DataFrame(X = ["01", "1", "00", "10", "A1"])
         dic = Dict("0" => "zero", "1" => "um", "10" => "dez", "A1" => "a-um")
