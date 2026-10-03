@@ -22,7 +22,7 @@ registros brutos por um `Channel`; `MicroSUS._canal_lotes` (em
 ## Helpers de padronização
 
 Usados por [`process_sim`](@ref), [`process_sinasc`](@ref),
-[`process_sih`](@ref) e [`process_sinan`](@ref); são o que você reaproveita ao escrever a rotina de uma
+[`process_sih`](@ref), [`process_sinan`](@ref) e [`process_cnes`](@ref); são o que você reaproveita ao escrever a rotina de uma
 fonte ainda não coberta.
 
 ```@docs

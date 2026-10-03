@@ -1,0 +1,540 @@
+# Rótulos dos campos categóricos do CNES (arquivos ST e PF), usados por
+# process_cnes. Derivados das rotinas de padronização do microdatasus
+# (https://github.com/rfsaldanha/microdatasus, R/process_cnes.R),
+# Copyright (c) 2021 microdatasus authors, sob a licença MIT — ver
+# data/LICENSE-microdatasus.
+#
+# Só entram os campos cujos códigos observados nos arquivos STPE2312,
+# STBA2312, STAC1901, STPE0512 e PFPE0512 estão todos no dicionário.
+# Códigos numéricos sem zeros à esquerda ("01" → "1"); \N = código de
+# "ignorado", que vira missing sem aviso. Corrigido "luvrativa" → "lucrativa".
+#
+# campo	codigo	rotulo
+PF_PJ	1	Pessoa física
+PF_PJ	3	Pessoa jurídica
+NIV_DEP	1	Individual
+NIV_DEP	3	Mantida
+COD_IR	0	\N
+COD_IR	10	Estabelecimento público
+COD_IR	11	Estabelecimento filantrópico
+COD_IR	12	Estabelecimento sem fins lucrativos
+COD_IR	13	Estabelecimento privado lucrativa simples
+COD_IR	14	Estabelecimento privado lucrativa
+COD_IR	15	Estabelecimento sindical
+COD_IR	16	Estabelecimento pessoa física
+COD_IR	19	Estabelecimento Ret.Manten.código 19
+VINC_SUS	0	Não
+VINC_SUS	1	Sim
+VINC_SUS	2	Não
+TPGESTAO	D	Dupla
+TPGESTAO	E	Estadual
+TPGESTAO	M	Municipal
+TPGESTAO	Z	Sem gestão
+TPGESTAO	S	Sem gestão
+ESFERA_A	1	Federal
+ESFERA_A	2	Estadual
+ESFERA_A	3	Municipal
+ESFERA_A	4	Privada
+ESFERA_A	-99	\N
+RETENCAO	0	\N
+RETENCAO	10	Estabelecimento público
+RETENCAO	11	Estabelecimento filantrópico
+RETENCAO	12	Estabelecimento sem fins lucrativos
+RETENCAO	13	Estabelecimento privado lucrativa simples
+RETENCAO	14	Estabelecimento privado lucrativa
+RETENCAO	15	Estabelecimento sindical
+RETENCAO	16	Estabelecimento pessoa física
+ATIVIDAD	-99	\N
+ATIVIDAD	1	Unidade Universitária
+ATIVIDAD	2	Unidade Escola Superior Isolada
+ATIVIDAD	3	Unidade Auxiliar de Ensino
+ATIVIDAD	4	Unidade sem atividade de Ensino
+ATIVIDAD	5	Hospital de ensino
+NATUREZA	-99	\N
+NATUREZA	1	Administração Direta da Saúde (MS, SES, e SMS)
+NATUREZA	2	Adm Direta outros orgãos (MEX, MEx, Marinha,...)
+NATUREZA	3	Adm Indireta - Autarquias
+NATUREZA	4	Adm Indireta - Fundação Pública
+NATUREZA	5	Adm Indireta - Empresa Pública
+NATUREZA	6	Adm Indireta - Organização Social Pública
+NATUREZA	7	Empresa Privada
+NATUREZA	8	Fundação Privada
+NATUREZA	9	Cooperativa
+NATUREZA	10	Serviço Social Autônomo
+NATUREZA	11	Entidade Beneficente sem fins lucrativos
+NATUREZA	12	Economia Mista
+NATUREZA	13	Sindicato
+NATUREZA	0	Natureza inexistente
+NAT_JUR	1015	Órgão Público do Poder Executivo Federal
+NAT_JUR	1023	Órgão Público do Poder Executivo Estadual ou do Distrito Federal
+NAT_JUR	1031	Órgão Público do Poder Executivo Municipal
+NAT_JUR	1040	Órgão Público do Poder Legislativo Federal
+NAT_JUR	1058	Órgão Público do Poder Legislativo Estadual ou do Distrito Federal
+NAT_JUR	1066	Órgão Público do Poder Legislativo Municipal
+NAT_JUR	1074	Órgão Público do Poder Judiciário Federal
+NAT_JUR	1082	Órgão Público do Poder Judiciário Estadual
+NAT_JUR	1104	Autarquia Federal
+NAT_JUR	1112	Autarquia Estadual ou do Distrito Federal
+NAT_JUR	1120	Autarquia Municipal
+NAT_JUR	1139	Fundação Pública de Direito Público Federal
+NAT_JUR	1147	Fundação Pública de Direito Público Estadual ou do Distrito Federal
+NAT_JUR	1155	Fundação Pública de Direito Público Municipal
+NAT_JUR	1163	Órgão Público Autônomo Federal
+NAT_JUR	1171	Órgão Público Autônomo Estadual ou do Distrito Federal
+NAT_JUR	1180	Órgão Público Autônomo Municipal
+NAT_JUR	1198	Comissão Polinacional
+NAT_JUR	1201	Fundo Público
+NAT_JUR	1210	Consórcio Público de Direito Público (Associação Pública)
+NAT_JUR	1228	Consórcio Público de Direito Privado
+NAT_JUR	1236	Estado ou Distrito Federal
+NAT_JUR	1244	Município
+NAT_JUR	1252	Fundação Pública de Direito Privado Federal
+NAT_JUR	1260	Fundação Pública de Direito Privado Estadual ou do Distrito Federal
+NAT_JUR	1279	Fundação Pública de Direito Privado Municipal
+NAT_JUR	2011	Empresa Pública
+NAT_JUR	2038	Sociedade de Economia Mista
+NAT_JUR	2046	Sociedade Anônima Aberta
+NAT_JUR	2054	Sociedade Anônima Fechada
+NAT_JUR	2062	Sociedade Empresária Limitada
+NAT_JUR	2070	Sociedade Empresária em Nome Coletivo
+NAT_JUR	2089	Sociedade Empresária em Comandita Simples
+NAT_JUR	2097	Sociedade Empresária em Comandita por Ações
+NAT_JUR	2127	Sociedade em Conta de Participação
+NAT_JUR	2135	Empresário (Individual)
+NAT_JUR	2143	Cooperativa
+NAT_JUR	2151	Consórcio de Sociedades
+NAT_JUR	2160	Grupo de Sociedades
+NAT_JUR	2178	Estabelecimento, no Brasil, de Sociedade Estrangeira
+NAT_JUR	2194	Estabelecimento, no Brasil, de Empresa Binacional Argentino-Brasileira
+NAT_JUR	2216	Empresa Domiciliada no Exterior
+NAT_JUR	2224	Clube/Fundo de Investimento
+NAT_JUR	2232	Sociedade Simples Pura
+NAT_JUR	2240	Sociedade Simples Limitada
+NAT_JUR	2259	Sociedade Simples em Nome Coletivo
+NAT_JUR	2267	Sociedade Simples em Comandita Simples
+NAT_JUR	2275	Empresa Binacional
+NAT_JUR	2283	Consórcio de Empregadores
+NAT_JUR	2291	Consórcio Simples
+NAT_JUR	2305	Empresa Individual de Responsabilidade Limitada (de Natureza Empresária)
+NAT_JUR	2313	Empresa Individual de Responsabilidade Limitada (de Natureza Simples)
+NAT_JUR	2321	Sociedade Unipessoal de Advogados
+NAT_JUR	2330	Cooperativas de Consumo
+NAT_JUR	3034	Serviço Notarial e Registral (Cartório)
+NAT_JUR	3069	Fundação Privada
+NAT_JUR	3077	Serviço Social Autônomo
+NAT_JUR	3085	Condomínio Edilício
+NAT_JUR	3107	Comissão de Conciliação Prévia
+NAT_JUR	3115	Entidade de Mediação e Arbitragem
+NAT_JUR	3131	Entidade Sindical
+NAT_JUR	3204	Estabelecimento, no Brasil, de Fundação ou Associação Estrangeiras
+NAT_JUR	3212	Fundação ou Associação Domiciliada no Exterior
+NAT_JUR	3220	Organização Religiosa
+NAT_JUR	3239	Comunidade Indígena
+NAT_JUR	3247	Fundo Privado
+NAT_JUR	3255	Órgão de Direção Nacional de Partido Político
+NAT_JUR	3263	Órgão de Direção Regional de Partido Político
+NAT_JUR	3271	Órgão de Direção Local de Partido Político
+NAT_JUR	3280	Comitê Financeiro de Partido Político
+NAT_JUR	3298	Frente Plebiscitária ou Referendária
+NAT_JUR	3306	Organização Social (OS)
+NAT_JUR	3310	Demais Condomínios
+NAT_JUR	3999	Associação Privada
+NAT_JUR	4014	Empresa Individual Imobiliária
+NAT_JUR	4022	Segurado Especial
+NAT_JUR	4081	Contribuinte individual
+NAT_JUR	4090	Candidato a Cargo Político Eletivo
+NAT_JUR	4111	Leiloeiro
+NAT_JUR	4124	Produtor Rural (Pessoa Física)
+NAT_JUR	5010	Organização Internacional
+NAT_JUR	5029	Representação Diplomática Estrangeira
+NAT_JUR	5037	Outras Instituições Extraterritoriais
+NAT_JUR	0	\N
+NAT_JUR	1000	Administração Pública
+NAT_JUR	2000	Entidades Empresariais
+NAT_JUR	2001	Empresa Pública
+NAT_JUR	3000	Entidades sem Fins Lucrativos
+NAT_JUR	4000	Pessoas Físicas
+NAT_JUR	5000	Organizações Internacionais e Outras Instituições Extraterritoriais
+CLIENTEL	-99	\N
+CLIENTEL	1	Atendimento de demanda espontânea
+CLIENTEL	2	Atendimento de demanda referenciada
+CLIENTEL	3	Atendimento de demanda espontânea e referenciada
+CLIENTEL	0	Fluxo de Clientela não exigido
+TP_UNID	1	Posto de saúde
+TP_UNID	2	Centro de saúde / Unidade básica
+TP_UNID	4	Policlínica
+TP_UNID	5	Hospital geral
+TP_UNID	7	Hospital Especializado
+TP_UNID	9	Pronto socorro de hospital geral (antigo)
+TP_UNID	12	Pronto socorro traumato-ortopédico (antigo)
+TP_UNID	15	Unidade mista
+TP_UNID	20	Pronto socorro geral
+TP_UNID	21	Pronto socorro especializado
+TP_UNID	22	Consultório isolado
+TP_UNID	32	Unidade móvel fluvial
+TP_UNID	36	Clínica / Centro de saúde de especialidade
+TP_UNID	39	Unidade de apoio diagnose e terapia (SADT isolado)
+TP_UNID	40	Unidade móvel terrestre
+TP_UNID	42	Unidade móvel de nível pré-hospitalar na área de urgência
+TP_UNID	43	Farmácia
+TP_UNID	45	Unidade de saúde da família
+TP_UNID	50	Unidade de vigilância em saúde
+TP_UNID	60	Cooperativa ou empresa de cessão de trabalhadores na saúde
+TP_UNID	61	Centro de parto normal - isolado
+TP_UNID	62	Hospital / Dia - Isolado
+TP_UNID	63	Unidade autorizadora
+TP_UNID	64	Central de regulação de serviços de saúde
+TP_UNID	65	Unidade de vigilância epidemiológica (antigo)
+TP_UNID	66	Unidade de vigilância sanitária (antigo)
+TP_UNID	67	Laboratório central de saúde pública LACEN
+TP_UNID	68	Central de gestão em saúde
+TP_UNID	69	Centro de atenção hemoterapia e/ou hematologica
+TP_UNID	70	Centro de atenção psicosocial
+TP_UNID	71	Centro de apoio a saúde da família
+TP_UNID	72	Unidade de atenção a saúde indígena
+TP_UNID	73	Pronto atendimento
+TP_UNID	74	Pólo academia da saúde
+TP_UNID	75	Telessaúde
+TP_UNID	76	Central de regulação médica das urgências
+TP_UNID	77	Serviço de atenção domiciliar isolado (Home care)
+TP_UNID	78	Unidade de atenção em regime residencial
+TP_UNID	79	Oficina ortopédica
+TP_UNID	80	Laboratório de saúde pública
+TP_UNID	81	Central de regulação do acesso
+TP_UNID	82	Central de notificação, captação e distribuição de órgãos estadual
+TP_UNID	83	Pólo de prevenção de doenças e agravos e promoção da saúde
+TP_UNID	84	Central de abastecimento
+TP_UNID	85	Centro de imunização
+TURNO_AT	-99	\N
+TURNO_AT	1	Turnos intermitentes
+TURNO_AT	2	Contínuo 24h/dia (Pl Sab Dom Fer)
+TURNO_AT	3	Manhã / Tarde / Noite
+TURNO_AT	4	Manhã
+TURNO_AT	5	Tarde
+TURNO_AT	6	Manhã / Tarde
+TURNO_AT	7	Noite
+NIV_HIER	0	\N
+NIV_HIER	-99	\N
+NIV_HIER	1	PAB-PABA
+NIV_HIER	2	Média M1
+NIV_HIER	3	Média M2 e M3
+NIV_HIER	4	Alta complexidade ambulatorial
+NIV_HIER	5	Baixa M1 e M2
+NIV_HIER	6	Média M2 e M3
+NIV_HIER	7	Média M3
+NIV_HIER	8	Alta complexidade hospitalar / ambulatorial
+NIV_HIER	99	\N
+ORGEXPED	1	SES
+ORGEXPED	2	SMS
+GESPRG1M	1	Sim
+GESPRG1M	0	Não
+GESPRG1M	2	Não
+GESPRG2E	1	Sim
+GESPRG2E	0	Não
+GESPRG2E	2	Não
+GESPRG2M	1	Sim
+GESPRG2M	0	Não
+GESPRG2M	2	Não
+GESPRG4E	1	Sim
+GESPRG4E	0	Não
+GESPRG4E	2	Não
+GESPRG4M	1	Sim
+GESPRG4M	0	Não
+GESPRG4M	2	Não
+NIVATE_A	1	Sim
+NIVATE_A	0	Não
+NIVATE_A	2	Não
+GESPRG3E	1	Sim
+GESPRG3E	0	Não
+GESPRG3E	2	Não
+GESPRG3M	1	Sim
+GESPRG3M	0	Não
+GESPRG3M	2	Não
+GESPRG5E	1	Sim
+GESPRG5E	0	Não
+GESPRG5E	2	Não
+GESPRG5M	1	Sim
+GESPRG5M	0	Não
+GESPRG5M	2	Não
+GESPRG6E	1	Sim
+GESPRG6E	0	Não
+GESPRG6E	2	Não
+GESPRG6M	1	Sim
+GESPRG6M	0	Não
+GESPRG6M	2	Não
+NIVATE_H	1	Sim
+NIVATE_H	0	Não
+NIVATE_H	2	Não
+URGEMERG	1	Sim
+URGEMERG	0	Não
+URGEMERG	2	Não
+ATENDAMB	1	Sim
+ATENDAMB	0	Não
+ATENDAMB	2	Não
+CENTROBS	1	Sim
+CENTROBS	0	Não
+CENTROBS	2	Não
+CENTRNEO	1	Sim
+CENTRNEO	0	Não
+CENTRNEO	2	Não
+ATENDHOS	1	Sim
+ATENDHOS	0	Não
+ATENDHOS	2	Não
+SERAP01P	1	Sim
+SERAP01P	0	Não
+SERAP01P	2	Não
+SERAP01T	1	Sim
+SERAP01T	0	Não
+SERAP01T	2	Não
+SERAP02P	1	Sim
+SERAP02P	0	Não
+SERAP02P	2	Não
+SERAP02T	1	Sim
+SERAP02T	0	Não
+SERAP02T	2	Não
+SERAP03P	1	Sim
+SERAP03P	0	Não
+SERAP03P	2	Não
+SERAP03T	1	Sim
+SERAP03T	0	Não
+SERAP03T	2	Não
+SERAP04P	1	Sim
+SERAP04P	0	Não
+SERAP04P	2	Não
+SERAP04T	1	Sim
+SERAP04T	0	Não
+SERAP04T	2	Não
+SERAP05P	1	Sim
+SERAP05P	0	Não
+SERAP05P	2	Não
+SERAP05T	1	Sim
+SERAP05T	0	Não
+SERAP05T	2	Não
+SERAP06P	1	Sim
+SERAP06P	0	Não
+SERAP06P	2	Não
+SERAP06T	1	Sim
+SERAP06T	0	Não
+SERAP06T	2	Não
+SERAP07P	1	Sim
+SERAP07P	0	Não
+SERAP07P	2	Não
+SERAP07T	1	Sim
+SERAP07T	0	Não
+SERAP07T	2	Não
+SERAP08P	1	Sim
+SERAP08P	0	Não
+SERAP08P	2	Não
+SERAP08T	1	Sim
+SERAP08T	0	Não
+SERAP08T	2	Não
+SERAP09P	1	Sim
+SERAP09P	0	Não
+SERAP09P	2	Não
+SERAP09T	1	Sim
+SERAP09T	0	Não
+SERAP09T	2	Não
+SERAP10P	1	Sim
+SERAP10P	0	Não
+SERAP10P	2	Não
+SERAP10T	1	Sim
+SERAP10T	0	Não
+SERAP10T	2	Não
+SERAP11P	1	Sim
+SERAP11P	0	Não
+SERAP11P	2	Não
+SERAP11T	1	Sim
+SERAP11T	0	Não
+SERAP11T	2	Não
+SERAPOIO	1	Sim
+SERAPOIO	0	Não
+SERAPOIO	2	Não
+RES_BIOL	1	Sim
+RES_BIOL	0	Não
+RES_BIOL	2	Não
+RES_QUIM	1	Sim
+RES_QUIM	0	Não
+RES_QUIM	2	Não
+RES_RADI	1	Sim
+RES_RADI	0	Não
+RES_RADI	2	Não
+RES_COMU	1	Sim
+RES_COMU	0	Não
+RES_COMU	2	Não
+COLETRES	1	Sim
+COLETRES	0	Não
+COLETRES	2	Não
+COMISS01	1	Sim
+COMISS01	0	Não
+COMISS01	2	Não
+COMISS02	1	Sim
+COMISS02	0	Não
+COMISS02	2	Não
+COMISS03	1	Sim
+COMISS03	0	Não
+COMISS03	2	Não
+COMISS04	1	Sim
+COMISS04	0	Não
+COMISS04	2	Não
+COMISS05	1	Sim
+COMISS05	0	Não
+COMISS05	2	Não
+COMISS06	1	Sim
+COMISS06	0	Não
+COMISS06	2	Não
+COMISS07	1	Sim
+COMISS07	0	Não
+COMISS07	2	Não
+COMISS08	1	Sim
+COMISS08	0	Não
+COMISS08	2	Não
+COMISS09	1	Sim
+COMISS09	0	Não
+COMISS09	2	Não
+COMISS10	1	Sim
+COMISS10	0	Não
+COMISS10	2	Não
+COMISS11	1	Sim
+COMISS11	0	Não
+COMISS11	2	Não
+COMISS12	1	Sim
+COMISS12	0	Não
+COMISS12	2	Não
+COMISSAO	1	Sim
+COMISSAO	0	Não
+COMISSAO	2	Não
+AP01CV01	1	Sim
+AP01CV01	0	Não
+AP01CV01	2	Não
+AP01CV02	1	Sim
+AP01CV02	0	Não
+AP01CV02	2	Não
+AP01CV05	1	Sim
+AP01CV05	0	Não
+AP01CV05	2	Não
+AP01CV06	1	Sim
+AP01CV06	0	Não
+AP01CV06	2	Não
+AP01CV03	1	Sim
+AP01CV03	0	Não
+AP01CV03	2	Não
+AP01CV04	1	Sim
+AP01CV04	0	Não
+AP01CV04	2	Não
+AP02CV01	1	Sim
+AP02CV01	0	Não
+AP02CV01	2	Não
+AP02CV02	1	Sim
+AP02CV02	0	Não
+AP02CV02	2	Não
+AP02CV05	1	Sim
+AP02CV05	0	Não
+AP02CV05	2	Não
+AP02CV06	1	Sim
+AP02CV06	0	Não
+AP02CV06	2	Não
+AP02CV03	1	Sim
+AP02CV03	0	Não
+AP02CV03	2	Não
+AP02CV04	1	Sim
+AP02CV04	0	Não
+AP02CV04	2	Não
+AP03CV01	1	Sim
+AP03CV01	0	Não
+AP03CV01	2	Não
+AP03CV02	1	Sim
+AP03CV02	0	Não
+AP03CV02	2	Não
+AP03CV05	1	Sim
+AP03CV05	0	Não
+AP03CV05	2	Não
+AP03CV06	1	Sim
+AP03CV06	0	Não
+AP03CV06	2	Não
+AP03CV03	1	Sim
+AP03CV03	0	Não
+AP03CV03	2	Não
+AP03CV04	1	Sim
+AP03CV04	0	Não
+AP03CV04	2	Não
+AP04CV01	1	Sim
+AP04CV01	0	Não
+AP04CV01	2	Não
+AP04CV02	1	Sim
+AP04CV02	0	Não
+AP04CV02	2	Não
+AP04CV05	1	Sim
+AP04CV05	0	Não
+AP04CV05	2	Não
+AP04CV06	1	Sim
+AP04CV06	0	Não
+AP04CV06	2	Não
+AP04CV03	1	Sim
+AP04CV03	0	Não
+AP04CV03	2	Não
+AP04CV04	1	Sim
+AP04CV04	0	Não
+AP04CV04	2	Não
+AP05CV01	1	Sim
+AP05CV01	0	Não
+AP05CV01	2	Não
+AP05CV02	1	Sim
+AP05CV02	0	Não
+AP05CV02	2	Não
+AP05CV05	1	Sim
+AP05CV05	0	Não
+AP05CV05	2	Não
+AP05CV06	1	Sim
+AP05CV06	0	Não
+AP05CV06	2	Não
+AP05CV03	1	Sim
+AP05CV03	0	Não
+AP05CV03	2	Não
+AP05CV04	1	Sim
+AP05CV04	0	Não
+AP05CV04	2	Não
+AP06CV01	1	Sim
+AP06CV01	0	Não
+AP06CV01	2	Não
+AP06CV02	1	Sim
+AP06CV02	0	Não
+AP06CV02	2	Não
+AP06CV05	1	Sim
+AP06CV05	0	Não
+AP06CV05	2	Não
+AP06CV06	1	Sim
+AP06CV06	0	Não
+AP06CV06	2	Não
+AP06CV03	1	Sim
+AP06CV03	0	Não
+AP06CV03	2	Não
+AP06CV04	1	Sim
+AP06CV04	0	Não
+AP06CV04	2	Não
+AP07CV01	1	Sim
+AP07CV01	0	Não
+AP07CV01	2	Não
+AP07CV02	1	Sim
+AP07CV02	0	Não
+AP07CV02	2	Não
+AP07CV05	1	Sim
+AP07CV05	0	Não
+AP07CV05	2	Não
+AP07CV06	1	Sim
+AP07CV06	0	Não
+AP07CV06	2	Não
+AP07CV03	1	Sim
+AP07CV03	0	Não
+AP07CV03	2	Não
+AP07CV04	1	Sim
+AP07CV04	0	Não
+AP07CV04	2	Não
+ATEND_PR	1	Sim
+ATEND_PR	0	Não
+ATEND_PR	2	Não
+TERCEIRO	1	Sim
+TERCEIRO	0	Não
+TERCEIRO	2	Não
+VINCULAC	1	Profissional CONTRATADO
+VINCULAC	2	Profissional AUTÔNOMO
+VINCULAC	3	Profissional VÍNCULO NÃO IDENTIFICADO

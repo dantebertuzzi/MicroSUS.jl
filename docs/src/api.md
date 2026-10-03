@@ -51,6 +51,7 @@ process_sim
 process_sinasc
 process_sih
 process_sinan
+process_cnes
 ```
 
 ## Decodificação de schemas

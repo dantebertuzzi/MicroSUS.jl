@@ -265,7 +265,7 @@ Current FTP paths (checked against `microdatasus`, Jul 2026):
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); SIH/SIA cover the post-2008 structure.
 
-## Standardization: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan`
+## Standardization: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan` / `process_cnes`
 
 `fetch_datasus` calls the source's standardization routine by default
 (`processar = true`). It replaces codes with readable labels, converts text
@@ -303,9 +303,16 @@ version-dependent, and since an unmapped code becomes `missing`, a partial
 dictionary would silently erase valid data.
 
 Columns absent from a given year's layout are silently skipped — DATASUS
-layouts change between years, and the routine is written to survive that. The
-remaining sources (SIA, CNES) have no routine yet: they return raw codes with
-an `@info`.
+layouts change between years, and the routine is written to survive that.
+
+For CNES (establishments and professionals), `process_cnes` labels 119 fields —
+unit type, administrative sphere, legal nature, hierarchy level, management,
+SUS link, opening hours, the service indicators. The dictionaries come from
+[microdatasus](https://github.com/rfsaldanha/microdatasus) (MIT) and only fields
+whose codes observed in real files are all covered are included; since the
+labels were not checked against the official tables, a code outside the
+dictionary becomes `missing` **with a warning**, never silently. SIA has no
+routine yet: it returns raw codes with an `@info`.
 
 ## Auxiliary dimensions
 
