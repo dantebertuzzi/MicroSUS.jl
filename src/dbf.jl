@@ -123,4 +123,8 @@ end
 
 Base.keys(r::RegistroDBF) = (c.nome for c in r.cab.campos)
 
+# `haskey(r, :LINHAA)` no filtro: campos que não existem em todos os anos
+# (as linhas da DO, DIAGSEC1 no SIH) — `r[:CAMPO]` daria KeyError neles
+Base.haskey(r::RegistroDBF, nome::Symbol) = haskey(r.cab.indice, _nome_campo(nome))
+
 _deletado(registro::AbstractVector{UInt8}) = registro[1] == 0x2a  # '*'

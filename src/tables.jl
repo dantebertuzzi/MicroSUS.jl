@@ -51,7 +51,9 @@ Abre um `.dbc` ou `.dbf` do DATASUS como tabela preguiçosa
   são materializados. `nothing` = todos.
 - `filtro`: função `RegistroDBF -> Bool` aplicada **antes** do parse
   das colunas; `r[:CAMPO]` devolve o texto do campo sob demanda.
-  Ex.: `r -> r[:CODMUNRES] == "261110"`.
+  Ex.: `r -> r[:CODMUNRES] == "261110"`. `haskey(r, :CAMPO)` diz se o
+  campo existe neste arquivo — útil em leituras de vários anos, em que
+  `r[:LINHAA]` daria `KeyError` nos layouts sem as linhas da DO.
 - `schema`: `:auto` (deduz pelo prefixo do arquivo: DO→SIM, DN→SINASC,
   RD→SIH, PA→SIA, ST→CNES), um `Symbol` (`:sim`, ...), um
   `Dict{Symbol,Symbol}` próprio, ou `nothing` (só a tipagem do DBF).

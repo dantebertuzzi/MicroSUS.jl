@@ -50,7 +50,7 @@ preliminares só pode ser descoberta tentando.
 function baixar_url(url::AbstractString; cache::Bool = true, verbose::Bool = true)
     destino = _destino_cache(url)
 
-    if cache && isfile(destino) && filesize(destino) > 0
+    if cache && _cache_valido(destino)
         verbose && @info "cache" arquivo = basename(destino)
         return destino
     end

@@ -104,6 +104,23 @@ function _baixa!(url::AbstractString, destino::AbstractString)
     return destino
 end
 
+# Arquivo do cache que de fato serve. Um download interrompido por versões
+# antigas do pacote podia deixar um .dbc truncado com o nome definitivo, e
+# o cache o devolvia para sempre (`DENGBR00.dbc`, cabeçalho truncado, no
+# cache de quem escreveu isto). Ler o cabeçalho é barato: se falha, o
+# arquivo é descartado e baixado de novo.
+function _cache_valido(caminho::AbstractString)
+    (isfile(caminho) && filesize(caminho) > 0) || return false
+    try
+        cabecalho(caminho)
+        return true
+    catch e
+        @warn "arquivo do cache ilegível; será baixado de novo" arquivo = caminho erro = sprint(showerror, e)
+        rm(caminho; force = true)
+        return false
+    end
+end
+
 """
     eh_preliminar(caminho) -> Bool
 
@@ -153,7 +170,7 @@ function baixar(sistema::Symbol, uf::AbstractString;
 
     u = url_arquivo(sistema, uf; ano = ano, mes = mes)
     destino = _destino_cache(u)
-    if isfile(destino) && !forcar
+    if !forcar && _cache_valido(destino)
         quieto || @info "cache: $destino"
         return destino
     end
@@ -169,7 +186,7 @@ function baixar(sistema::Symbol, uf::AbstractString;
         sem_rede = !_eh_ausente(e)
         up = url_arquivo(sistema, uf; ano = ano, mes = mes, prelim = true)
         dp = _destino_cache(up)
-        if isfile(dp) && !forcar
+        if !forcar && _cache_valido(dp)
             @warn (sem_rede ? "sem acesso à rede" : "consolidado ainda não publicado") *
                   "; usando dados PRELIMINARES do cache (o DATASUS os atualiza — " *
                   "`forcar = true` rebaixa)" arquivo = dp baixado_em = _baixado_em(dp)
@@ -246,7 +263,7 @@ function baixar_sinan(agravo::Symbol; ano::Union{Nothing,Int} = nothing,
     for (i, pl) in enumerate(tentativas)
         u = url_sinan(agravo; ano = ano, prelim = pl)
         destino = _destino_cache(u)
-        if isfile(destino) && !forcar
+        if !forcar && _cache_valido(destino)
             pl && @warn "usando dados PRELIMINARES do cache (o DATASUS os atualiza — " *
                         "`forcar = true` rebaixa)" agravo ano arquivo = destino baixado_em = _baixado_em(destino)
             quieto || @info "cache: $destino"

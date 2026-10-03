@@ -11,6 +11,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- `haskey(r, :CAMPO)` no `filtro` de `ler`/`fetch_datasus`: campos que não
+  existem em todos os anos (as linhas da DO, `DIAGSEC1` no SIH) davam
+  `KeyError` com `r[:CAMPO]`.
+- `scripts/creutzfeldt_jakob.jl`: óbitos (SIM) e internações (SIH) por doença
+  de Creutzfeldt-Jakob por região, UF e município, com taxas por milhão de
+  habitantes. Um exemplo de análise sobre a API: `fetch_datasus` com
+  `colunas` e `filtro`, `cid_casa`/`menciona_cid`, `municipio`/`uf_de`/`regiao`
+  e `populacao`.
+
 - Busca de CID-10: `cid_casa(cid, alvos)` aceita prefixos (`"A81"`) e faixas de
   categorias (`"X85" => "Y09"`), normalizando ponto, espaço e caixa
   (`normaliza_cid`); `cids_em(texto)` separa os códigos concatenados das linhas
@@ -148,6 +157,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   que dependia do tipo exato do elemento, sim.
 
 ### Fixed
+
+- Ler o cabeçalho de um `.dbc` corrompido deixava o arquivo aberto: `abre_dbc`
+  não o fechava quando a leitura falhava. No Windows, o arquivo ficava preso
+  (`EBUSY`) e não podia ser apagado nem baixado de novo.
+
+- Um `.dbc` truncado no cache era devolvido para sempre: o cache só conferia
+  se o arquivo existia (`DENGBR00.dbc`, com o cabeçalho cortado, no cache de
+  quem escreveu isto). O cabeçalho passa a ser lido antes de usar o arquivo
+  do cache; se falha, ele é descartado e baixado de novo, com aviso.
 
 - Leituras de vários anos do SINASC e do SIM saíam com duas colunas para o
   mesmo campo: o DATASUS grava `contador` no SIM de 2010 e no SINASC de 1996,
