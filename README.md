@@ -431,7 +431,7 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.3.1},
+  version = {0.4.0},
   doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
