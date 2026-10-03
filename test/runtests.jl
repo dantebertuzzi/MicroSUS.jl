@@ -499,6 +499,46 @@ end
         @test municipio(2611533).nome == "Quixaba"
     end
 
+    @testset "populacao: parse da SIDRA, fontes por ano, interpolação" begin
+        # trecho no formato real da API (cabeçalho + linhas; "..." = município
+        # ainda não criado)
+        json = """
+        [
+          {"NC": "Nível Territorial (Código)", "V": "Valor",
+           "D1C": "Município (Código)", "D1N": "Município"},
+          {"NC": "6", "V": "1537704", "D1C": "2611606", "D1N": "Recife - PE"},
+          {"NC": "6", "V": "...", "D1C": "5300108", "D1N": "Brasília - DF"},
+          {"NC": "6", "V": "21494", "D1C": "1100015", "D1N": "Alta Floresta D'Oeste - RO"}
+        ]"""
+        l = MicroSUS._parse_sidra(json)
+        @test length(l) == 2
+        @test l[1] == (codigo = 2611606, nome = "Recife - PE", populacao = 1537704)
+        @test l[2].nome == "Alta Floresta D'Oeste - RO"
+        @test isempty(MicroSUS._parse_sidra("[]"))
+
+        # cada ano, a fonte que o IBGE publicou; 2023 e antes de 2000, nenhuma
+        @test occursin("Censo 2000", last(MicroSUS._fonte_pop(2000)))
+        @test occursin("Contagem", last(MicroSUS._fonte_pop(2007)))
+        @test occursin("Censo 2010", last(MicroSUS._fonte_pop(2010)))
+        @test occursin("Censo 2022", last(MicroSUS._fonte_pop(2022)))
+        @test all(a -> occursin("estimativa", last(MicroSUS._fonte_pop(a))),
+                  [2001:2006; 2008:2009; 2011:2021; 2024:2026])
+        @test MicroSUS._fonte_pop(2023) === nothing
+        @test MicroSUS._fonte_pop(1999) === nothing
+
+        # geométrica: no meio do intervalo, a média geométrica; sem par, fora
+        l0 = [(codigo = 1, nome = "a", populacao = 100), (codigo = 2, nome = "b", populacao = 50)]
+        l1 = [(codigo = 1, nome = "a", populacao = 400)]
+        r = MicroSUS._interpola_geom(l0, l1, 0.5)
+        @test r == [(codigo = 1, nome = "a", populacao = 200)]
+
+        # validações não tocam a rede
+        e = try populacao(2023); nothing catch err; err end
+        @test e isa ArgumentError && occursin("interpolar = true", e.msg)
+        @test_throws ArgumentError populacao(1999)
+        @test_throws ArgumentError populacao(2021; nivel = :bairro)
+    end
+
     @testset "encoding CP850" begin
         b = UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90, ' ', ' ']
         @test MicroSUS.decodifica_texto(b, 1, 10, :cp850) == "SÃO JOSÉ"
@@ -964,6 +1004,20 @@ end
     # MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'
     # -----------------------------------------------------------------------
     if get(ENV, "MicroSUS_TEST_NETWORK", "false") == "true"
+        @testset "Rede (IBGE/SIDRA) — populacao bate com os totais oficiais" begin
+            br(a) = only(populacao(a; nivel = :brasil, cache = false)).populacao
+            @test br(2010) == 190_755_799                  # Censo 2010
+            @test br(2022) == 203_080_756                  # Censo 2022
+            m = populacao(2022; cache = false)
+            @test length(m) == 5570
+            @test sum(r.populacao for r in m) == 203_080_756
+            @test only(r for r in m if r.codigo6 == 261160).populacao == 1_488_920
+            @test length(populacao(2019:2021; nivel = :uf, cache = false)) == 81
+            i = populacao(2023; nivel = :brasil, interpolar = true)
+            @test br(2022) < only(i).populacao < br(2024)
+            @test occursin("interpolação", only(i).fonte)
+        end
+
         @testset "Rede (DATASUS) — links de todas as fontes registradas" begin
             # Para cada fonte de fontes(), baixa de verdade o ano MAIS ANTIGO
             # coberto (tende a ser o menor arquivo) — PE quando particionado

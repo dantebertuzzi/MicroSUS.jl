@@ -60,6 +60,18 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   os arquivos preliminares do resultado; o `show` de `ler` avisa. Antes, a
   única marca era um `@warn` no download, que não chegava ao resultado — nem
   aparecia nas chamadas seguintes, servidas do cache.
+- `populacao(anos; nivel = :municipio, interpolar = false)`: população
+  residente do IBGE por município, UF ou Brasil, de 2000 em diante, pela API
+  SIDRA e com cache local — o denominador das taxas. O `codigo6` casa com
+  `CODMUNRES`/`MUNIC_RES`. Cada linha traz a `fonte` (Censo 2000/2010/2022,
+  Contagem 2007 ou estimativa anual), porque a série não é homogênea: as
+  estimativas de 2011–2021 superestimaram a população (213,3 milhões para
+  2021 contra 203,1 milhões no Censo 2022), e uma taxa que atravesse esses
+  anos salta só pelo denominador — no Recife, os óbitos por agressão caíram de
+  655 para 636 e a taxa subiu de 39,4 para 42,7 por 100 mil. 2023, sem
+  publicação do IBGE, é erro, a não ser com `interpolar = true`. Sem
+  dependência nova: o JSON da SIDRA é lido com regex. Os totais batem com os
+  oficiais (teste de rede).
 
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco

@@ -313,6 +313,38 @@ Nove municípios têm dígito verificador oficial fora do algoritmo
 (Quixaba-PE é 2611533, não 2611531): `codigo7_ibge` e `codigo6_ibge` usam o
 da tabela.
 
+### Populações — o denominador das taxas
+
+[`populacao`](@ref) traz a população residente do IBGE (API SIDRA, com
+cache local) por município, UF ou Brasil, de 2000 em diante. O `codigo6`
+casa com `CODMUNRES` (SIM, SINASC) e `MUNIC_RES` (SIH):
+
+```julia
+using DataFrames
+pop = DataFrame(populacao(2022))   # codigo7, codigo6, nome, ano, populacao, fonte
+
+do22 = DataFrame(ler(baixar(:sim, "PE"; ano = 2022);
+                     colunas = [:CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS])))
+n = combine(groupby(do22, :CODMUNRES), nrow => :obitos)
+n.codigo6 = parse.(Int, n.CODMUNRES)
+taxas = innerjoin(n, pop; on = :codigo6)
+taxas.por_100mil = 100_000 .* taxas.obitos ./ taxas.populacao
+```
+
+A série **não é homogênea**: cada ano vem do Censo (2000, 2010, 2022), da
+Contagem (2007) ou da estimativa anual (os demais), e a coluna `fonte` diz
+qual. As estimativas de 2011–2021 superestimaram a população — o Censo
+2022 achou 203,1 milhões contra 213,3 milhões estimados para 2021. No
+Recife, os óbitos por agressão caíram de 655 para 636 de 2021 para 2022,
+mas a taxa *subiu* de 39,4 para 42,7 por 100 mil, só pela troca de
+denominador (1.661.017 → 1.488.920). Com a população do Censo nos dois
+anos, 2021 daria 44,0, e a queda apareceria.
+
+O IBGE não publicou população para 2023: pedir esse ano é erro, a menos
+que `interpolar = true` (interpolação geométrica entre 2022 e 2024,
+registrada em `fonte`).
+
 ### Capítulos da CID-10
 
 ```julia

@@ -320,6 +320,28 @@ df.cod7 = codigo7_ibge.(String.(df.CODMUNRES))
 leftjoin!(df, tabela_ibge; on = :cod7 => :codigo_municipio)
 ```
 
+### Populations and rates
+
+`populacao(anos; nivel = :municipio)` fetches IBGE's resident population (SIDRA
+API, cached locally) by municipality, state (`:uf`) or Brazil (`:brasil`), from
+2000 on — the denominator that turns counts into rates. `codigo6` joins
+directly with `CODMUNRES`/`MUNIC_RES`:
+
+```julia
+pop = DataFrame(populacao(2022))      # codigo7, codigo6, nome, ano, populacao, fonte
+```
+
+**The series is not homogeneous.** Each year comes from whatever IBGE
+published for it — census (2000, 2010, 2022), count (2007) or estimate (the
+rest) — and the `fonte` column says which. The 2011–2021 estimates
+overestimated the population: the 2022 census found 203.1 million people
+against 213.3 million estimated for 2021. In Recife, assault deaths fell from
+655 to 636 between 2021 and 2022, but the rate *rose* from 39.4 to 42.7 per
+100,000 — only because the denominator switched from the estimate (1,661,017)
+to the census (1,488,920). IBGE published no population for 2023;
+`interpolar = true` interpolates between 2022 and 2024 and records it in
+`fonte`.
+
 ## Utilities
 
 ```julia

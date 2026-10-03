@@ -77,6 +77,7 @@ cid_casa
 cids_em
 menciona_cid
 eh_agressao
+populacao
 ```
 
 ## Estruturas DBF

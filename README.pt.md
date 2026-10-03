@@ -320,6 +320,27 @@ df.cod7 = codigo7_ibge.(String.(df.CODMUNRES))
 leftjoin!(df, tabela_ibge; on = :cod7 => :codigo_municipio)
 ```
 
+### Populações e taxas
+
+`populacao(anos; nivel = :municipio)` traz a população residente do IBGE (API
+SIDRA, com cache local) por município, UF (`:uf`) ou Brasil (`:brasil`), de
+2000 em diante — o denominador para transformar contagens em taxas. O
+`codigo6` casa direto com `CODMUNRES`/`MUNIC_RES`:
+
+```julia
+pop = DataFrame(populacao(2022))      # codigo7, codigo6, nome, ano, populacao, fonte
+```
+
+**A série não é homogênea.** Cada ano vem do que o IBGE publicou para ele —
+Censo (2000, 2010, 2022), Contagem (2007) ou estimativa (os demais) —, e a
+coluna `fonte` diz qual. As estimativas de 2011–2021 superestimaram a
+população: o Censo 2022 achou 203,1 milhões de habitantes contra 213,3
+milhões estimados para 2021. No Recife, os óbitos por agressão caíram de 655
+para 636 entre 2021 e 2022, mas a taxa *subiu* de 39,4 para 42,7 por 100 mil
+— só porque o denominador passou da estimativa (1.661.017) para o Censo
+(1.488.920). O IBGE não publicou população para 2023; `interpolar = true`
+interpola entre 2022 e 2024 e registra isso em `fonte`.
+
 ## Utilitários
 
 ```julia
