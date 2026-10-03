@@ -250,6 +250,22 @@ codigo7_ibge(261110)          # 2611101 (SIM/SINASC usam 6; o IBGE, 7)
 codigo6_ibge(2611101)         # 261110, validando o DV
 ```
 
+### UF, região e município
+
+Tabela do IBGE embarcada no pacote — não consulta a rede:
+
+```julia
+uf_de("261160")               # "PE" (6 ou 7 dígitos, texto ou inteiro)
+regiao("PE")                  # "Nordeste"; também aceita código: regiao(2611606)
+municipio("261160")           # (codigo7=2611606, codigo6=261160, nome="Recife",
+                              #  uf="PE", regiao="Nordeste"); `nothing` se ignorado
+DataFrame(municipios())       # 5.571 linhas, para leftjoin por codigo6
+```
+
+Nove municípios têm dígito verificador oficial fora do algoritmo
+(Quixaba-PE é 2611533, não 2611531): `codigo7_ibge` e `codigo6_ibge` usam o
+da tabela.
+
 ### Capítulos da CID-10
 
 ```julia
@@ -257,6 +273,24 @@ capitulo_cid10("X954")        # (numeral="XX", nome="Causas externas …")
 capitulo_cid10("I219")        # (numeral="IX", nome="Doenças do aparelho circulatório")
 eh_agressao("X954")           # true — X85–Y09 + Y87.1 (recorte CVLI)
 eh_agressao("Y10")            # false — intenção indeterminada
+```
+
+### Busca de CID-10
+
+Alvos são prefixos (`"A81"`, `"A810"`) ou faixas de categorias
+(`"X85" => "Y09"`); pontos, espaços e caixa são normalizados.
+
+```julia
+dcj = ["A810", "F021"]                      # Creutzfeldt-Jakob
+cid_casa("A81.0", dcj)                      # true
+cid_casa("J189", "J12" => "J18")            # true — pneumonias
+cids_em("*I219*E149")                       # ["I219", "E149"]
+
+# causa básica OU qualquer linha da DO (causas múltiplas), no próprio reader
+linhas = (:LINHAA, :LINHAB, :LINHAC, :LINHAD, :LINHAII)
+t = ler(caminho; colunas = [:CAUSABAS, :CODMUNRES, linhas...],
+        filtro = r -> cid_casa(r[:CAUSABAS], dcj) ||
+                      any(l -> menciona_cid(r[l], dcj), linhas))
 ```
 
 ### Baixo nível

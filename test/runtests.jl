@@ -350,6 +350,72 @@ end
         @test !eh_agressao("Y10")
         @test !eh_agressao("W870")
         @test !eh_agressao(missing)
+        @test eh_agressao("X99.0")                 # normaliza o ponto
+        @test !eh_agressao("X8")                   # curto demais para a faixa
+    end
+
+    @testset "busca de CID: prefixos, faixas, causas múltiplas" begin
+        @test normaliza_cid(" a81.0 ") == "A810"
+        @test normaliza_cid(missing) == ""
+
+        dcj = ["A810", "F021"]
+        @test cid_casa("A810", dcj)
+        @test cid_casa("a81.0", dcj)
+        @test !cid_casa("A811", dcj)
+        @test cid_casa("A811", "A81")              # alvo único, prefixo de categoria
+        @test cid_casa("J189", "J12" => "J18")
+        @test !cid_casa("J190", "J12" => "J18")
+        @test cid_casa("I219", ["C00" => "D48", "I21"])
+        @test !cid_casa("", dcj)
+        @test !cid_casa(missing, dcj)
+        @test_throws ArgumentError cid_casa("A810", "A8" => "A810")
+
+        @test cids_em("*I219*E149") == ["I219", "E149"]
+        @test cids_em("*j18x  r092") == ["J18X", "R092"]
+        @test cids_em(missing) == String[]
+        @test menciona_cid("*G934*A810", dcj)
+        @test !menciona_cid("*G934*I10X", dcj)
+        @test !menciona_cid("*A8*10", "A810")      # não junta códigos vizinhos
+        @test !menciona_cid(missing, dcj)
+    end
+
+    @testset "UF, região e municípios (tabela embarcada)" begin
+        @test uf_de("261160") == "PE"
+        @test uf_de(2611606) == "PE"
+        @test uf_de(" 530010") == "DF"
+        @test uf_de(53) == "DF"
+        @test uf_de("") === missing
+        @test uf_de("990000") === missing
+        @test uf_de(missing) === missing
+
+        @test regiao("PE") == "Nordeste"
+        @test regiao("sp") == "Sudeste"
+        @test regiao(4314902) == "Sul"
+        @test regiao("530010") == "Centro-Oeste"
+        @test regiao("XX") === missing
+
+        ms = municipios()
+        @test length(ms) == 5571
+        @test length(unique(m.codigo7 for m in ms)) == length(ms)
+        @test sort(unique(m.uf for m in ms)) == sort([u[1] for u in values(MicroSUS._UFS)])
+        @test all(m -> uf_de(m.codigo7) == m.uf && regiao(m.uf) == m.regiao, ms)
+        @test all(m -> codigo7_ibge(m.codigo6) == m.codigo7, ms)
+
+        r = municipio("261160")
+        @test r.nome == "Recife" && r.uf == "PE" && r.codigo7 == 2611606
+        @test municipio(2611606) == r
+        @test municipio(261160) == r
+        @test municipio(2611600) === nothing       # DV errado
+        @test municipio("260000") === nothing      # "ignorado" do DATASUS
+        @test municipio("") === nothing
+        @test municipio(missing) === nothing
+
+        # DV oficial que foge do algoritmo de dv_ibge
+        @test dv_ibge(261153) == 1
+        @test codigo7_ibge(261153) == 2611533      # Quixaba-PE
+        @test codigo6_ibge(2611533) == 261153
+        @test_throws ArgumentError codigo6_ibge(2611531)
+        @test municipio(2611533).nome == "Quixaba"
     end
 
     @testset "encoding CP850" begin
