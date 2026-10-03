@@ -3,6 +3,7 @@
 Verifica se todos os links (HTTP/HTTPS/FTP) nos arquivos .md da
 documentação estão acessíveis. =#
 using Downloads: download
+using MicroSUS
 
 const DOCS_DIR = joinpath(dirname(@__DIR__), "..", "docs", "src")
 
@@ -19,12 +20,17 @@ end
 
 function verifica_url(url::String)
     try
-        # timeout generoso: alguns links citados na doc são exemplos de
-        # arquivos .dbc reais de alguns MB, e o FTP do DATASUS pode ser
-        # lento a partir de runners de CI — 10s cortava downloads legítimos
-        # no meio.
-        resp = download(url; timeout=60)
-        nothing  # não precisa do corpo
+        if startswith(url, "ftp://")
+            # Arquivo no FTP do DATASUS: basta saber que existe. Baixá-lo
+            # inteiro dependia da velocidade do servidor — em 28/09/2026 o
+            # DNBA2022.dbc (8,4 MB) parou em 80–90% nas três tentativas, por
+            # tempo, e o job falhou sem link quebrado nenhum. O tamanho vem
+            # pelo canal de controle, como em verificar_cache.
+            t = MicroSUS._tamanho_remoto(url)
+            t === nothing && return (url, false, "arquivo ausente no FTP")
+            return (url, true, nothing)
+        end
+        download(url; timeout=60)   # páginas: pequenas, e nem todo servidor aceita HEAD
         return (url, true, nothing)
     catch e
         return (url, false, sprint(showerror, e))
