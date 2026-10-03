@@ -95,6 +95,9 @@ function ler(caminho::AbstractString;
         schema   # Dict próprio ou nothing
     end
 
+    # nomes de campo são maiúsculos (ver le_cabecalho_dbf); o pedido vale
+    # em qualquer caixa
+    colunas === nothing || (colunas = _nome_campo.(colunas))
     campos = if colunas === nothing
         copy(cab.campos)
     elseif ignorar_ausentes

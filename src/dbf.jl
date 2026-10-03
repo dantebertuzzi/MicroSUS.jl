@@ -81,6 +81,18 @@ function le_cabecalho_dbf(bytes::Vector{UInt8})
     offset == rsize ||
         @warn "soma das larguras ($offset) ≠ tamanho do registro ($rsize)"
 
+    # Nomes em maiúsculas, a convenção do DBF. O DATASUS a quebra num campo
+    # só, e não sempre: `contador` no SIM de 2010 e no SINASC de 1996, 2014,
+    # 2015 e 2017, `CONTADOR` nos demais — e a leitura de vários anos saía
+    # com duas colunas para o mesmo campo, cada uma com metade dos valores.
+    vistos = Set{Symbol}()
+    for (i, c) in enumerate(campos)
+        n = _nome_campo(c.nome)
+        n in vistos && error("campos $(c.nome) e $n coincidem sem distinção de caixa")
+        push!(vistos, n)
+        n === c.nome || (campos[i] = CampoDBF(n, c.tipo, c.largura, c.decimais, c.offset))
+    end
+
     indice = Dict(c.nome => c for c in campos)
     return CabecalhoDBF(n_reg, hsize, rsize, ldid, campos, indice)
 end
@@ -100,8 +112,10 @@ struct RegistroDBF
     encoding::Symbol
 end
 
+_nome_campo(nome::Symbol) = Symbol(uppercase(String(nome)))
+
 function Base.getindex(r::RegistroDBF, nome::Symbol)
-    c = get(r.cab.indice, nome, nothing)
+    c = get(r.cab.indice, _nome_campo(nome), nothing)
     c === nothing && throw(KeyError(nome))
     return decodifica_texto(r.dados, c.offset + 1, c.offset + c.largura,
                             r.encoding)

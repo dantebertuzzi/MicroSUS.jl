@@ -270,6 +270,25 @@ end
         @test_throws ErrorException MicroSUS.le_cabecalho_dbf(h[1:hsize-40])
     end
 
+    @testset "nomes de campo em maiúsculas (contador × CONTADOR)" begin
+        dir = mktempdir()
+        # como o SINASC: `contador` em 2014, 2015 e 2017, `CONTADOR` em 2016
+        a = escreve_dbc(joinpath(dir, "DNXX2014.dbc"), [("contador", 'N', 9, 0), ("SEXO", 'C', 1, 0)],
+                        [["1", "1"], ["2", "2"]])
+        b = escreve_dbc(joinpath(dir, "DNXX2016.dbc"), [("CONTADOR", 'N', 9, 0), ("SEXO", 'C', 1, 0)],
+                        [["3", "1"]])
+        @test [c.nome for c in cabecalho(a).campos] == [:CONTADOR, :SEXO]
+        d = DataFrame(ler([a, b]; schema = nothing))
+        @test propertynames(d) == [:CONTADOR, :SEXO, :ARQUIVO]   # uma coluna, não duas
+        @test d.CONTADOR == Int32[1, 2, 3]
+        # o pedido vale em qualquer caixa, em `colunas` e no `filtro`
+        @test propertynames(DataFrame(ler(a; colunas = [:contador]))) == [:CONTADOR]
+        @test nrow(DataFrame(ler(a; filtro = r -> strip(r[:contador]) == "2"))) == 1
+        @test nrow(DataFrame(ler(a; filtro = r -> strip(r[:Contador]) == "2"))) == 1
+        @test propertynames(DataFrame(ler([b, a]; colunas = [:sexo, :contador]))) ==
+              [:SEXO, :CONTADOR, :ARQUIVO]
+    end
+
     @testset "DBC ≡ DBF (mesmos dados pelos dois caminhos)" begin
         dir = mktempdir()
         fdbf = escreve_dbf(joinpath(dir, "a.dbf"), campos, linhas)
