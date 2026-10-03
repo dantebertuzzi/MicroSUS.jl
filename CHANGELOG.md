@@ -94,6 +94,19 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Changed
 
+- A leitura converte cada lote coluna a coluna, em vez de linha a linha. Antes,
+  cada campo de cada registro passava por uma chamada despachada em tempo de
+  execução (29 milhões no `DOSP2023`), o texto virava uma `String` temporária
+  antes da `InlineString`, e cada linha de uma coluna categórica criava uma
+  `String` só para procurá-la no dicionário. Agora o texto ASCII vai direto
+  dos bytes para a `InlineString`, a categórica é montada a partir dos índices
+  (cada valor distinto vira `String` uma vez por lote) e a idade do SIM/SINAN
+  é decodificada sem `String` intermediária. `DOSP2023`: 4,3 → 1,9 s e 60 → 4,6
+  milhões de alocações; `DENGBR23` (1,6 milhão de registros): 17,8 → 5,2 s e
+  384 → 20 milhões de alocações; `fetch_datasus` do SIM de PE 2014–2023: 9,4 →
+  4,7 s. Resultado idêntico, valor e tipo, nas 1.078 colunas de 12 casos
+  (SIM, SINASC, SIH, SINAN, CNES, SIA; lote pequeno, filtro, `pool = false`,
+  outra codificação, vários arquivos).
 - `fetch_datasus` lê os arquivos em streaming, por `ler(caminhos)`, e
   padroniza o próprio resultado sem copiá-lo. No SIM de PE 2014–2023 (675.806
   óbitos, 92 colunas) o pico de memória cai de 5,9 para 3,4 GiB, com o mesmo
