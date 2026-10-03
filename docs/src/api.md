@@ -40,6 +40,9 @@ MicroSUS.ErroDeRede
 verificar_cache
 proveniencia
 exportar_espelho
+travar_dados
+restaurar_dados
+soltar_dados
 MicroSUS.baixar_url
 MicroSUS.UFS
 ```

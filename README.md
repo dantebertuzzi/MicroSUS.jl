@@ -271,6 +271,8 @@ them with their year ranges. They come raw, with no standardization routine.
 
 Interrupted downloads resume where they stopped, and `MICROSUS_ESPELHOS` points to mirrors with the FTP's folder tree (a network share, a bucket, a group server) used when the FTP fails — `exportar_espelho(dir)` turns your cache into one.
 
+`travar_dados("dados.toml", df)` is the `Manifest.toml` of the data: it records the URL, SHA-256 and extraction date of every file a result came from, and `restaurar_dados("dados.toml")` puts exactly those bytes back in the cache — from DATASUS or from a mirror, checked by hash — so the same script reads the same data months later.
+
 `verificar_cache()` compares the cache with the DATASUS FTP without downloading anything and points out the files DATASUS has republished (the cache can't tell on its own); `proveniencia(df)` lists the files — URL, download date, SHA-256 — a `fetch_datasus` result came from, for the methods note.
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); via `baixar`/`url_arquivo`, SIH/SIA cover the post-2008 structure — `fetch_datasus` also reaches the older folders (SIH from 1992, SIA from 1994).

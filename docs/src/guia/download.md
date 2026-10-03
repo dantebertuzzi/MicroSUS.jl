@@ -165,7 +165,7 @@ dos arquivos de que ele veio:
 
 ```julia
 df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2019:2023)
-DataFrame(proveniencia(df))   # arquivo, url, baixado_em, bytes, sha256, preliminar
+DataFrame(proveniencia(df))   # arquivo, url, baixado_em, bytes, sha256, preliminar, obtido_de
 ```
 
 É o que uma nota de método precisa para que a análise possa ser refeita
@@ -173,6 +173,49 @@ sobre os mesmos dados: a URL sozinha não identifica a versão de um arquivo
 que o DATASUS republica. A proveniência acompanha o `DataFrame` em cópias,
 filtros e agregações. Para arquivos baixados antes da 0.4.1, `baixado_em` é
 a data do arquivo no cache.
+
+## Travar os dados de uma análise
+
+A proveniência diz de onde os dados vieram; [`travar_dados`](@ref) guarda
+isso num arquivo para refazer a análise sobre **os mesmos bytes** — o
+`Manifest.toml` dos dados. Versione-o junto com o script:
+
+```julia
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2019:2023)
+travar_dados("dados.toml", df)          # um ou mais resultados
+```
+
+```toml
+[[arquivo]]
+baixado_em = 2026-07-08T23:05:41.719
+bytes = 5779997
+nome = "DOPE2023.dbc"
+preliminar = false
+sha256 = "d5b5600d544cd82a7dfb13663b21c68ccfc004680d50c8dec72a26f97d219451"
+url = "ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DORES/DOPE2023.dbc"
+```
+
+Meses depois, ou em outra máquina, [`restaurar_dados`](@ref) põe no cache
+exatamente esses arquivos, conferindo cada um pelo SHA-256, e ativa a trava
+na sessão — o mesmo script lê os mesmos dados:
+
+```julia
+restaurar_dados("dados.toml")
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2019:2023)   # os bytes travados
+```
+
+Com a trava ativa, um arquivo travado vem sempre do cache: nem o FTP, nem o
+consolidado que saiu depois de um preliminar travado, tomam o lugar dele.
+[`soltar_dados`](@ref) desativa.
+
+O DATASUS **não guarda versões antigas**: se ele republicou um arquivo, a
+versão travada só volta de um espelho que a tenha guardado
+(`MICROSUS_ESPELHOS`, ver abaixo) — `restaurar_dados` procura em cada
+origem a que tem o mesmo hash. Se nenhuma tem, é erro: a análise não roda
+sobre outros dados sem que você decida (`estrito = false` segue com a versão
+atual e diz quais arquivos mudaram). Guardar o cache de uma análise
+publicada com [`exportar_espelho`](@ref) é o que garante que ela possa ser
+refeita.
 
 O cache fica no diretório de Scratch do pacote; a variável de ambiente
 `MICROSUS_CACHE` o troca por outro (outro disco, um cache por projeto).

@@ -279,7 +279,7 @@ decidindo se um arquivo existe, e o registro de origem de cada download
 diz se ele veio de um espelho (`obtido_de` em [`proveniencia`](@ref)).
 Um espelho não é verificado contra o DATASUS: o SHA-256 em
 [`proveniencia`](@ref) é o que permite conferir que os bytes são os mesmos
-de quem os baixou.
+de quem os baixou — e [`restaurar_dados`](@ref) faz essa conferência.
 
 `arquivos` restringe a cópia (nomes, ou um `Regex`), como em
 [`verificar_cache`](@ref). Arquivos cuja URL de origem não se conhece

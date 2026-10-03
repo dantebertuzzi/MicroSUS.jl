@@ -20,6 +20,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   com `MICROSUS_ESPELHO_PRIMEIRO=true`. O DATASUS continua decidindo se um
   arquivo existe. `exportar_espelho(destino)` copia o cache para essa
   árvore, e `proveniencia` ganha `obtido_de`.
+- Manifest dos dados: `travar_dados("dados.toml", resultados...)` grava URL,
+  SHA-256, tamanho e data da extração de cada arquivo de que os resultados
+  vieram; `restaurar_dados("dados.toml")` os devolve ao cache conferindo o
+  hash — do DATASUS ou de um espelho, que é onde uma versão republicada pode
+  sobreviver — e ativa a trava na sessão (`soltar_dados()` desativa).
+  Arquivo que não volta com o mesmo hash é erro, salvo `estrito = false`.
+  Nova dependência: `TOML` (biblioteca padrão).
 
 ## [0.4.1] - 2026-10-03
 

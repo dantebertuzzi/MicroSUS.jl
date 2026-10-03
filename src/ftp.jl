@@ -316,6 +316,8 @@ function baixar(sistema::Symbol, uf::AbstractString;
     end
 
     u = url_arquivo(sistema, uf; ano = ano, mes = mes)
+    t = _resolve_travado(u)                    # restaurar_dados
+    t === nothing || return t
     destino = _destino_cache(u)
     if !forcar && _cache_valido(destino)
         quieto || @info "cache: $destino"
@@ -409,6 +411,8 @@ function baixar_sinan(agravo::Symbol; ano::Union{Nothing,Int} = nothing,
     erro = nothing
     for (i, pl) in enumerate(tentativas)
         u = url_sinan(agravo; ano = ano, prelim = pl)
+        t = _resolve_travado(u)                # restaurar_dados
+        t === nothing || return t
         destino = _destino_cache(u)
         if !forcar && _cache_valido(destino)
             pl && @warn "usando dados PRELIMINARES do cache (o DATASUS os atualiza — " *

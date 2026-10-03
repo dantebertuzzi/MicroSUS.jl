@@ -1239,6 +1239,80 @@ end
         end
     end
 
+    @testset "manifest dos dados: travar_dados e restaurar_dados" begin
+        dir = mktempdir()
+        nome = "TESTETRAVAPE2023.dbc"
+        fonte_arq = joinpath(dir, nome)
+        campos = [("SEXO", 'C', 1, 0)]
+        escreve_dbc(fonte_arq, campos, [["1"], ["2"]])
+        antigo = read(fonte_arq)
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_TRAVA, nome = "t", periodicidade = :anual,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, "TESTETRAVA$(uf)$(ano).dbc")],
+            anos = 2023:2023))
+        no_cache = joinpath(MicroSUS._dir_cache(), nome)
+        toml = joinpath(dir, "dados.toml")
+        f(; kw...) = fetch_datasus(:TESTE_TRAVA; uf = "PE", anos = 2023, processar = false,
+                                   verbose = false, kw...)
+        try
+            df = f()
+            ent = travar_dados(toml, df)
+            @test length(ent) == 1 && only(ent).sha256 == bytes2hex(MicroSUS.SHA.sha256(antigo))
+            t = MicroSUS._le_trava(toml)
+            @test only(t).nome == nome && only(t).bytes == length(antigo) && !only(t).preliminar
+            @test only(t).baixado_em == only(proveniencia(df)).baixado_em
+            @test_throws ArgumentError travar_dados(toml)
+
+            # o arquivo já está no cache com o hash: nada a baixar
+            r = restaurar_dados(toml; verbose = false)
+            @test only(r).situacao === :no_cache
+
+            # o DATASUS republica; com a trava ativa, vale a versão travada,
+            # mesmo pedindo para ignorar o cache
+            escreve_dbc(fonte_arq, campos, [["1"], ["2"], ["1"]])
+            @test nrow(f(cache = false)) == 2
+            soltar_dados()
+            @test nrow(f(cache = false)) == 3          # sem a trava, a nova
+
+            # restaurar com a versão nova no cache e no "DATASUS": a travada
+            # não volta de lugar nenhum — erro, e o cache não é tocado
+            e = try restaurar_dados(toml; verbose = false); nothing catch err; err end
+            @test e isa ErrorException && occursin("não voltaram", e.msg)
+            @test nrow(DataFrame(ler(no_cache))) == 3
+            # estrito = false: segue com a atual, e diz que mudou
+            r = restaurar_dados(toml; estrito = false, verbose = false)
+            @test only(r).situacao === :diferente && only(r).sha256_obtido != only(t).sha256
+
+            # um espelho guardou a versão travada: ela volta de lá, com a data
+            # da extração original
+            espelho = joinpath(dir, "espelho_" * nome); write(espelho, antigo)
+            rm(no_cache; force = true)
+            r1 = MicroSUS._restaura_um(only(t), ["file://" * fonte_arq, "file://" * espelho];
+                                       estrito = true, verbose = false)
+            @test r1.situacao === :restaurado && r1.origem == "file://" * espelho
+            @test read(no_cache) == antigo
+            reg = MicroSUS._le_origem(no_cache)
+            @test reg.obtido_de == "file://" * espelho && reg.baixado_em == only(t).baixado_em
+            # nenhuma origem tem o arquivo
+            rm(no_cache; force = true)
+            r2 = MicroSUS._restaura_um(only(t), ["file://" * joinpath(dir, "nada.dbc")];
+                                       estrito = true, verbose = false)
+            @test r2.situacao === :indisponivel
+
+            # dois arquivos de mesmo nome e bytes diferentes não cabem numa trava
+            outro = [(arquivo = nome, url = "x", sha256 = "abc", bytes = 1,
+                      baixado_em = now(), preliminar = true, obtido_de = missing)]
+            @test_throws ArgumentError travar_dados(joinpath(dir, "x.toml"), df, outro)
+            # arquivo que não é um manifest
+            write(joinpath(dir, "y.toml"), "a = 1\n")
+            @test_throws ArgumentError restaurar_dados(joinpath(dir, "y.toml"))
+        finally
+            soltar_dados()
+            delete!(MicroSUS.FONTES, :TESTE_TRAVA)
+            rm(no_cache; force = true); rm(no_cache * ".origem"; force = true)
+        end
+    end
+
     @testset "erro de rede não é arquivo ausente" begin
         recusada = "http://127.0.0.1:1"            # conexão recusada, sem rede de fato
         # ausente continua sendo nothing (partições e PRELIM dependem disso)
