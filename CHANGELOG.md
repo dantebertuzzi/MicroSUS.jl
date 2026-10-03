@@ -11,6 +11,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- `descricao_cid(cod)` e `cid10(cod)`: descrição em português de um código
+  da CID-10, com categoria, grupo, capítulo, restrição de sexo e validade como
+  causa básica de óbito. Tabela do DATASUS (versão 2008, a última publicada em
+  CSV) embarcada em `data/cid10.tsv`, sem rede, mais a dengue (A97) da
+  atualização da OMS de 2016. Códigos posteriores a 2008 recebem a descrição
+  da categoria, marcado em `nivel`. Nos 20,6 milhões de óbitos do SIM de
+  2010–2024, só 28 ficam sem descrição; uma coluna de 334 mil causas é
+  rotulada em 0,13 s.
+
 - `populacao_por_idade(ano; nivel)`: população do IBGE por sexo e faixa
   etária — Censos 2010 e 2022 até o município, e a projeção da população
   (revisão 2018, anterior ao Censo 2022, marcada na coluna `fonte`) para
