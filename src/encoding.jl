@@ -68,15 +68,19 @@ function decodifica_texto(bytes::AbstractVector{UInt8}, lo::Int, hi::Int,
 end
 
 """
-    encoding_do_ldid(ldid::UInt8) -> Symbol
+    encoding_do_ldid(ldid::UInt8, sistema = nothing) -> Symbol
 
 Encoding a partir do language driver ID (byte 29 do cabeçalho DBF).
-`0x00` (não especificado) cai em `:cp850`, que é a prática do DATASUS.
+
+`0x00` (não especificado) cai em `:cp850`, a prática do DATASUS — exceto
+no CNES, que é CP1252: os arquivos do CNES que declaram o LDID trazem
+`0x58` (CP1252), e os que não declaram (2023) têm `ª`, `º` e `°` nos
+bytes de CP1252. Em CP850 os mesmos bytes saíam `¬`, `║` e `░`.
 """
-function encoding_do_ldid(ldid::UInt8)
-    ldid == 0x02 && return :cp850
+function encoding_do_ldid(ldid::UInt8, sistema::Union{Nothing,Symbol} = nothing)
+    ldid == 0x02 && return :cp850    # MS-DOS internacional
     ldid == 0x64 && return :cp850    # "DOS 852"? na dúvida, DOS multilíngue
-    ldid == 0x03 && return :cp1252
-    ldid == 0x57 && return :cp1252   # ANSI
+    ldid in (0x03, 0x57, 0x58, 0x59) && return :cp1252   # Windows ANSI (EUA, ocidental, espanhol)
+    ldid == 0x00 && sistema === :cnes && return :cp1252
     return :cp850                     # default sensato para DATASUS
 end

@@ -158,6 +158,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   o `r[:campo]` do filtro aceitam qualquer caixa, então `:contador` continua
   funcionando.
 
+- Texto do CNES saía corrompido: `"3ª"` como `"3¬"`, `"Nº 64"` como `"N║ 64"`,
+  `"28°"` como `"28░"`. O CNES é CP1252, e o pacote o lia como CP850 — os
+  arquivos de 2005 e 2019 até declaram o LDID `0x58` (Windows ANSI ocidental),
+  que o pacote não conhecia; os de 2023 não declaram nada (`0x00`). Os LDIDs
+  `0x58` e `0x59` passam a valer CP1252, e o CNES sem declaração também. SIH
+  continua CP850 (declara `0x02`, e `"DOCUMENTAçaO"` só sai certo assim); SIM,
+  SINASC, SINAN e SIA de 2023 não têm byte não ASCII nos dados. Na comparação
+  de 1.078 colunas, só a do CNES mudou.
+
 - No Windows, um download que falhava podia terminar num `IOError` (`EBUSY` ao
   apagar o `.part`): com os downloads simultâneos, dois pedidos do mesmo
   arquivo escreviam no mesmo `.part`, e o Windows não apaga arquivo aberto por

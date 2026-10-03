@@ -637,6 +637,27 @@ end
         @test length(materializar(ler(f; filtro = r -> r[:NOME] == "SÃO JOSÉ")).NOME) == 2
     end
 
+    @testset "encoding pelo LDID e pelo sistema (CNES é CP1252)" begin
+        @test MicroSUS.encoding_do_ldid(0x02) === :cp850
+        @test MicroSUS.encoding_do_ldid(0x00) === :cp850
+        @test all(l -> MicroSUS.encoding_do_ldid(l) === :cp1252, (0x03, 0x57, 0x58, 0x59))
+        @test MicroSUS.encoding_do_ldid(0x00, :cnes) === :cp1252
+        @test MicroSUS.encoding_do_ldid(0x02, :cnes) === :cp850     # declarado vale
+
+        dir = mktempdir()
+        num = String(UInt8['N', 0xBA, ' ', '6', '4'])                # "Nº 64" em CP1252
+        campos = [("ALVARA", 'C', 8, 0)]
+        cnes = escreve_dbc(joinpath(dir, "STXX2312.dbc"), campos, [[num]]; ldid = 0x00)
+        sim = escreve_dbc(joinpath(dir, "DOXX2023.dbc"), campos, [[num]]; ldid = 0x00)
+        decl = escreve_dbc(joinpath(dir, "qualquer.dbc"), campos, [[num]]; ldid = 0x58)
+        @test only(materializar(ler(cnes)).ALVARA) == "Nº 64"
+        @test only(materializar(ler(sim)).ALVARA) == "N║ 64"       # CP850, como sempre
+        @test only(materializar(ler(decl)).ALVARA) == "Nº 64"
+        @test only(materializar(ler(sim; schema = :cnes)).ALVARA) == "Nº 64"
+        @test only(materializar(ler(cnes; encoding = :cp850)).ALVARA) == "N║ 64"   # explícito vale
+        @test only(materializar(ler(cnes; filtro = r -> r[:ALVARA] == "Nº 64")).ALVARA) == "Nº 64"
+    end
+
     @testset "encoding CP850" begin
         b = UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90, ' ', ' ']
         @test MicroSUS.decodifica_texto(b, 1, 10, :cp850) == "SÃO JOSÉ"
