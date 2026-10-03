@@ -231,7 +231,8 @@ function ler(caminhos::AbstractVector{<:AbstractString};
              kwargs...)
     isempty(caminhos) && throw(ArgumentError("nenhum arquivo para ler"))
     tabelas = [ler(c; kwargs...) for c in caminhos]
-    return _concatena(tabelas, uniao, origem, get(kwargs, :colunas, nothing))
+    cols = get(kwargs, :colunas, nothing)
+    return _concatena(tabelas, uniao, origem, cols === nothing ? nothing : _nome_campo.(cols))
 end
 
 Tables.istable(::Type{TabelaConcatenada}) = true

@@ -149,6 +149,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Fixed
 
+- Leituras de vários anos do SINASC e do SIM saíam com duas colunas para o
+  mesmo campo: o DATASUS grava `contador` no SIM de 2010 e no SINASC de 1996,
+  2014, 2015 e 2017, e `CONTADOR` nos demais anos (é o único campo assim nos
+  654 arquivos do cache de teste). No SINASC de PE 2014–2023, cada coluna
+  ficava com metade dos 1,3 milhão de valores e `missing` no resto. Os nomes
+  de campo passam a ser lidos em maiúsculas, a convenção do DBF; `colunas` e
+  o `r[:campo]` do filtro aceitam qualquer caixa, então `:contador` continua
+  funcionando.
+
 - No Windows, um download que falhava podia terminar num `IOError` (`EBUSY` ao
   apagar o `.part`): com os downloads simultâneos, dois pedidos do mesmo
   arquivo escreviam no mesmo `.part`, e o Windows não apaga arquivo aberto por
