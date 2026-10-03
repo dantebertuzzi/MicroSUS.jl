@@ -11,6 +11,17 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- Busca de CID-10: `cid_casa(cid, alvos)` aceita prefixos (`"A81"`) e faixas de
+  categorias (`"X85" => "Y09"`), normalizando ponto, espaço e caixa
+  (`normaliza_cid`); `cids_em(texto)` separa os códigos concatenados das linhas
+  da Declaração de Óbito e `menciona_cid(texto, alvos)` testa causas múltiplas
+  sem casar pedaços formados pela junção de dois códigos vizinhos. Tudo cabe
+  no `filtro` de `ler`. `eh_agressao` agora é `cid_casa` com o recorte de CVLI.
+- Tabela de municípios do IBGE embarcada (`data/municipios.csv`, 5.571 linhas):
+  `municipio(cod)` devolve nome, UF, região e códigos de 6 e 7 dígitos sem
+  acesso à rede; `municipios()` devolve a tabela inteira para joins; `uf_de` e
+  `regiao` resolvem UF e grande região a partir de sigla ou código.
+
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
   (SIM, 2023 — 68,527 records) with `fetch_datasus(...; processar = false)`, audits the raw codes
@@ -25,6 +36,16 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   raw frame reproduces `process_sim`'s `missing` counts exactly, field by field; and `OCUP`, which
   `process_sim` deliberately leaves unlabelled, keeps 8,067 blank occupations that survive
   standardisation looking like data.
+
+### Fixed
+
+- `codigo7_ibge` e `codigo6_ibge` erravam em nove municípios cujo dígito
+  verificador oficial não segue o algoritmo de `dv_ibge` (Bom Princípio do
+  Piauí, Brejo do Piauí, Canavieira, Quixaba, Cônego Marinho, Ponto Chique,
+  Coronel Barros, Buriti de Goiás, Buritinópolis): `codigo7_ibge(261153)`
+  devolvia 2611531 em vez de 2611533, e `codigo6_ibge(2611533)` rejeitava um
+  código válido. As duas agora usam o dígito da tabela oficial e caem no
+  algoritmo só para códigos fora dela.
 
 ### Documentation
 

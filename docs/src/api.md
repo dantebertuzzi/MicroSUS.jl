@@ -63,7 +63,15 @@ MicroSUS.detecta_sistema
 dv_ibge
 codigo7_ibge
 codigo6_ibge
+uf_de
+regiao
+municipio
+municipios
 capitulo_cid10
+normaliza_cid
+cid_casa
+cids_em
+menciona_cid
 eh_agressao
 ```
 
