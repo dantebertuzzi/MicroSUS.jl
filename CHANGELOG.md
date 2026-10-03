@@ -9,6 +9,33 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-03
+
+### Migrando da 0.3
+
+Mudanças que alteram o resultado de código que já existia:
+
+- **`fetch_datasus` padroniza SINAN e CNES.** Antes devolvia os códigos crus
+  com um `@info`; agora aplica `process_sinan` e `process_cnes`. Para o
+  comportamento antigo, `processar = false`.
+- **Colunas categóricas têm elemento `String`**, não mais `InlineString`.
+  Comparações (`== "261110"`) não mudam; código que dependia do tipo exato, sim.
+- **Nomes de campo vêm em maiúsculas.** O único afetado é `contador` (SIM de
+  2010; SINASC de 1996, 2014, 2015 e 2017), que vira `CONTADOR`. Pedidos em
+  `colunas` e `r[:campo]` aceitam qualquer caixa.
+- **Falha de rede interrompe com `MicroSUS.ErroDeRede`**, em vez de seguir com
+  um `@warn` de "arquivos não encontrados" e um resultado incompleto. Arquivo
+  de fato ausente continua sendo pulado com `@warn`.
+- **Texto do CNES é lido como CP1252.** `"N║ 64"` passa a sair `"Nº 64"`.
+- **Malária (`MALABR`) é reconhecida como SINAN**: `NU_IDADE_N` passa a vir em
+  anos, não no código cru (`4025`).
+- **`fetch_datasus` acrescenta `PRELIMINAR`** e `UF_ARQUIVO` passa a ser
+  categórica.
+- **`converter` grava categóricas como texto simples**, sem dicionário Arrow.
+- **Cache:** preliminares vão para `PRELIM/`. Um cache montado até a 0.3.1 pode
+  ter preliminares antigos na raiz, que o pacote não tem como reconhecer —
+  rebaixe os anos recentes com `forcar = true` ou rode `MicroSUS.limpar_cache()`.
+
 ### Added
 
 - `haskey(r, :CAMPO)` no `filtro` de `ler`/`fetch_datasus`: campos que não
@@ -460,7 +487,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.0...v0.2.1
