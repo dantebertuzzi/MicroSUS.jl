@@ -149,6 +149,17 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Fixed
 
+- Falha de rede era tratada como arquivo ausente. `baixar_url` — e com ela
+  `fetch_datasus` — contava todo `RequestError` como "o arquivo não existe",
+  embora a docstring prometesse propagar timeout e DNS: sem acesso ao FTP, um
+  `fetch_datasus(:SIM_DO; uf = :all, …)` devolvia um resultado incompleto, ou
+  vazio, com só um `@warn` de "arquivos não encontrados". Agora só conta como
+  ausente a resposta de arquivo inexistente (libcurl 78/19/37; HTTP/FTP 404,
+  410, 550); o resto interrompe com `MicroSUS.ErroDeRede`. Sem rede, um
+  preliminar já no cache continua sendo usado, e o aviso passa a dizer que foi
+  por falta de rede (antes dizia "consolidado ainda não publicado").
+  `baixar` e `baixar_sinan` seguem a mesma regra.
+
 - `codigo7_ibge` e `codigo6_ibge` erravam em nove municípios cujo dígito
   verificador oficial não segue o algoritmo de `dv_ibge` (Bom Princípio do
   Piauí, Brejo do Piauí, Canavieira, Quixaba, Cônego Marinho, Ponto Chique,

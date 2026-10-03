@@ -156,19 +156,22 @@ function baixar(sistema::Symbol, uf::AbstractString;
         # SIM/SINASC ficam lá até a consolidação). O consolidado é sempre
         # tentado antes, mesmo com o preliminar em cache: é assim que a
         # versão definitiva substitui a preliminar quando sai.
-        sistema in (:sim, :sinasc) || rethrow()
+        sistema in (:sim, :sinasc) || throw(_erro_de_rede(u, e))
+        sem_rede = !_eh_ausente(e)
         up = url_arquivo(sistema, uf; ano = ano, mes = mes, prelim = true)
         dp = _destino_cache(up)
         if isfile(dp) && !forcar
-            @warn "consolidado ainda não publicado; usando dados PRELIMINARES do cache " *
-                  "(o DATASUS os atualiza — `forcar = true` rebaixa)" arquivo = dp baixado_em = _baixado_em(dp)
+            @warn (sem_rede ? "sem acesso à rede" : "consolidado ainda não publicado") *
+                  "; usando dados PRELIMINARES do cache (o DATASUS os atualiza — " *
+                  "`forcar = true` rebaixa)" arquivo = dp baixado_em = _baixado_em(dp)
             return dp
         end
+        sem_rede && throw(_erro_de_rede(u, e))
         @warn "não achei o consolidado; tentando dados PRELIMINARES" url = up
         try
             return _baixa!(up, dp)
-        catch
-            throw(e)   # erro original, com a URL principal
+        catch e2
+            throw(_eh_ausente(e2) ? e : _erro_de_rede(up, e2))   # ausente: erro da URL principal
         end
     end
 end
@@ -245,7 +248,12 @@ function baixar_sinan(agravo::Symbol; ano::Union{Nothing,Int} = nothing,
             quieto || @info "baixando $u"
             return _baixa!(u, destino)
         catch e
-            erro = e
+            erro = _erro_de_rede(u, e)
+            # sem rede, o PRELIM só serve se já estiver no cache (o laço
+            # confere na próxima volta); baixá-lo também falharia
+            erro isa ErroDeRede && !pl && prelim === nothing &&
+                !isfile(_destino_cache(url_sinan(agravo; ano = ano, prelim = true))) &&
+                throw(erro)
         end
     end
     throw(erro)

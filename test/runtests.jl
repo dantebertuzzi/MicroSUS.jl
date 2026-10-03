@@ -816,6 +816,50 @@ end
         end
     end
 
+    @testset "erro de rede não é arquivo ausente" begin
+        recusada = "http://127.0.0.1:1"            # conexão recusada, sem rede de fato
+        # ausente continua sendo nothing (partições e PRELIM dependem disso)
+        @test MicroSUS.baixar_url("file:///nao/existe/TESTEREDEX.dbc"; verbose = false) === nothing
+        @test_throws MicroSUS.ErroDeRede MicroSUS.baixar_url("$recusada/TESTEREDEX.dbc"; verbose = false)
+        e = try MicroSUS.baixar_url("$recusada/TESTEREDEX.dbc"; verbose = false) catch err; err end
+        @test occursin("Não é ausência do arquivo", sprint(showerror, e))
+
+        dir = mktempdir()
+        mkpath(joinpath(dir, "PRELIM"))
+        nome = "TESTEREDEPE2023.dbc"
+        escreve_dbc(joinpath(dir, "PRELIM", nome), [("SEXO", 'C', 1, 0)], [["1"], ["2"]])
+        finais = Ref("file://" * joinpath(dir, "FINAIS", nome))   # não existe
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_REDE, nome = "teste de rede", periodicidade = :anual,
+            urls = (uf, ano, _) -> [finais[], "file://" * joinpath(dir, "PRELIM", nome)],
+            anos = 2023:2023))
+        cache_prelim = joinpath(MicroSUS._dir_cache(), "PRELIM", nome)
+        try
+            # sem rede e sem nada no cache: erro, não resultado vazio com aviso
+            finais[] = "$recusada/FINAIS/$nome"
+            rm(cache_prelim; force = true)
+            MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+                id = :TESTE_REDE_SO, nome = "t", periodicidade = :anual,
+                urls = (uf, ano, _) -> ["$recusada/$nome"], anos = 2023:2023))
+            @test_throws MicroSUS.ErroDeRede fetch_datasus(:TESTE_REDE_SO; uf = ["PE", "BA"],
+                anos = 2023, processar = false, verbose = false)
+
+            # o preliminar entra no cache (consolidado ausente, com rede)
+            finais[] = "file://" * joinpath(dir, "FINAIS", nome)
+            df = fetch_datasus(:TESTE_REDE; uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test df.PRELIMINAR == [true, true] && isfile(cache_prelim)
+
+            # sem rede, com o preliminar no cache: usa, e o aviso diz o porquê
+            finais[] = "$recusada/FINAIS/$nome"
+            df2 = @test_logs (:warn, r"sem acesso à rede") match_mode = :any fetch_datasus(
+                :TESTE_REDE; uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test nrow(df2) == 2 && all(df2.PRELIMINAR)
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_REDE); delete!(MicroSUS.FONTES, :TESTE_REDE_SO)
+            rm(cache_prelim; force = true)
+        end
+    end
+
     @testset "fetch_datasus — fonte sintética nacional (abrangência :br)" begin
         dir = mktempdir()
         campos_fic = [("DT_NOTIFIC", 'C', 8, 0), ("SG_UF", 'C', 2, 0)]
