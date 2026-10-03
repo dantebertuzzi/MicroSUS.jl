@@ -48,7 +48,7 @@ export ler, materializar, converter, baixar, url_arquivo,
        uf_de, regiao, municipio, municipios,
        CabecalhoDBF, CampoDBF, TabelaDBC, cabecalho,
        fetch_datasus, fontes, fonte,
-       process_sim, process_sinasc, process_sih
+       process_sim, process_sinasc, process_sih, process_sinan
 
 include("dcl.jl")
 include("encoding.jl")
@@ -65,6 +65,7 @@ include("process/process.jl")
 include("process/sim.jl")
 include("process/sinasc.jl")
 include("process/sih.jl")
+include("process/sinan.jl")
 include("fetch.jl")
 
 """

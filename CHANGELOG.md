@@ -29,6 +29,19 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   um foi verificado no FTP do DATASUS; `agravos_sinan()` lista todos, e o guia
   de download tem a tabela com a cobertura e as lacunas (cólera 2023, surtos de
   DTA 2014, varicela 2020).
+- `process_sinan(df; agravo = :auto)`, aplicado por `fetch_datasus` a toda fonte
+  `:SINAN_*`. Rotula o núcleo comum às fichas (`TP_NOT`, `CS_SEXO`, `CS_RACA`,
+  `CS_GESTANT`, `CS_ESCOL_N`, `HOSPITALIZ`), converte as datas `DT_*` e cria
+  `IDADE_ANOS`. `CLASSI_FIN`, `CRITERIO` e `EVOLUCAO` mudam de sentido entre
+  agravos e só são rotulados para dengue, chikungunya e zika, cada um com seu
+  dicionário — inclusive a ficha da dengue anterior a 2014 (1–4) e a ficha
+  própria da chikungunya de 2014–2016 (1 = confirmado, 2 = descartado), que um
+  dicionário único rotularia como "Dengue clássico". Validado contra
+  DENGBR23, CHIKBR15, ZIKABR23, VIOLBR09 e MALABR22: só viram `missing` os
+  códigos de ignorado (`9`, `I`) e o `0` não documentado.
+- `rotular!(...; ignora_zeros = true)`: `"01"` e `"1"` dão o mesmo rótulo. O
+  SINAN grava as duas formas no mesmo arquivo (ZIKABR23: 1.101 `"01"` e 502
+  `"1"` em `CS_ESCOL_N`); sem isso, metade dos registros viraria `missing`.
 
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
@@ -69,7 +82,6 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 - `detecta_sistema` olhava só as 4 primeiras letras do nome, o que não serve
   para prefixos de 3 (`SRCBR21.dbc`, rubéola congênita); agora casa o nome
   inteiro (`{PREFIXO}BR{aa}.dbc`).
-
 ### Documentation
 
 - `docs/checa_blocos.jl`, rodado pelo CI antes de construir a documentação. As

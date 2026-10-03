@@ -682,6 +682,86 @@ end
         @test MicroSUS.process_sim(dfsem) == dfsem
     end
 
+    @testset "process_sinan: núcleo, zeros à esquerda, agravo, idade" begin
+        df = DataFrame(
+            ID_AGRAVO  = ["A90", "A90", "A90"],
+            TP_NOT     = ["2", "2", "3"],
+            CS_SEXO    = ["M", "F", "I"],
+            CS_RACA    = ["4", "9", ""],
+            CS_GESTANT = ["1", "6", "9"],
+            CS_ESCOL_N = ["01", "1", "00"],       # mesmo arquivo, duas formas
+            HOSPITALIZ = ["1", "2", "9"],
+            CLASSI_FIN = ["10", "5", "0"],
+            CRITERIO   = ["1", "2", ""],
+            EVOLUCAO   = ["1", "2", "9"],
+            NU_IDADE_N = [25.4, 0.5, missing],    # já em anos (schema)
+            DT_ENCERRA = ["20230115", "", "00000000"],
+        )
+        out = process_sinan(df)
+        @test isequal(out.CS_SEXO, ["Masculino", "Feminino", missing])
+        @test out.TP_NOT == ["Individual", "Individual", "Surto"]
+        @test isequal(out.CS_RACA, ["Parda", missing, missing])
+        @test isequal(out.CS_GESTANT, ["1º trimestre", "Não se aplica", missing])
+        @test out.CS_ESCOL_N == ["1ª a 4ª série incompleta do EF",
+                                 "1ª a 4ª série incompleta do EF", "Analfabeto"]
+        @test isequal(out.HOSPITALIZ, ["Sim", "Não", missing])
+        @test isequal(out.CLASSI_FIN, ["Dengue", "Descartado", missing])
+        @test isequal(out.CRITERIO, ["Laboratorial", "Clínico-epidemiológico", missing])
+        @test isequal(out.EVOLUCAO, ["Cura", "Óbito pelo agravo", missing])
+        @test isequal(out.IDADE_ANOS, [25, 0, missing])
+        @test isequal(out.DT_ENCERRA, [Date(2023, 1, 15), missing, missing])
+        @test df.CS_SEXO == ["M", "F", "I"]       # original intacto
+
+        # o mesmo "1" muda de sentido com o agravo
+        z = DataFrame(ID_AGRAVO = ["A928", "A92."], CLASSI_FIN = ["1", "2"])
+        @test process_sinan(z).CLASSI_FIN == ["Confirmado", "Descartado"]
+        d = DataFrame(CLASSI_FIN = ["1", "2"])
+        @test process_sinan(d; agravo = :dengue).CLASSI_FIN ==
+              ["Dengue clássico", "Dengue com complicações"]
+        @test process_sinan(d; agravo = :chikungunya).CLASSI_FIN ==
+              ["Confirmado", "Descartado"]
+
+        # agravo desconhecido ou misto: CLASSI_FIN/EVOLUCAO ficam crus
+        v = DataFrame(ID_AGRAVO = ["Y09", "Y09"], CLASSI_FIN = ["1", "3"], CS_SEXO = ["F", "M"])
+        outv = process_sinan(v)
+        @test outv.CLASSI_FIN == ["1", "3"]
+        @test outv.CS_SEXO == ["Feminino", "Masculino"]
+        misto = DataFrame(ID_AGRAVO = ["A90", "A928"], CLASSI_FIN = ["1", "1"])
+        @test process_sinan(misto).CLASSI_FIN == ["1", "1"]
+        @test process_sinan(misto; agravo = nothing).CLASSI_FIN == ["1", "1"]
+        @test_throws ArgumentError process_sinan(misto; agravo = :malaria)
+
+        # NU_IDADE_N cru: texto e inteiro (campo N lido sem schema) são o código
+        @test isequal(process_sinan(DataFrame(NU_IDADE_N = ["4025", "3006", "999"])).IDADE_ANOS,
+                      [25, 0, missing])
+        @test process_sinan(DataFrame(NU_IDADE_N = [4025, 5010, 2015])).IDADE_ANOS ==
+              [25, 110, 0]
+
+        # despacho pelo id da fonte
+        zf = DataFrame(CLASSI_FIN = ["1"], CS_SEXO = ["F"])
+        @test MicroSUS.processar_fonte(:SINAN_ZIKA, zf).CLASSI_FIN == ["Confirmado"]
+        tf = MicroSUS.processar_fonte(:SINAN_TUBERCULOSE, zf)
+        @test tf.CLASSI_FIN == ["1"] && tf.CS_SEXO == ["Feminino"]
+
+        @test process_sinan(DataFrame(OUTRACOISA = [1])) == DataFrame(OUTRACOISA = [1])
+    end
+
+    @testset "rotular! — ignora_zeros" begin
+        df = DataFrame(X = ["01", "1", "00", "10", "A1"])
+        dic = Dict("0" => "zero", "1" => "um", "10" => "dez", "A1" => "a-um")
+        @test isequal(MicroSUS.rotular!(copy(df), :X, dic).X, [missing, "um", missing, "dez", "a-um"])
+        @test MicroSUS.rotular!(copy(df), :X, dic; ignora_zeros = true).X ==
+              ["um", "um", "zero", "dez", "a-um"]
+    end
+
+    @testset "detecta_sistema reconhece toda fonte SINAN registrada" begin
+        for (id, f) in MicroSUS.FONTES
+            startswith(string(id), "SINAN_") || continue
+            arq = basename(first(f.urls("BR", 2022, nothing)))
+            @test MicroSUS.detecta_sistema(arq) === :sinan
+        end
+    end
+
     @testset "ignorar_ausentes e cabecalho pública" begin
         caminho = joinpath(@__DIR__, "data", "sids.dbc")
 

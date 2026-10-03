@@ -241,7 +241,7 @@ Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); SIH/SIA cobrem a estrutura pós-2008.
 
-## Padronização: `process_sim` / `process_sinasc` / `process_sih`
+## Padronização: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan`
 
 `fetch_datasus` chama a rotina de padronização da fonte por padrão
 (`processar = true`). Ela troca códigos por rótulos legíveis, converte datas
@@ -257,7 +257,17 @@ No SIM: rotula `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO` e
 afins, e cria `IDADE_ANOS` em anos completos. No SINASC: `PARTO`, `GRAVIDEZ`,
 `ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`. No SIH: `SEXO`,
 `RACA_COR`, `IDENT`, `CAR_INT`, e `IDADE_ANOS` a partir do par `IDADE` +
-`COD_IDADE`.
+`COD_IDADE`. No SINAN: o núcleo comum às fichas (`TP_NOT`, `CS_SEXO`,
+`CS_RACA`, `CS_GESTANT`, `CS_ESCOL_N`, `HOSPITALIZ`) e `IDADE_ANOS` a partir de
+`NU_IDADE_N`.
+
+> **Atenção ao SINAN**: `CLASSI_FIN`, `CRITERIO` e `EVOLUCAO` mudam de sentido
+> entre agravos — `CLASSI_FIN = "1"` é "Dengue clássico" na ficha antiga da
+> dengue e "Confirmado" na da zika. Só são rotulados para dengue, chikungunya e
+> zika, com o dicionário de cada um (`process_sinan(df; agravo = :zika)`, ou
+> inferido de `ID_AGRAVO`); nos demais agravos ficam crus. E os códigos vêm com
+> e sem zero à esquerda no mesmo arquivo (`"01"` e `"1"`): a rotina trata os
+> dois como o mesmo código.
 
 > **Atenção ao SIH**: `SEXO` usa 1 = Masculino e **3** = Feminino (no SIM é 1 e
 > 2), e `RACA_COR` usa `01`–`05` + `99` (no SIM é `1`–`5`, e "Parda" é `4`, não
@@ -270,8 +280,8 @@ dicionário incompleto apagaria dados válidos em silêncio.
 
 Colunas ausentes no layout do ano são ignoradas em silêncio — o layout do
 DATASUS muda entre anos, e a rotina é escrita para sobreviver a isso. As demais
-fontes (SIH, SIA, CNES, SINAN) ainda não têm rotina: devolvem os códigos brutos
-com um `@info`.
+fontes (SIA, CNES) ainda não têm rotina: devolvem os códigos brutos com um
+`@info`.
 
 ## Dimensões auxiliares
 

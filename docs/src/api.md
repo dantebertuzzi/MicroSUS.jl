@@ -46,6 +46,7 @@ fonte
 process_sim
 process_sinasc
 process_sih
+process_sinan
 ```
 
 ## Decodificação de schemas

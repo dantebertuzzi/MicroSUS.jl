@@ -219,6 +219,20 @@ ocorrência e circunstância do óbito, e cria a coluna `IDADE_ANOS` em
 anos completos. No SINASC, rotula tipo de parto, gravidez, escolaridade
 e estado civil da mãe, consultas de pré-natal e local de nascimento.
 
+[`process_sinan`](@ref) rotula o núcleo comum às fichas de notificação
+(tipo de notificação, sexo, raça/cor, gestação, escolaridade,
+hospitalização) e cria `IDADE_ANOS`. Classificação final, critério e
+evolução mudam de sentido entre agravos e só são rotulados para dengue,
+chikungunya e zika:
+
+```julia
+dg = fetch_datasus(:SINAN_DENGUE; anos = 2024)        # agravo = :dengue
+combine(groupby(dg, :CLASSI_FIN), nrow)  # "Dengue", "Dengue grave", "Descartado", …
+
+zk = fetch_datasus(:SINAN_ZIKA; anos = 2023, processar = false)
+process_sinan(zk; agravo = :zika)                      # explícito
+```
+
 ### Decodificação de idade
 
 #### `decodifica_idade_sim` / `decodifica_idade_sinan`

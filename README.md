@@ -241,7 +241,7 @@ Current FTP paths (checked against `microdatasus`, Jul 2026):
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); SIH/SIA cover the post-2008 structure.
 
-## Standardization: `process_sim` / `process_sinasc` / `process_sih`
+## Standardization: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan`
 
 `fetch_datasus` calls the source's standardization routine by default
 (`processar = true`). It replaces codes with readable labels, converts text
@@ -257,7 +257,17 @@ For SIM it labels `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO`
 and friends, and derives `IDADE_ANOS` in whole years. For SINASC: `PARTO`,
 `GRAVIDEZ`, `ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`. For SIH:
 `SEXO`, `RACA_COR`, `IDENT`, `CAR_INT`, plus `IDADE_ANOS` from the `IDADE` +
-`COD_IDADE` pair.
+`COD_IDADE` pair. For SINAN: the core shared by every notification form
+(`TP_NOT`, `CS_SEXO`, `CS_RACA`, `CS_GESTANT`, `CS_ESCOL_N`, `HOSPITALIZ`), plus
+`IDADE_ANOS` from `NU_IDADE_N`.
+
+> **Careful with SINAN**: `CLASSI_FIN`, `CRITERIO` and `EVOLUCAO` change meaning
+> between diseases — `CLASSI_FIN = "1"` is "classic dengue" on the old dengue
+> form and "confirmed" on the Zika one. They are labelled only for dengue,
+> chikungunya and Zika, each with its own dictionary
+> (`process_sinan(df; agravo = :zika)`, or inferred from `ID_AGRAVO`); for other
+> diseases they stay raw. Codes also come with and without a leading zero in the
+> same file (`"01"` and `"1"`): the routine treats both as the same code.
 
 > **Careful with SIH**: `SEXO` is 1 = Male and **3** = Female (SIM uses 1 and
 > 2), and `RACA_COR` is `01`–`05` + `99` (SIM uses `1`–`5`, and "Parda" is `4`,
@@ -270,8 +280,8 @@ dictionary would silently erase valid data.
 
 Columns absent from a given year's layout are silently skipped — DATASUS
 layouts change between years, and the routine is written to survive that. The
-remaining sources (SIH, SIA, CNES, SINAN) have no routine yet: they return raw
-codes with an `@info`.
+remaining sources (SIA, CNES) have no routine yet: they return raw codes with
+an `@info`.
 
 ## Auxiliary dimensions
 
