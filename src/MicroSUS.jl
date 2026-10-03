@@ -41,7 +41,7 @@ import SHA
 
 export ler, materializar, converter, baixar, url_arquivo,
        baixar_sinan, url_sinan, agravos_sinan, eh_preliminar,
-       verificar_cache, proveniencia,
+       verificar_cache, proveniencia, exportar_espelho,
        dcl_descomprime, descomprime_dbc_para_dbf,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao, cid10, descricao_cid,

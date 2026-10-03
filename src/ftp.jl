@@ -86,28 +86,168 @@ function _destino_cache(url::AbstractString)
     return joinpath(dir, basename(url))
 end
 
-# baixa para um .part e só então move: download interrompido não deixa
-# arquivo truncado com o nome definitivo no cache.
+# ── espelhos ─────────────────────────────────────────────────────────
 #
-# O .part é exclusivo de cada chamada: com os downloads simultâneos, dois
-# pedidos do mesmo arquivo escreviam no mesmo .part, e no Windows — que
-# não apaga arquivo aberto por outra tarefa — o rm de um falhava com EBUSY
-# enquanto o outro o segurava. E uma falha ao limpar nunca esconde o erro
-# do download, do qual depende saber se é ausência ou falta de rede.
-function _baixa!(url::AbstractString, destino::AbstractString)
-    tmp = string(destino, ".", getpid(), "-", rand(UInt32), ".part")
-    try
-        open(io -> Downloads.download(url, io), tmp, "w")
-    catch
-        try
-            rm(tmp; force = true)
-        catch
+# Raízes alternativas com a mesma árvore de pastas do FTP do DATASUS
+# (`<espelho>/SIM/CID10/DORES/DOPE2023.dbc`): um bucket, um servidor do
+# grupo, uma pasta de rede (`file://`). Separados por `;` em
+# MICROSUS_ESPELHOS. Por padrão só entram quando o DATASUS falha por rede;
+# com MICROSUS_ESPELHO_PRIMEIRO=true, são tentados antes dele.
+
+function _espelhos()
+    v = get(ENV, "MICROSUS_ESPELHOS", "")
+    return [String(rstrip(strip(e), '/')) for e in split(v, ';') if !isempty(strip(e))]
+end
+
+_espelho_primeiro() =
+    lowercase(strip(get(ENV, "MICROSUS_ESPELHO_PRIMEIRO", ""))) in ("1", "true", "sim")
+
+# a mesma URL num espelho; `nothing` para o que não está sob a raiz do FTP
+function _url_no_espelho(url::AbstractString, espelho::AbstractString)
+    startswith(url, _FTP_BASE * "/") || return nothing
+    return espelho * url[ncodeunits(_FTP_BASE)+1:end]
+end
+
+# ── download ─────────────────────────────────────────────────────────
+#
+# Um download por destino de cada vez: com os downloads simultâneos, dois
+# pedidos do mesmo arquivo escreviam no mesmo temporário — e no Windows,
+# que não apaga arquivo aberto, o rm de um falhava com EBUSY. O segundo
+# espera o primeiro.
+const _TRAVAS_DESTINO = Dict{String,ReentrantLock}()
+const _TRAVA_TRAVAS = ReentrantLock()
+_trava_destino(destino) = lock(() -> get!(ReentrantLock, _TRAVAS_DESTINO, destino), _TRAVA_TRAVAS)
+
+# Baixa `url` para o cache. O DATASUS é a autoridade sobre a ausência de
+# um arquivo (as partições do SIA e o PRELIM dependem de saber disso): se
+# ele diz que não existe, não existe, haja o que houver num espelho. Um
+# espelho entra no lugar dele só quando ele não responde — ou antes dele,
+# com MICROSUS_ESPELHO_PRIMEIRO. O registro de origem guarda a URL do
+# DATASUS (é contra ela que verificar_cache compara) e, se veio de um
+# espelho, de onde veio.
+_baixa!(url::AbstractString, destino::AbstractString) =
+    _baixa_de!(_origens(url), url, destino)
+
+# de onde tentar `url`, em ordem
+function _origens(url::AbstractString)
+    espelhos = String[u for e in _espelhos()
+                      for u in (_url_no_espelho(url, e),) if u !== nothing]
+    return _espelho_primeiro() ? [espelhos; String(url)] : [String(url); espelhos]
+end
+
+function _baixa_de!(ordem, url::AbstractString, destino::AbstractString)
+    lock(_trava_destino(destino)) do
+        erro_datasus = nothing
+        for u in ordem
+            try
+                _baixa_retomando!(u, destino)
+                u == url || @info "obtido de um espelho" url espelho = u
+                _registra_origem(destino, url; obtido_de = u == url ? nothing : u)
+                return destino
+            catch e
+                e isa Downloads.RequestError || rethrow()
+                if u == url
+                    _eh_ausente(e) && rethrow()
+                    erro_datasus = e
+                end
+                # espelho sem o arquivo ou fora do ar: a próxima origem
+            end
         end
-        rethrow()
+        throw(erro_datasus)
     end
-    mv(tmp, destino; force = true)
-    _registra_origem(destino, url)
+end
+
+# ── retomada ─────────────────────────────────────────────────────────
+#
+# O FTP do DATASUS derruba transferências no meio: em 28/09/2026 um
+# arquivo de 8,4 MB parou em 80–90% três vezes seguidas. O download vai
+# para `destino.parcial`, com `destino.parcial.info` (URL e tamanho
+# esperado) ao lado; uma transferência que cai depois de avançar continua
+# de onde parou, e o parcial sobrevive para a próxima chamada. Só vira o
+# arquivo definitivo inteiro.
+#
+# Retomar só em FTP e file://: um servidor HTTP pode ignorar o pedido de
+# continuar e devolver o arquivo todo, que seria anexado ao parcial.
+
+const _TENTATIVAS_RETOMADA = 5
+
+_retomavel(url) = startswith(url, "ftp://") || startswith(url, "file://")
+
+function _le_parcial(info::AbstractString)
+    isfile(info) || return nothing
+    l = split(read(info, String), '\t')
+    length(l) == 2 || return nothing
+    t = tryparse(Int, strip(l[2]))
+    return t === nothing ? nothing : (url = String(l[1]), total = t)
+end
+
+# o parcial só serve para a mesma URL e o mesmo arquivo no servidor
+function _confere_parcial!(url, parcial, info)
+    isfile(parcial) || (rm(info; force = true); return)
+    reg = _le_parcial(info)
+    descarta = !_retomavel(url) || reg === nothing || reg.url != url ||
+               filesize(parcial) > reg.total
+    if !descarta
+        t = try
+            _tamanho_remoto(url)
+        catch e
+            e isa ErroDeRede || rethrow()
+            missing                   # sem resposta: a tentativa dirá
+        end
+        descarta = t === nothing || (t isa Int && t != reg.total)
+    end
+    descarta && (rm(parcial; force = true); rm(info; force = true))
+    return
+end
+
+function _baixa_retomando!(url::AbstractString, destino::AbstractString)
+    parcial = destino * ".parcial"
+    info = parcial * ".info"
+    _confere_parcial!(url, parcial, info)
+    for k in 1:_TENTATIVAS_RETOMADA
+        antes = isfile(parcial) ? filesize(parcial) : 0
+        try
+            _baixa_trecho!(url, parcial, info, antes)
+            break
+        catch e
+            if !(e isa Downloads.RequestError) || _eh_ausente(e)
+                rm(parcial; force = true); rm(info; force = true)
+                rethrow()
+            end
+            depois = isfile(parcial) ? filesize(parcial) : 0
+            (_retomavel(url) && depois > antes && k < _TENTATIVAS_RETOMADA) || rethrow()
+            @info "transferência interrompida; retomando" url baixados = depois
+        end
+    end
+    reg = _le_parcial(info)
+    if reg !== nothing && filesize(parcial) != reg.total
+        rm(parcial; force = true); rm(info; force = true)
+        error("download de $url terminou com $(filesize(parcial)) bytes; " *
+              "o servidor anunciou $(reg.total)")
+    end
+    mv(parcial, destino; force = true)
+    rm(info; force = true)
     return destino
+end
+
+# um trecho: do byte `inicio` até o fim, anexado ao parcial
+function _baixa_trecho!(url, parcial, info, inicio::Int)
+    _retomavel(url) || (inicio = 0)
+    d = Downloads.Downloader()
+    inicio > 0 && (d.easy_hook = (easy, _) -> Downloads.Curl.setopt(
+        easy, Downloads.Curl.CURLOPT_RESUME_FROM_LARGE, Downloads.Curl.curl_off_t(inicio)))
+    anotado = Ref(false)
+    progresso = (total, _) -> begin
+        # numa retomada a libcurl anuncia só o que falta
+        if !anotado[] && total > 0
+            write(info, url, '\t', string(inicio + total))
+            anotado[] = true
+        end
+    end
+    open(parcial, inicio > 0 ? "a" : "w") do io
+        Downloads.download(url, io; downloader = d, progress = progresso)
+    end
+    return
 end
 
 # Arquivo do cache que de fato serve. Um download interrompido por versões

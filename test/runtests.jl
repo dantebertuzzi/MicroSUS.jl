@@ -1048,8 +1048,8 @@ end
             p = proveniencia(df)
             @test length(p) == 1 && only(p).arquivo == nome && only(p).sha256 == reg.sha256
             @test !only(p).preliminar
-            @test proveniencia(df[1:1, :]) == p
-            @test proveniencia(select(df, :SEXO)) == p
+            @test isequal(proveniencia(df[1:1, :]), p)
+            @test isequal(proveniencia(select(df, :SEXO)), p)
             @test_throws ArgumentError proveniencia(DataFrame(a = [1]))
 
             # verificar_cache: igual, republicado, sumiu do servidor
@@ -1131,6 +1131,112 @@ end
         @test !MicroSUS._consolidou(("c", 10), ("p", 10))
         @test MicroSUS._consolidou(("c", 10), nothing)
         @test MicroSUS._consolidou(("c", 12), ("p", 10))
+    end
+
+    @testset "download retomado do ponto em que parou" begin
+        dir = mktempdir()
+        fonte_arq = joinpath(dir, "FONTE.bin")
+        dados = rand(UInt8, 300_000)
+        write(fonte_arq, dados)
+        url = "file://" * fonte_arq
+        destino = joinpath(dir, "DESTINO.bin")
+        parcial = destino * ".parcial"; info = parcial * ".info"
+
+        # parcial de uma transferência que caiu em 40%, com um byte marcado:
+        # se ele sobrevive, o download continuou em vez de recomeçar
+        prefixo = dados[1:120_000]; prefixo[500] = ~prefixo[500]
+        write(parcial, prefixo); write(info, url, '\t', string(length(dados)))
+        @test MicroSUS._baixa_retomando!(url, destino) == destino
+        r = read(destino)
+        @test length(r) == length(dados)
+        @test r[500] == prefixo[500] != dados[500]          # retomou
+        @test r[501:end] == dados[501:end]
+        @test !isfile(parcial) && !isfile(info)
+
+        # parcial de outro arquivo (tamanho anunciado diferente): descartado
+        write(parcial, dados[1:1000]); write(info, url, '\t', "999999")
+        MicroSUS._baixa_retomando!(url, destino)
+        @test read(destino) == dados
+        # de outra URL: descartado
+        write(parcial, zeros(UInt8, 1000)); write(info, "file:///outro", '\t', string(length(dados)))
+        MicroSUS._baixa_retomando!(url, destino)
+        @test read(destino) == dados
+        # parcial sem registro: descartado
+        write(parcial, zeros(UInt8, 1000)); rm(info; force = true)
+        MicroSUS._baixa_retomando!(url, destino)
+        @test read(destino) == dados
+
+        # arquivo ausente: erro de ausência, sem deixar parcial
+        e = try MicroSUS._baixa_retomando!("file://" * joinpath(dir, "NAO.bin"),
+                                           joinpath(dir, "NAO.bin.dest")); nothing
+            catch err; err end
+        @test MicroSUS._eh_ausente(e)
+        @test !isfile(joinpath(dir, "NAO.bin.dest.parcial"))
+    end
+
+    @testset "espelhos: o DATASUS decide a ausência, o espelho cobre a rede" begin
+        dir = mktempdir()
+        base = MicroSUS._FTP_BASE
+        # a URL num espelho: a mesma árvore de pastas
+        @test MicroSUS._url_no_espelho("$base/SIM/CID10/DORES/DOPE2023.dbc", "file:///m") ==
+              "file:///m/SIM/CID10/DORES/DOPE2023.dbc"
+        @test MicroSUS._url_no_espelho("https://outro/x.dbc", "file:///m") === nothing
+        withenv("MICROSUS_ESPELHOS" => " file:///a/ ; https://b.org/d ",
+                "MICROSUS_ESPELHO_PRIMEIRO" => nothing) do
+            @test MicroSUS._espelhos() == ["file:///a", "https://b.org/d"]
+            @test MicroSUS._origens("$base/X/Y.dbc") ==
+                  ["$base/X/Y.dbc", "file:///a/X/Y.dbc", "https://b.org/d/X/Y.dbc"]
+            withenv("MICROSUS_ESPELHO_PRIMEIRO" => "true") do
+                @test last(MicroSUS._origens("$base/X/Y.dbc")) == "$base/X/Y.dbc"
+            end
+        end
+        withenv("MICROSUS_ESPELHOS" => nothing) do
+            @test MicroSUS._origens("$base/X/Y.dbc") == ["$base/X/Y.dbc"]
+        end
+
+        espelho = joinpath(dir, "espelho.bin")
+        write(espelho, "conteudo do espelho")
+        sem_rede = "http://127.0.0.1:1/Y.dbc"            # conexão recusada
+        destino = joinpath(dir, "Y.dbc")
+        # sem rede no DATASUS: vem do espelho, e o registro diz de onde
+        @test MicroSUS._baixa_de!([sem_rede, "file://" * espelho], sem_rede, destino) == destino
+        @test read(destino, String) == "conteudo do espelho"
+        reg = MicroSUS._le_origem(destino)
+        @test reg.url == sem_rede && reg.obtido_de == "file://" * espelho
+        # sem rede e sem espelho que tenha o arquivo: o erro é o de rede
+        e = try MicroSUS._baixa_de!([sem_rede, "file://" * joinpath(dir, "nada")], sem_rede,
+                                    joinpath(dir, "Z.dbc")); nothing
+            catch err; err end
+        @test e isa MicroSUS.Downloads.RequestError && !MicroSUS._eh_ausente(e)
+        # o DATASUS diz que não existe: não existe, mesmo havendo no espelho
+        ausente = "file://" * joinpath(dir, "AUSENTE.dbc")
+        e = try MicroSUS._baixa_de!([ausente, "file://" * espelho], ausente,
+                                    joinpath(dir, "W.dbc")); nothing
+            catch err; err end
+        @test MicroSUS._eh_ausente(e) && !isfile(joinpath(dir, "W.dbc"))
+        # direto do DATASUS: sem obtido_de
+        MicroSUS._baixa_de!(["file://" * espelho], "file://" * espelho, joinpath(dir, "V.dbc"))
+        @test MicroSUS._le_origem(joinpath(dir, "V.dbc")).obtido_de === missing
+
+        # exportar_espelho: o cache na árvore de pastas do FTP, e de volta
+        nome = "TESTEESPELHOPE2023.dbc"
+        no_cache = joinpath(MicroSUS._dir_cache(), nome)
+        escreve_dbc(no_cache, [("SEXO", 'C', 1, 0)], [["1"], ["2"]])
+        url = "$base/SIM/CID10/DORES/$nome"
+        MicroSUS._registra_origem(no_cache, url)
+        try
+            m = mktempdir()
+            criados = exportar_espelho(m; arquivos = [nome])
+            @test criados == [joinpath(m, "SIM", "CID10", "DORES", nome)]
+            @test read(only(criados)) == read(no_cache)
+            # quem não alcança o FTP usa a pasta como espelho
+            outro = joinpath(dir, "outro_cache.dbc")
+            @test MicroSUS._baixa_de!([sem_rede, MicroSUS._url_no_espelho(url, "file://" * m)],
+                                      sem_rede, outro) == outro
+            @test read(outro) == read(no_cache)
+        finally
+            rm(no_cache; force = true); rm(no_cache * ".origem"; force = true)
+        end
     end
 
     @testset "erro de rede não é arquivo ausente" begin

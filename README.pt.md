@@ -270,6 +270,8 @@ padronização.
 
 **Dados preliminares**: se o arquivo consolidado não existir (anos recentes do SIM/SINASC), o `baixar` tenta automaticamente a pasta `PRELIM/` correspondente, com um `@warn` — indicador calculado sobre dado preliminar merece asterisco. `url_arquivo(...; prelim = true)` monta a URL preliminar diretamente. O preliminar fica no cache numa subpasta `PRELIM/`, separado do consolidado de mesmo nome: o consolidado é sempre tentado primeiro e substitui o preliminar quando sai.
 
+Downloads interrompidos continuam de onde pararam, e `MICROSUS_ESPELHOS` aponta para espelhos com a árvore de pastas do FTP (uma pasta de rede, um bucket, um servidor do grupo), usados quando o FTP falha — `exportar_espelho(dir)` transforma o seu cache em um.
+
 `verificar_cache()` compara o cache com o FTP do DATASUS sem baixar nada e aponta os arquivos que o DATASUS republicou (o cache não sabe disso sozinho); `proveniencia(df)` lista os arquivos — URL, data do download, SHA-256 — de que um resultado do `fetch_datasus` veio, para a nota de método.
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); via `baixar`/`url_arquivo`, SIH/SIA cobrem a estrutura pós-2008 — o `fetch_datasus` alcança também as pastas antigas (SIH desde 1992, SIA desde 1994).

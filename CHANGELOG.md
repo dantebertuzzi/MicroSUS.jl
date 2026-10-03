@@ -9,6 +9,18 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Added
+
+- Downloads interrompidos são retomados de onde pararam (FTP e `file://`):
+  até cinco vezes na mesma chamada, e o parcial fica no cache
+  (`.parcial`) para a próxima. O tamanho no servidor é conferido antes de
+  retomar; se mudou, o parcial é descartado.
+- Espelhos: `MICROSUS_ESPELHOS` lista origens com a árvore de pastas do FTP
+  (`file://`, HTTP), usadas quando o DATASUS falha por rede — ou antes dele,
+  com `MICROSUS_ESPELHO_PRIMEIRO=true`. O DATASUS continua decidindo se um
+  arquivo existe. `exportar_espelho(destino)` copia o cache para essa
+  árvore, e `proveniencia` ganha `obtido_de`.
+
 ## [0.4.1] - 2026-10-03
 
 ### Added

@@ -22,13 +22,17 @@ download; para um arquivo antigo do cache, sem registro, é a data de
 modificação do arquivo.
 """
 function _registra_origem(caminho::AbstractString, url::AbstractString;
-                          baixado_em::DateTime = now(UTC))
+                          baixado_em::DateTime = now(UTC),
+                          obtido_de::Union{Nothing,AbstractString} = nothing)
     reg = (url = String(url), baixado_em = baixado_em,
-           bytes = filesize(caminho), sha256 = _sha256(caminho))
+           bytes = filesize(caminho), sha256 = _sha256(caminho),
+           obtido_de = obtido_de === nothing ? missing : String(obtido_de))
     open(_arquivo_origem(caminho), "w") do io
         for k in _CAMPOS_ORIGEM
             println(io, k, '\t', getfield(reg, k))
         end
+        # de um espelho: a URL de onde os bytes vieram de fato
+        obtido_de === nothing || println(io, "obtido_de\t", obtido_de)
     end
     return reg
 end
@@ -43,7 +47,8 @@ function _le_origem(caminho::AbstractString)
     end
     all(k -> haskey(d, string(k)), _CAMPOS_ORIGEM) || return nothing
     return (url = d["url"], baixado_em = DateTime(d["baixado_em"]),
-            bytes = parse(Int, d["bytes"]), sha256 = d["sha256"])
+            bytes = parse(Int, d["bytes"]), sha256 = d["sha256"],
+            obtido_de = get(d, "obtido_de", missing))
 end
 
 _data_arquivo(caminho) = unix2datetime(mtime(caminho))
@@ -130,6 +135,22 @@ function _primeira_existente(urls)
     return nothing
 end
 
+# .dbc/.dbf do cache (e de PRELIM/), filtrados por nome ou Regex
+function _arquivos_do_cache(arquivos)
+    dir = _dir_cache()
+    lista = String[]
+    for d in (dir, joinpath(dir, "PRELIM"))
+        isdir(d) || continue
+        for f in readdir(d)
+            occursin(r"\.(dbc|dbf)$"i, f) || continue
+            arquivos === nothing ||
+                (arquivos isa Regex ? occursin(arquivos, f) : f in arquivos) || continue
+            push!(lista, joinpath(d, f))
+        end
+    end
+    return lista
+end
+
 """
     verificar_cache(; arquivos = nothing, verbose = true) -> Vector{NamedTuple}
 
@@ -167,17 +188,7 @@ filter(r -> r.situacao in (:mudou, :era_preliminar), v)
 ```
 """
 function verificar_cache(; arquivos = nothing, verbose::Bool = true)
-    dir = _dir_cache()
-    lista = String[]
-    for d in (dir, joinpath(dir, "PRELIM"))
-        isdir(d) || continue
-        for f in readdir(d)
-            occursin(r"\.(dbc|dbf)$"i, f) || continue
-            arquivos === nothing ||
-                (arquivos isa Regex ? occursin(arquivos, f) : f in arquivos) || continue
-            push!(lista, joinpath(d, f))
-        end
-    end
+    lista = _arquivos_do_cache(arquivos)
     # duas consultas por vez: com mais, o FTP do DATASUS passa a deixar
     # conexões sem resposta
     res = _LinhaCache[x for x in asyncmap(_verifica_um, lista; ntasks = 2)]
@@ -243,6 +254,57 @@ function _verifica_um_sem_rede(caminho::AbstractString)
     u, t = achado
     s = ismissing(t) ? :atualizado : t == base.bytes_cache ? :atualizado : :mudou
     return linha(s, t, u)
+end
+
+# ── espelho a partir do cache ────────────────────────────────────────
+
+"""
+    exportar_espelho(destino; arquivos = nothing) -> Vector{String}
+
+Copia os arquivos do cache para `destino`, na árvore de pastas do FTP do
+DATASUS (`destino/SIM/CID10/DORES/DOPE2023.dbc`), e devolve os caminhos
+criados. A pasta pode então servir de espelho para outras pessoas — numa
+rede compartilhada (`file://`), num bucket ou num servidor HTTP —, via
+`MICROSUS_ESPELHOS`:
+
+```julia
+exportar_espelho("/mnt/grupo/datasus")                 # quem tem os arquivos
+ENV["MICROSUS_ESPELHOS"] = "file:///mnt/grupo/datasus" # quem não alcança o FTP
+fetch_datasus(:SIM_DO; uf = "PE", anos = 2023)
+```
+
+Por padrão, um espelho só é usado quando o FTP do DATASUS falha por rede;
+`MICROSUS_ESPELHO_PRIMEIRO=true` o põe na frente. O DATASUS continua
+decidindo se um arquivo existe, e o registro de origem de cada download
+diz se ele veio de um espelho (`obtido_de` em [`proveniencia`](@ref)).
+Um espelho não é verificado contra o DATASUS: o SHA-256 em
+[`proveniencia`](@ref) é o que permite conferir que os bytes são os mesmos
+de quem os baixou.
+
+`arquivos` restringe a cópia (nomes, ou um `Regex`), como em
+[`verificar_cache`](@ref). Arquivos cuja URL de origem não se conhece
+ficam de fora.
+"""
+function exportar_espelho(destino::AbstractString; arquivos = nothing)
+    criados = String[]
+    for c in _arquivos_do_cache(arquivos)
+        reg = _le_origem(c)
+        url = if reg !== nothing
+            reg.url
+        else
+            cons, prel = _urls_candidatas(c)
+            v = eh_preliminar(c) ? prel : cons
+            isempty(v) ? nothing : first(v)
+        end
+        url === nothing && continue
+        rel = _url_no_espelho(url, "")
+        rel === nothing && continue
+        alvo = joinpath(destino, split(lstrip(rel, '/'), '/')...)
+        mkpath(dirname(alvo))
+        cp(c, alvo; force = true)
+        push!(criados, alvo)
+    end
+    return criados
 end
 
 # ── proveniência do resultado ────────────────────────────────────────
