@@ -556,6 +556,24 @@ end
         @test_throws ArgumentError populacao(2021; nivel = :bairro)
     end
 
+    @testset "conversão por coluna: texto CP850, categórica, ASCII sem String" begin
+        dir = mktempdir()
+        cp850 = String(UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90])   # "SÃO JOSÉ" em CP850
+        campos = [("NOME", 'C', 12, 0), ("MUN", 'C', 12, 0), ("COD", 'C', 4, 0)]
+        linhas = [[cp850, cp850, "A1"], ["RECIFE", "RECIFE", ""], [cp850, "OLINDA", "A1  "]]
+        f = escreve_dbc(joinpath(dir, "enc.dbc"), campos, linhas)
+        for lote in (1, 2, 100)
+            m = materializar(ler(f; schema = Dict(:MUN => :pool), tamanho_lote = lote))
+            @test m.NOME == ["SÃO JOSÉ", "RECIFE", "SÃO JOSÉ"]
+            @test m.MUN == ["SÃO JOSÉ", "RECIFE", "OLINDA"]
+            @test m.MUN isa PooledArray && eltype(m.MUN) == String
+            @test m.COD == ["A1", "", "A1"]                  # espaços à direita somem
+            @test eltype(m.NOME) <: MicroSUS.InlineStrings.InlineString && eltype(m.COD) <: MicroSUS.InlineStrings.InlineString
+        end
+        # mesmo valor que o filtro vê (RegistroDBF → decodifica_texto)
+        @test length(materializar(ler(f; filtro = r -> r[:NOME] == "SÃO JOSÉ")).NOME) == 2
+    end
+
     @testset "encoding CP850" begin
         b = UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90, ' ', ' ']
         @test MicroSUS.decodifica_texto(b, 1, 10, :cp850) == "SÃO JOSÉ"
