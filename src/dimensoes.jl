@@ -271,7 +271,11 @@ end
 regiao(::Missing) = missing
 
 const _Municipio = @NamedTuple{codigo7::Int, codigo6::Int, nome::String,
-                               uf::String, regiao::String}
+                               uf::String, regiao::String,
+                               codigo_regiao_imediata::Int, regiao_imediata::String,
+                               codigo_regiao_intermediaria::Int, regiao_intermediaria::String,
+                               codigo_regiao_saude::Int, regiao_saude::String,
+                               codigo_macrorregiao_saude::Int, macrorregiao_saude::String}
 
 const _MUNICIPIOS = Ref{Vector{_Municipio}}()
 const _MUNICIPIO_POR_COD6 = Dict{Int,Int}()
@@ -288,10 +292,14 @@ function _le_municipios()
     arq = joinpath(pkgdir(@__MODULE__), "data", "municipios.csv")
     for (i, linha) in enumerate(eachline(arq))
         i == 1 && continue                       # cabeçalho
-        c7, nome, uf, reg = split(linha, ';')
+        c7, nome, uf, reg, cim, im, cin, int, crs, rs, cms, ms = split(linha, ';')
         cod7 = parse(Int, c7)
         push!(v, (codigo7 = cod7, codigo6 = cod7 ÷ 10, nome = String(nome),
-                  uf = String(uf), regiao = String(reg)))
+                  uf = String(uf), regiao = String(reg),
+                  codigo_regiao_imediata = parse(Int, cim), regiao_imediata = String(im),
+                  codigo_regiao_intermediaria = parse(Int, cin), regiao_intermediaria = String(int),
+                  codigo_regiao_saude = parse(Int, crs), regiao_saude = String(rs),
+                  codigo_macrorregiao_saude = parse(Int, cms), macrorregiao_saude = String(ms)))
     end
     empty!(_MUNICIPIO_POR_COD6)
     for (i, m) in enumerate(v)
@@ -305,9 +313,36 @@ end
 
 Tabela dos municípios brasileiros embarcada no pacote (IBGE, 5.571 linhas
 contando Brasília e Fernando de Noronha), sem acesso à rede: colunas
-`codigo7`, `codigo6`, `nome`, `uf`, `regiao`. É uma tabela Tables.jl —
-`DataFrame(municipios())` — pronta para `leftjoin` com `codigo6` contra
-`CODMUNRES` (SIM, SINASC) ou `MUNIC_RES` (SIH) convertidos para inteiro.
+`codigo7`, `codigo6`, `nome`, `uf`, `regiao` e as divisões abaixo da UF,
+cada uma com código e nome:
+
+- `codigo_regiao_saude`, `regiao_saude` — a região de saúde (CIR) do SUS,
+  onde se pactua a rede de atenção (439, com o Distrito Federal como uma só);
+- `codigo_macrorregiao_saude`, `macrorregiao_saude` — a macrorregião de
+  saúde, que agrupa regiões de saúde (121);
+- `codigo_regiao_imediata`, `regiao_imediata` e `codigo_regiao_intermediaria`,
+  `regiao_intermediaria` — a divisão regional do IBGE de 2017 (510 e 133),
+  que substituiu micro e mesorregiões.
+
+Nomes se repetem entre UFs (há região de saúde "Norte" e "Central" em várias,
+e região imediata "Valença" na BA e no RJ): agrupe pelo código. É uma
+tabela Tables.jl — `DataFrame(municipios())` — pronta para `leftjoin` com
+`codigo6` contra `CODMUNRES` (SIM, SINASC) ou `MUNIC_RES` (SIH) convertidos
+para inteiro:
+
+```julia
+mun = DataFrame(municipios())
+df.codigo6 = parse.(Int, df.CODMUNRES)
+leftjoin!(df, mun[:, [:codigo6, :codigo_regiao_saude, :regiao_saude]]; on = :codigo6)
+obitos = combine(groupby(df, [:codigo_regiao_saude, :regiao_saude]), nrow => :obitos)
+```
+
+e [`populacao`](@ref) dá o denominador no mesmo nível
+(`nivel = :regiao_saude`).
+
+Fontes: IBGE (API de localidades) para nomes e regiões geográficas;
+DATASUS (as tabelas territoriais do TabNet) para regiões e macrorregiões de
+saúde, que mudam por pactuação nas CIBs — a tabela é a de outubro de 2026.
 
 Reflete a divisão territorial atual: municípios extintos ou desmembrados
 em anos antigos, e os códigos "ignorado" do DATASUS (`"260000"`, `"000000"`),
@@ -322,8 +357,10 @@ Município do código IBGE `cod`, de 6 dígitos (como no SIM, SINASC e SIH)
 ou de 7 (com dígito verificador), inteiro ou texto:
 
 ```julia
-municipio("261160")   # (codigo7 = 2611606, codigo6 = 261160, nome = "Recife",
-                      #  uf = "PE", regiao = "Nordeste")
+m = municipio("261160")   # (codigo7 = 2611606, codigo6 = 261160, nome = "Recife",
+                         #  uf = "PE", regiao = "Nordeste", …)
+m.regiao_saude           # "I Região de Saúde"
+m.regiao_imediata        # "Recife"
 ```
 
 Devolve `nothing` para código vazio, ignorado ou fora da tabela (ver

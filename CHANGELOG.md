@@ -11,6 +11,15 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- Regiões abaixo da UF em `municipio`/`municipios()`: região de saúde (CIR,
+  439) e macrorregião de saúde (121), das tabelas territoriais do DATASUS, e
+  regiões imediata e intermediária do IBGE (510 e 133), cada uma com código e
+  nome. `populacao` e `populacao_por_idade` aceitam `nivel = :regiao_saude`,
+  `:macrorregiao_saude`, `:regiao_imediata` e `:regiao_intermediaria`, somando
+  os municípios (o Censo 2022 fecha em 203.080.756 por qualquer um deles).
+  Óbitos por agressão em PE, 2022: de 54,8 por 100 mil na III Região de Saúde
+  a 13,4 na VII.
+
 - `descricao_cid(cod)` e `cid10(cod)`: descrição em português de um código
   da CID-10, com categoria, grupo, capítulo, restrição de sexo e validade como
   causa básica de óbito. Tabela do DATASUS (versão 2008, a última publicada em

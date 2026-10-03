@@ -16,6 +16,49 @@ const _SIDRA = "https://apisidra.ibge.gov.br/values"
 
 const _NIVEL_SIDRA = Dict(:municipio => "n6", :uf => "n3", :brasil => "n1")
 
+# Níveis que a SIDRA não tem: saem da soma dos municípios, pela tabela
+# embarcada (`municipios()`), com as colunas `codigo_<nivel>`, `nome`, `uf`.
+const _NIVEIS_REGIONAIS = (:regiao_saude, :macrorregiao_saude, :regiao_imediata,
+                           :regiao_intermediaria)
+
+function _confere_nivel(nivel::Symbol)
+    (haskey(_NIVEL_SIDRA, nivel) || nivel in _NIVEIS_REGIONAIS) || throw(ArgumentError(
+        "nivel deve ser :municipio, :uf, :brasil, :regiao_saude, :macrorregiao_saude, " *
+        ":regiao_imediata ou :regiao_intermediaria (recebi :$nivel)"))
+    return nivel in _NIVEIS_REGIONAIS ? :municipio : nivel   # o nível consultado
+end
+
+# (codigo, nome, uf) da região de `nivel` que contém o município `cod7`
+function _regiao_do_municipio(nivel::Symbol, cod7::Int)
+    m = municipio(cod7)
+    m === nothing && return nothing
+    return (getfield(m, Symbol(:codigo_, nivel)), getfield(m, nivel), m.uf)
+end
+
+# Troca o município de cada linha pela sua região, somando `populacao` por
+# (região, demais chaves). Município fora da tabela embarcada não some em
+# silêncio: avisa quanto da população ficou de fora.
+function _agrega_regiao(linhas, nivel::Symbol)
+    soma = Dict{Any,Int}(); info = Dict{Int,Tuple{String,String}}()
+    perdidos = Dict{Int,Int}()
+    for l in linhas
+        r = _regiao_do_municipio(nivel, l.codigo)
+        if r === nothing
+            perdidos[l.codigo] = get(perdidos, l.codigo, 0) + l.populacao
+            continue
+        end
+        cod, nome, uf = r
+        info[cod] = (nome, uf)
+        k = merge(Base.structdiff(l, NamedTuple{(:codigo, :nome, :populacao)}), (codigo = cod,))
+        soma[k] = get(soma, k, 0) + l.populacao
+    end
+    isempty(perdidos) || @warn "$(length(perdidos)) município(s) da SIDRA fora da tabela " *
+        "de municípios, deixados fora da soma por $nivel: $(sum(values(perdidos))) " *
+        "habitantes" codigos = sort!(collect(keys(perdidos)))
+    return [merge(k, (nome = info[k.codigo][1], uf = info[k.codigo][2], populacao = v))
+            for (k, v) in soma]
+end
+
 # ano → (tabela, variável, sufixo de classificações, descrição da fonte)
 function _fonte_pop(ano::Int)
     ano == 2000 && return ("202", "93", "/c1/0/c2/0", "IBGE — Censo 2000 (SIDRA 202)")
@@ -107,6 +150,13 @@ Colunas: `codigo7` e `codigo6` (município; o de 6 dígitos casa com
 `nome`, `ano`, `populacao` e `fonte`. É uma tabela Tables.jl:
 `DataFrame(populacao(2019:2021))`.
 
+Também por região de saúde (`:regiao_saude`), macrorregião de saúde
+(`:macrorregiao_saude`) e regiões imediata e intermediária do IBGE
+(`:regiao_imediata`, `:regiao_intermediaria`), somando os municípios pela
+tabela de [`municipios`](@ref): a coluna de código tem o mesmo nome que lá
+(`codigo_regiao_saude`…), para o join, e vem com `nome` e `uf`. A
+composição das regiões é a atual em qualquer ano pedido.
+
 ```julia
 pop = DataFrame(populacao(2021))
 obitos = combine(groupby(df, :CODMUNRES), nrow => :obitos)
@@ -140,8 +190,7 @@ de novo (o IBGE revisa estimativas de tempos em tempos).
 """
 function populacao(anos; nivel::Symbol = :municipio, interpolar::Bool = false,
                    cache::Bool = true)
-    haskey(_NIVEL_SIDRA, nivel) || throw(ArgumentError(
-        "nivel deve ser :municipio, :uf ou :brasil (recebi :$nivel)"))
+    nivel_sidra = _confere_nivel(nivel)
     anos_ = anos isa Integer ? [Int(anos)] : collect(Int, anos)
     for a in anos_
         a ≥ 2000 || throw(ArgumentError("população por $nivel só a partir de 2000 (pedido: $a)"))
@@ -152,8 +201,17 @@ function populacao(anos; nivel::Symbol = :municipio, interpolar::Bool = false,
     end
     saida = NamedTuple[]
     for a in anos_
-        linhas, fonte = _fonte_pop(a) === nothing ? _interpola(nivel, a; cache) :
-                        (_pop_bruta(nivel, a; cache), last(_fonte_pop(a)))
+        linhas, fonte = _fonte_pop(a) === nothing ? _interpola(nivel_sidra, a; cache) :
+                        (_pop_bruta(nivel_sidra, a; cache), last(_fonte_pop(a)))
+        if nivel in _NIVEIS_REGIONAIS
+            col = Symbol(:codigo_, nivel)
+            for l in sort!(_agrega_regiao(linhas, nivel); by = l -> l.codigo)
+                push!(saida, NamedTuple{(col, :nome, :uf, :ano, :populacao, :fonte)}(
+                    (l.codigo, l.nome, l.uf, a, l.populacao,
+                     "soma dos municípios — " * fonte)))
+            end
+            continue
+        end
         for l in linhas
             r = nivel === :municipio ?
                 (codigo7 = l.codigo, codigo6 = l.codigo ÷ 10, nome = l.nome, ano = a,

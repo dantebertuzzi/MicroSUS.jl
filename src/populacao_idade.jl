@@ -202,11 +202,15 @@ taxas específicas por idade e da padronização (ver
 
 | ano | nível | fonte |
 |---|---|---|
-| 2010, 2022 | `:municipio`, `:uf`, `:brasil` | Censo |
+| 2010, 2022 | `:municipio`, `:uf`, `:brasil` e os regionais | Censo |
 | demais, 2000–2060 | `:uf`, `:brasil` | projeção da população, revisão 2018 |
 
-Colunas: o código do território (`codigo7`/`codigo6`, `codigo_uf` ou
-nenhum), `nome`, `ano`, `sexo` (`"Masculino"`/`"Feminino"`), `faixa`
+Os níveis regionais — `:regiao_saude`, `:macrorregiao_saude`,
+`:regiao_imediata`, `:regiao_intermediaria` — somam os municípios, como em
+[`populacao`](@ref), e por isso só existem nos anos de Censo.
+
+Colunas: o código do território (`codigo7`/`codigo6`, `codigo_uf`,
+`codigo_regiao_saude` e afins com `uf`, ou nenhum), `nome`, `ano`, `sexo` (`"Masculino"`/`"Feminino"`), `faixa`
 (`"0 a 4 anos"` … `"80 anos ou mais"`, como em [`faixa_etaria`](@ref)),
 `idade_min`, `populacao` e `fonte`.
 
@@ -224,20 +228,26 @@ idade simples e fica em cache; no nível municipal, uma UF por vez.
 """
 function populacao_por_idade(ano::Integer; nivel::Symbol = :uf, largura::Int = 5,
                              aberta::Int = 80, cache::Bool = true)
-    haskey(_NIVEL_SIDRA, nivel) || throw(ArgumentError(
-        "nivel deve ser :municipio, :uf ou :brasil (recebi :$nivel)"))
-    linhas, fonte_id = _pop_idade_bruta(nivel, Int(ano); cache)
+    nivel_sidra = _confere_nivel(nivel)
+    nivel in _NIVEIS_REGIONAIS && ano ∉ (2010, 2022) && throw(ArgumentError(
+        "nivel = :$nivel soma municípios, que o IBGE só publica por sexo e idade " *
+        "nos Censos (2010 e 2022); para $ano use nivel = :uf ou :brasil"))
+    linhas, fonte_id = _pop_idade_bruta(nivel_sidra, Int(ano); cache)
+    regional = nivel in _NIVEIS_REGIONAIS
+    regional && (linhas = _agrega_regiao(linhas, nivel))
     topo = maximum(l.idade for l in linhas)
     aberta ≤ topo || throw(ArgumentError(
         "`aberta = $aberta` passa do grupo aberto da fonte ($topo anos ou mais)"))
     soma = Dict{Tuple{Int,String,String},Int}()
-    nomes = Dict{Int,String}()
+    nomes = Dict{Int,String}(); ufs = Dict{Int,String}()
     for l in linhas
         k = (l.codigo, l.sexo, faixa_etaria(l.idade; largura, aberta))
         soma[k] = get(soma, k, 0) + l.populacao
         nomes[l.codigo] = l.nome
+        regional && (ufs[l.codigo] = l.uf)
     end
     fonte = _FONTES_IDADE[fonte_id].fonte
+    regional && (fonte = "soma dos municípios — " * fonte)
     idade_min(fx) = parse(Int, match(r"^(\d+)", fx)[1])
     chaves = sort!(collect(keys(soma)); by = k -> (k[1], k[2], idade_min(k[3])))
     return map(chaves) do k
@@ -245,7 +255,9 @@ function populacao_por_idade(ano::Integer; nivel::Symbol = :uf, largura::Int = 5
         base = (nome = nomes[cod], ano = Int(ano), sexo = sexo, faixa = fx,
                 idade_min = idade_min(fx), populacao = soma[k], fonte = fonte)
         nivel === :municipio ? (codigo7 = cod, codigo6 = cod ÷ 10, base...) :
-        nivel === :uf ? (codigo_uf = cod, base...) : base
+        nivel === :uf ? (codigo_uf = cod, base...) :
+        regional ? merge(NamedTuple{(Symbol(:codigo_, nivel),)}((cod,)),
+                         (nome = base.nome, uf = ufs[cod]), base) : base
     end
 end
 

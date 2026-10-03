@@ -347,7 +347,13 @@ directly with `CODMUNRES`/`MUNIC_RES`:
 
 ```julia
 pop = DataFrame(populacao(2022))      # codigo7, codigo6, nome, ano, populacao, fonte
+populacao(2022; nivel = :regiao_saude)  # summed from municipalities, by SUS health region
 ```
+
+`municipios()` carries, for each municipality, its SUS health region (CIR,
+439) and health macroregion (121), from DATASUS, and IBGE's immediate and
+intermediate regions (510 and 133), each with code and name; `populacao` and
+`populacao_por_idade` accept the same four levels.
 
 **The series is not homogeneous.** Each year comes from whatever IBGE
 published for it — census (2000, 2010, 2022), count (2007) or estimate (the
