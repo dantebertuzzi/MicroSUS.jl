@@ -77,6 +77,15 @@ MicroSUS.SCHEMAS
 MicroSUS.detecta_sistema
 ```
 
+## Indicadores
+
+```@docs
+mortalidade_infantil
+razao_mortalidade_materna
+proporcao_mal_definidas
+mortalidade_prematura_dcnt
+```
+
 ## Dimensões
 
 ```@docs

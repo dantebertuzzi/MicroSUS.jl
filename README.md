@@ -356,6 +356,10 @@ df.codigo6 = parse.(Int, df.CODMUNRES)
 leftjoin!(df, mun[:, [:codigo6, :nome, :regiao_saude]]; on = :codigo6)
 ```
 
+### Mortality indicators
+
+`mortalidade_infantil` (with its three components), `razao_mortalidade_materna`, `proporcao_mal_definidas` and `mortalidade_prematura_dcnt` compute the classic RIPSA indicators by residence and year, at any territorial level. For Pernambuco in 2022 every count matches DATASUS's TabNet exactly (1,558 infant deaths, 54 maternal deaths, 117,437 live births, 14,533 premature NCD deaths). They are direct-method rates, without the under-registration correction factors the Ministry of Health applies in some states.
+
 ### Populations and rates
 
 `populacao(anos; nivel = :municipio)` fetches IBGE's resident population (SIDRA

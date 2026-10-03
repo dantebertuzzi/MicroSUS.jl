@@ -357,6 +357,10 @@ df.codigo6 = parse.(Int, df.CODMUNRES)
 leftjoin!(df, mun[:, [:codigo6, :nome, :regiao_saude]]; on = :codigo6)
 ```
 
+### Indicadores de mortalidade
+
+`mortalidade_infantil` (com os três componentes), `razao_mortalidade_materna`, `proporcao_mal_definidas` e `mortalidade_prematura_dcnt` calculam os indicadores clássicos da RIPSA por residência e ano, em qualquer nível territorial. Para Pernambuco em 2022, todas as contagens batem exatamente com o TabNet do DATASUS (1.558 óbitos infantis, 54 maternos, 117.437 nascidos vivos, 14.533 óbitos prematuros por DCNT). São taxas pelo método direto, sem os fatores de correção de sub-registro que o Ministério da Saúde aplica em parte das UFs.
+
 ### Populações e taxas
 
 `populacao(anos; nivel = :municipio)` traz a população residente do IBGE (API

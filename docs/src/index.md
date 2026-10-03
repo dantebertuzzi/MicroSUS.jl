@@ -436,6 +436,46 @@ município) e, nos demais anos, da projeção da população revista em 2018
 bruta acima conta só os óbitos com idade conhecida (61 de 20.155 no AM
 não têm).
 
+### Indicadores de mortalidade
+
+Quatro indicadores clássicos, por local de residência e ano do evento, como
+a RIPSA os define, em qualquer nível territorial (`:brasil`, `:uf`,
+`:municipio`, `:regiao_saude` e os demais):
+
+```julia
+do22 = fetch_datasus(:SIM_DO; uf = "PE", anos = 2022)
+dn22 = fetch_datasus(:SINASC; uf = "PE", anos = 2022)
+
+mortalidade_infantil(do22, dn22; nivel = :regiao_saude)   # e os três componentes
+razao_mortalidade_materna(do22, dn22)
+proporcao_mal_definidas(do22)
+mortalidade_prematura_dcnt(do22)          # 30–69 anos; população da SIDRA
+```
+
+Conferidos contra o TabNet do DATASUS, para Pernambuco em 2022 — as
+contagens batem exatamente:
+
+| | MicroSUS | TabNet |
+|---|--:|--:|
+| nascidos vivos (residência) | 117.437 | 117.437 |
+| óbitos infantis | 1.558 | 1.558 |
+| 0–6 / 7–27 / 28–364 dias | 801 / 245 / 512 | 801 / 245 / 512 |
+| óbitos maternos (sem os tardios, O96) | 54 | 54 |
+| óbitos | 72.011 | 72.011 |
+| causas mal definidas (R00–R99) | 3.817 | 3.817 |
+| óbitos por DCNT de 30 a 69 anos | 14.533 | 14.533 |
+
+Daí, mortalidade infantil de 13,27 por mil, razão de mortalidade materna de
+46,0 por 100 mil nascidos vivos, 5,3% de causas mal definidas e 324,6
+óbitos prematuros por DCNT por 100 mil habitantes de 30 a 69 anos. Os
+óbitos infantis batem também nas 12 regiões de saúde.
+
+São taxas pelo **método direto**, sem os fatores de correção de
+sub-registro que o Ministério da Saúde aplica à mortalidade infantil e à
+materna onde a cobertura do SIM e do SINASC é incompleta: nessas UFs, a taxa
+oficial fica acima desta. Em territórios pequenos as taxas oscilam muito de
+um ano para o outro — agregue anos ou use um nível maior.
+
 ### Capítulos da CID-10
 
 ```julia

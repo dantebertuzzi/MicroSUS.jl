@@ -1359,6 +1359,50 @@ end
         @test auditar(df; ano = false).coluna_ano === nothing
     end
 
+    @testset "indicadores: mortalidade infantil, materna, mal definidas, DCNT" begin
+        d(n) = n / 365.25                       # idade em anos, como o schema decodifica
+        obitos = DataFrame(
+            CODMUNRES = ["261160", "261160", "261160", "261160", "260410", "260000", "261160"],
+            DTOBITO = fill(Date(2022, 6, 1), 7),
+            IDADE = [d(3), d(10), 2 / 12, 30.0, 0.5, d(1), 50.0],
+            CAUSABAS = ["P070", "P220", "A09", "O800", "R99", "P070", "I219"])
+        nascidos = DataFrame(CODMUNRES = [fill("261160", 1000); fill("260410", 500)],
+                             DTNASC = fill(Date(2022, 3, 1), 1500))
+
+        mi = @test_logs (:warn, r"1 óbitos") mortalidade_infantil(obitos, nascidos; nivel = :municipio)
+        @test names(mi)[1:3] == ["codigo6", "nome", "ano"]
+        rec = only(eachrow(filter(r -> r.codigo6 == 261160, mi)))
+        @test rec.nome == "Recife" && rec.nascidos_vivos == 1000
+        @test (rec.obitos_infantis, rec.neonatal_precoce, rec.neonatal_tardia, rec.pos_neonatal) == (3, 1, 1, 1)
+        @test rec.taxa == 3.0 && rec.taxa_neonatal_precoce == 1.0
+        car = only(eachrow(filter(r -> r.codigo6 == 260410, mi)))
+        @test car.pos_neonatal == 1 && car.taxa == 2.0
+        # na UF, o óbito de município ignorado (260000) conta
+        uf = mortalidade_infantil(obitos, nascidos; nivel = :uf)
+        @test only(uf.uf) == "PE" && only(uf.obitos_infantis) == 5 && only(uf.taxa) == round(5000 / 1500; digits = 2)
+        @test names(mortalidade_infantil(obitos, nascidos; nivel = :brasil))[1] == "ano"
+        rs = mortalidade_infantil(obitos, nascidos; nivel = :regiao_saude)
+        @test "codigo_regiao_saude" in names(rs)
+        @test_throws ArgumentError mortalidade_infantil(obitos, nascidos; nivel = :bairro)
+        # idade no código cru do SIM (schema = nothing)
+        cru = transform(obitos, :IDADE => (_ -> ["203", "210", "302", "430", "306", "201", "450"]) => :IDADE)
+        @test mortalidade_infantil(cru, nascidos; nivel = :uf).obitos_infantis == uf.obitos_infantis
+        @test MicroSUS._idade_dias("207") == 7.0 && MicroSUS._idade_dias(d(7)) == 7.0
+
+        rmm = razao_mortalidade_materna(obitos, nascidos; nivel = :uf)
+        @test only(rmm.obitos_maternos) == 1 && only(rmm.razao) == round(1e5 / 1500; digits = 2)
+        @test cid_casa("O96", CID_MATERNA) == false && cid_casa("A34", CID_MATERNA)
+
+        md = proporcao_mal_definidas(obitos; nivel = :uf)
+        @test only(md.obitos) == 7 && only(md.mal_definidas) == 1 && only(md.proporcao) == round(100 / 7; digits = 2)
+
+        pop = DataFrame(codigo_uf = [26], ano = [2022], populacao = [200_000])
+        dc = mortalidade_prematura_dcnt(obitos; nivel = :uf, populacao = pop)
+        @test only(dc.obitos_dcnt_30_69) == 1 && only(dc.taxa) == 0.5     # I21 aos 50
+        # sem o ano do evento como data nem ANO_ARQUIVO: erro que diz o que falta
+        @test_throws ArgumentError proporcao_mal_definidas(select(obitos, Not(:DTOBITO)))
+    end
+
     @testset "erro de rede não é arquivo ausente" begin
         recusada = "http://127.0.0.1:1"            # conexão recusada, sem rede de fato
         # ausente continua sendo nothing (partições e PRELIM dependem disso)
