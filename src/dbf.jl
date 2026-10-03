@@ -44,6 +44,11 @@ _u32le(b, i) = Int(b[i]) | (Int(b[i + 1]) << 8) | (Int(b[i + 2]) << 16) |
 Interpreta os primeiros bytes de um DBF (ou o cabeçalho em claro de um
 `.dbc`): contagem de registros, tamanhos, language driver e descritores
 de campo (32 bytes cada, terminados por 0x0D).
+
+O fim da lista de campos é o tamanho do cabeçalho declarado no próprio
+arquivo; o 0x0D é aceito mas não exigido. Os arquivos do CNES de 2023
+(`STPE2312.dbc`, `STBA2312.dbc`) trazem 0x00 no lugar dele, com os 208
+descritores completos e a soma das larguras batendo com o registro.
 """
 function le_cabecalho_dbf(bytes::Vector{UInt8})
     length(bytes) ≥ 33 || error("cabeçalho DBF truncado ($(length(bytes)) bytes)")
@@ -51,12 +56,15 @@ function le_cabecalho_dbf(bytes::Vector{UInt8})
     hsize = _u16le(bytes, 9)          # offset 8
     rsize = _u16le(bytes, 11)         # offset 10
     ldid = bytes[30]                  # offset 29
+    length(bytes) ≥ hsize ||
+        error("cabeçalho DBF truncado ($(length(bytes)) de $hsize bytes)")
 
     campos = CampoDBF[]
     offset = 1                        # byte 0 do registro é a flag de deleção
     pos = 33                          # descritores começam no offset 32
-    while pos ≤ length(bytes) && bytes[pos] != 0x0d
-        pos + 31 ≤ length(bytes) || error("descritor de campo truncado")
+    # os descritores cabem entre o byte 33 e o último byte do cabeçalho,
+    # reservado ao terminador 0x0D — que pode vir como 0x00
+    while pos + 31 < hsize && bytes[pos] != 0x0d
         fim_nome = pos
         while fim_nome < pos + 10 && bytes[fim_nome] != 0x00
             fim_nome += 1
