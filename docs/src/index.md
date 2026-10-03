@@ -328,9 +328,15 @@ Tabela do IBGE embarcada no pacote — não consulta a rede:
 uf_de("261160")               # "PE" (6 ou 7 dígitos, texto ou inteiro)
 regiao("PE")                  # "Nordeste"; também aceita código: regiao(2611606)
 municipio("261160")           # (codigo7=2611606, codigo6=261160, nome="Recife",
-                              #  uf="PE", regiao="Nordeste"); `nothing` se ignorado
+                              #  uf="PE", regiao="Nordeste", …); `nothing` se ignorado
+municipio("261160").regiao_saude   # "I Região de Saúde"
 DataFrame(municipios())       # 5.571 linhas, para leftjoin por codigo6
 ```
+
+Cada município traz também as divisões abaixo da UF, com código e nome: a
+**região de saúde** (CIR, 439) e a **macrorregião de saúde** (121), do
+DATASUS, e as **regiões imediata e intermediária** do IBGE (510 e 133). Os
+nomes se repetem entre UFs; agrupe pelo código.
 
 Nove municípios têm dígito verificador oficial fora do algoritmo
 (Quixaba-PE é 2611533, não 2611531): `codigo7_ibge` e `codigo6_ibge` usam o
@@ -367,6 +373,29 @@ anos, 2021 daria 44,0, e a queda apareceria.
 O IBGE não publicou população para 2023: pedir esse ano é erro, a menos
 que `interpolar = true` (interpolação geométrica entre 2022 e 2024,
 registrada em `fonte`).
+
+#### Por região de saúde
+
+Município pequeno dá taxa instável; UF esconde as diferenças internas. A
+região de saúde — o recorte em que o SUS organiza a rede — fica no meio.
+`populacao` soma os municípios com `nivel = :regiao_saude` (ou
+`:macrorregiao_saude`, `:regiao_imediata`, `:regiao_intermediaria`), e a
+coluna de código tem o mesmo nome que em `municipios()`:
+
+```julia
+mun = DataFrame(municipios())
+do22.codigo6 = parse.(Int, do22.CODMUNRES)
+leftjoin!(do22, mun[:, [:codigo6, :codigo_regiao_saude]]; on = :codigo6)
+n = combine(groupby(dropmissing(do22, :codigo_regiao_saude), :codigo_regiao_saude),
+            nrow => :obitos)
+t = innerjoin(n, DataFrame(populacao(2022; nivel = :regiao_saude)); on = :codigo_regiao_saude)
+t.por_100mil = 100_000 .* t.obitos ./ t.populacao
+```
+
+Em Pernambuco, os óbitos por agressão de 2022 vão de 54,8 por 100 mil na
+III Região de Saúde (Mata Sul) a 13,4 na VII (Sertão Central); a I, que
+contém o Recife, fica em 39,6 — e a UF inteira, em 37,7. (Os 73 óbitos com
+município ignorado ficam fora: o `dropmissing`.)
 
 #### Por sexo e idade, e taxas padronizadas
 

@@ -347,7 +347,13 @@ SIDRA, com cache local) por município, UF (`:uf`) ou Brasil (`:brasil`), de
 
 ```julia
 pop = DataFrame(populacao(2022))      # codigo7, codigo6, nome, ano, populacao, fonte
+populacao(2022; nivel = :regiao_saude)  # soma dos municípios, por região de saúde
 ```
+
+`municipios()` traz, para cada município, a região de saúde (CIR, 439) e a
+macrorregião de saúde (121), do DATASUS, e as regiões imediata e
+intermediária do IBGE (510 e 133), cada uma com código e nome; `populacao` e
+`populacao_por_idade` aceitam os mesmos quatro níveis.
 
 **A série não é homogênea.** Cada ano vem do que o IBGE publicou para ele —
 Censo (2000, 2010, 2022), Contagem (2007) ou estimativa (os demais) —, e a

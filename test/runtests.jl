@@ -602,6 +602,32 @@ end
         @test codigo6_ibge(2611533) == 261153
         @test_throws ArgumentError codigo6_ibge(2611531)
         @test municipio(2611533).nome == "Quixaba"
+
+        # regiões abaixo da UF: saúde (DATASUS) e geográficas (IBGE 2017)
+        @test r.codigo_regiao_saude == 26010 && r.regiao_saude == "I Região de Saúde"
+        @test r.codigo_macrorregiao_saude == 2607 && r.macrorregiao_saude == "METROPOLITANA"
+        @test r.codigo_regiao_imediata == 260001 && r.regiao_imediata == "Recife"
+        @test r.codigo_regiao_intermediaria == 2601 && r.regiao_intermediaria == "Recife"
+        # a primeira linha de cada .cnv do TabNet se perde no servidor: estes
+        # dois foram recuperados à mão e não podem voltar a faltar
+        @test municipio(1100023).regiao_saude == "Vale do Jamari"          # Ariquemes
+        @test municipio(1100015).codigo_macrorregiao_saude == 1101         # Alta Floresta D'Oeste
+        @test length(unique(m.codigo_regiao_saude for m in ms)) == 439
+        @test length(unique(m.codigo_macrorregiao_saude for m in ms)) == 121
+        @test length(unique(m.codigo_regiao_imediata for m in ms)) == 510
+        @test length(unique(m.codigo_regiao_intermediaria for m in ms)) == 133
+        # toda região dentro de uma UF, e o código começa pelo da UF
+        for c in (:codigo_regiao_saude, :codigo_macrorregiao_saude,
+                  :codigo_regiao_imediata, :codigo_regiao_intermediaria)
+            @test all(m -> string(getfield(m, c))[1:2] == string(m.codigo7)[1:2], ms)
+        end
+        # macrorregião agrupa regiões de saúde inteiras — com uma exceção na
+        # própria tabela do DATASUS: a região Central de RO, repartida
+        macro_de = Dict{Int,Set{Int}}()
+        for m in ms
+            push!(get!(Set{Int}, macro_de, m.codigo_regiao_saude), m.codigo_macrorregiao_saude)
+        end
+        @test sort([k for (k, v) in macro_de if length(v) > 1]) == [11003]
     end
 
     @testset "populacao: parse da SIDRA, fontes por ano, interpolação" begin
@@ -642,6 +668,26 @@ end
         @test e isa ArgumentError && occursin("interpolar = true", e.msg)
         @test_throws ArgumentError populacao(1999)
         @test_throws ArgumentError populacao(2021; nivel = :bairro)
+
+        # níveis regionais: soma dos municípios pela tabela embarcada
+        @test MicroSUS._confere_nivel(:regiao_saude) === :municipio
+        @test MicroSUS._confere_nivel(:uf) === :uf
+        @test_throws ArgumentError MicroSUS._confere_nivel(:bairro)
+        lm = [(codigo = 2611606, nome = "Recife", populacao = 100),
+              (codigo = 2609600, nome = "Olinda", populacao = 10),     # I Região, com Recife
+              (codigo = 2604106, nome = "Caruaru", populacao = 5)]     # IV Região
+        a = sort(MicroSUS._agrega_regiao(lm, :regiao_saude); by = x -> x.codigo)
+        @test a == [(codigo = 26003, nome = "IV Região de Saúde", uf = "PE", populacao = 5),
+                    (codigo = 26010, nome = "I Região de Saúde", uf = "PE", populacao = 110)]
+        # demais chaves (sexo, idade) continuam separando
+        li = [(codigo = 2611606, nome = "Recife", sexo = "F", idade = 3, populacao = 7),
+              (codigo = 2609600, nome = "Olinda", sexo = "F", idade = 3, populacao = 2),
+              (codigo = 2609600, nome = "Olinda", sexo = "M", idade = 3, populacao = 1)]
+        ai = MicroSUS._agrega_regiao(li, :regiao_imediata)
+        @test sort([(x.sexo, x.populacao) for x in ai]) == [("F", 9), ("M", 1)]
+        # município fora da tabela: avisa, não some em silêncio
+        @test_logs (:warn, r"fora da tabela") MicroSUS._agrega_regiao(
+            [(codigo = 9999999, nome = "?", populacao = 3)], :regiao_saude)
     end
 
     @testset "conversão por coluna: texto CP850, categórica, ASCII sem String" begin
@@ -1369,6 +1415,10 @@ end
             @test sum(r.populacao for r in populacao_por_idade(2022; nivel = :uf)) == 203_080_756
             pj = populacao_por_idade(2021; nivel = :brasil)
             @test occursin("projeção", first(pj).fonte)
+            pr = populacao_por_idade(2022; nivel = :macrorregiao_saude)
+            @test sum(r.populacao for r in pr) == 203_080_756
+            @test length(unique(r.codigo_macrorregiao_saude for r in pr)) == 121
+            @test_throws ArgumentError populacao_por_idade(2021; nivel = :regiao_saude)
         end
 
         @testset "Rede (IBGE/SIDRA) — populacao bate com os totais oficiais" begin
@@ -1379,6 +1429,10 @@ end
             @test length(m) == 5570
             @test sum(r.populacao for r in m) == 203_080_756
             @test only(r for r in m if r.codigo6 == 261160).populacao == 1_488_920
+            rs = populacao(2022; nivel = :regiao_saude)
+            @test length(rs) == 439
+            @test sum(r.populacao for r in rs) == 203_080_756
+            @test only(r for r in rs if r.codigo_regiao_saude == 26010).uf == "PE"
             @test length(populacao(2019:2021; nivel = :uf, cache = false)) == 81
             i = populacao(2023; nivel = :brasil, interpolar = true)
             @test br(2022) < only(i).populacao < br(2024)
