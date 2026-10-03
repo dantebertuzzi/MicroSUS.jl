@@ -47,6 +47,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   código válido. As duas agora usam o dígito da tabela oficial e caem no
   algoritmo só para códigos fora dela.
 
+- Os arquivos do CNES de 2023 não abriam (`descritor de campo truncado`):
+  `STPE2312.dbc` e `STBA2312.dbc` trazem `0x00` onde o DBF põe o `0x0D` que
+  encerra a lista de campos, embora os 208 descritores estejam completos e a
+  soma das larguras bata com o tamanho do registro. O fim da lista passa a
+  ser o tamanho do cabeçalho declarado no arquivo; o `0x0D` continua aceito,
+  e um cabeçalho de fato truncado continua sendo erro.
+
 ### Documentation
 
 - `docs/checa_blocos.jl`, rodado pelo CI antes de construir a documentação. As

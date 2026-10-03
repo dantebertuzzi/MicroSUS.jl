@@ -251,6 +251,24 @@ end
                       [Date(2023, 1, 15), Date(2023, 12, 1), missing])
     end
 
+    @testset "cabeçalho sem o terminador 0x0D (CNES 2023)" begin
+        dir = mktempdir()
+        h, _ = monta_cabecalho_dbf(campos, length(linhas))
+        hsize = Int(h[9]) | (Int(h[10]) << 8)
+        @test h[hsize] == 0x0d
+        sem = copy(h); sem[hsize] = 0x00               # como no STPE2312.dbc
+        @test [c.nome for c in MicroSUS.le_cabecalho_dbf(sem).campos] ==
+              [c.nome for c in MicroSUS.le_cabecalho_dbf(h).campos]
+        for ext in ("dbf", "dbc")
+            f = joinpath(dir, "sem_terminador.$ext")
+            ext == "dbf" ? escreve_dbf(f, campos, linhas) : escreve_dbc(f, campos, linhas)
+            bytes = read(f); bytes[hsize] = 0x00; write(f, bytes)
+            @test Tables.columntable(ler(f)).NOME == ["RECIFE", "SÃO JOSÉ", "PETROLINA"]
+        end
+        # cabeçalho de fato truncado continua sendo erro
+        @test_throws ErrorException MicroSUS.le_cabecalho_dbf(h[1:hsize-40])
+    end
+
     @testset "DBC ≡ DBF (mesmos dados pelos dois caminhos)" begin
         dir = mktempdir()
         fdbf = escreve_dbf(joinpath(dir, "a.dbf"), campos, linhas)
