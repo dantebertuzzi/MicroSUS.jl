@@ -119,7 +119,12 @@ function ler(caminho::AbstractString;
     tipos = [_tipo_logico(c, sch) for c in campos]
     pool || (tipos = [t === :pool ? :texto : t for t in tipos])
 
-    enc = encoding === :auto ? encoding_do_ldid(cab.ldid) : encoding
+    enc = if encoding === :auto
+        sis = schema isa Symbol && schema !== :auto ? schema : detecta_sistema(caminho)
+        encoding_do_ldid(cab.ldid, sis)
+    else
+        encoding
+    end
 
     return TabelaDBC(String(caminho), cab, campos, tipos, filtro,
                      tamanho_lote, enc)
