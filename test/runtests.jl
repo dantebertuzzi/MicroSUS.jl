@@ -360,6 +360,22 @@ end
             @test isequal(lotes_de(k), seq)
         end
 
+        # colunas convertidas em paralelo: a suíte roda com uma thread, então
+        # o caminho paralelo só é exercitado num processo com várias
+        grande = escreve_dbc(joinpath(dir, "grande.dbc"),
+            [("ID", 'N', 6, 0), ("COD", 'C', 3, 0), ("DT", 'C', 8, 0)],
+            [[string(i), "x$(i % 7)", "0$(1 + i % 9)012023"] for i in 1:6_000])
+        assinatura(f) = hash(map(collect, values(materializar(ler(f; schema = Dict(:COD => :pool,
+            :DT => :data_ddmmyyyy), tamanho_lote = 2_500)))))
+        codigo = """
+            using MicroSUS
+            m = materializar(ler($(repr(grande)); schema = Dict(:COD => :pool, :DT => :data_ddmmyyyy),
+                                 tamanho_lote = 2_500))
+            print(Threads.nthreads(), " ", hash(map(collect, values(m))))
+            """
+        saida = read(`$(Base.julia_cmd()) -t 4 --project=$(Base.active_project()) -e $codigo`, String)
+        @test saida == "4 $(assinatura(grande))"
+
         # materialização: vários lotes == um lote, e o DataFrame não recopia
         @test isequal(DataFrame(ler([a, b]; tamanho_lote = 300)), DataFrame(ler([a, b])))
         @test Tables.columns(ler(a)) isa Tables.CopiedColumns

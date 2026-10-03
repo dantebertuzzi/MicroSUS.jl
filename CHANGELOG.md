@@ -94,6 +94,14 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Changed
 
+- Com mais de uma thread, as colunas de cada lote são convertidas em
+  paralelo (uma tarefa por coluna; lotes com menos de 2.000 linhas ficam na
+  thread atual). Acelera também a leitura de um arquivo só: `DOSP2023` 1,72 →
+  1,23 s com 4 threads e 1,15 s com 8 — perto do piso de 1,0 s da
+  descompressão, que é sequencial —; `DENGBR23` 4,7 → 3,3 s e 2,9 s; os 10
+  anos do SIM de PE 2,2 → 1,9 s e 1,4 s. Com uma thread, nada muda. O pico de
+  memória com 8 threads sobe cerca de 12%. Resultado idêntico com 8 threads
+  nas 1.078 colunas de comparação.
 - `fetch_datasus` baixa até 4 arquivos ao mesmo tempo (como o `baixar` no
   plural), em vez de um por vez; e, com mais de uma thread, `ler(caminhos)` —
   e portanto `fetch_datasus` — lê os arquivos seguintes enquanto o atual é

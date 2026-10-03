@@ -162,8 +162,11 @@ schema, como o Arrow exige. Devolve uma [`TabelaConcatenada`](@ref).
 
 Com mais de uma thread (`julia -t auto`), os arquivos seguintes são lidos
 enquanto o atual é consumido, e a saída continua na mesma ordem: os 10
-anos do SIM de PE caem de 4,3 s para 2,1 s com 4 threads e 1,7 s com 8.
-Com uma thread só, a leitura é a sequencial de sempre.
+anos do SIM de PE caem de 4,3 s para 1,9 s com 4 threads e 1,4 s com 8.
+As colunas de cada lote também são convertidas em paralelo, o que vale
+para um arquivo só: o `DENGBR23` (1,6 milhão de registros) cai de 5,8 s
+para 3,3 s com 4 threads. Com uma thread só, a leitura é a sequencial de
+sempre.
 
 ### `baixar` / `baixar_sinan` — download com cache
 
