@@ -34,7 +34,11 @@ makedocs(;
     warnonly = [:missing_docs, :cross_references],
 )
 
-deploydocs(;
-    repo = "github.com/dantebertuzzi/MicroSUS.jl",
-    push_preview = true,
-)
+# O CI monta e verifica num job (MICROSUS_DOCS_PUBLICAR=false) e publica
+# noutro, em fila — ver .github/workflows/CI.yml
+if get(ENV, "MICROSUS_DOCS_PUBLICAR", "true") == "true"
+    deploydocs(;
+        repo = "github.com/dantebertuzzi/MicroSUS.jl",
+        push_preview = true,
+    )
+end

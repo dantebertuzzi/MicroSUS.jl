@@ -29,12 +29,6 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
-    # Cada PR publica uma prévia no gh-pages (push_preview em docs/make.jl).
-    # Vários PRs ao mesmo tempo disputavam o push e um deles falhava com
-    # "failed to push some refs" (#16, #24). Em fila, um de cada vez.
-    concurrency:
-      group: docs-gh-pages
-      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2
@@ -56,6 +50,33 @@ jobs:
             using MicroSUS
             DocMeta.setdocmeta!(MicroSUS, :DocTestSetup, :(using MicroSUS); recursive=true)
             doctest(MicroSUS)'
+      # Só monta: publicar é com o job seguinte
+      - run: julia --project=docs docs/make.jl
+        env:
+          MICROSUS_DOCS_PUBLICAR: 'false'
+
+  # Cada PR publica uma prévia no gh-pages, e vários PRs ao mesmo tempo
+  # disputavam o push (#16, #24). Em fila: o GitHub mantém um job esperando
+  # por grupo e cancela o anterior quando chega outro — por isso a publicação
+  # é um job à parte, e um cancelamento aqui custa uma prévia, não a
+  # verificação da documentação do PR (#30).
+  docs-publicacao:
+    name: Documentation (publicação)
+    needs: docs
+    runs-on: ubuntu-latest
+    concurrency:
+      group: docs-gh-pages
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: '1'
+      - run: |
+          julia --project=docs -e '
+            using Pkg
+            Pkg.develop(PackageSpec(path=pwd()))
+            Pkg.instantiate()'
       - run: julia --project=docs docs/make.jl
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
