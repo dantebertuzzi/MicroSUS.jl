@@ -661,6 +661,45 @@ end
         @test only(materializar(ler(cnes; filtro = r -> r[:ALVARA] == "Nº 64")).ALVARA) == "Nº 64"
     end
 
+    @testset "populacao_por_idade: parse da SIDRA, faixas, padronização" begin
+        # duas dimensões chamadas "Ano" (período e ano projetado), como na 7358
+        json = """[{"NC": "Nível Territorial (Código)", "V": "Valor", "D1C": "Brasil (Código)",
+                    "D1N": "Brasil", "D3C": "Ano (Código)", "D3N": "Ano", "D4C": "Sexo (Código)",
+                    "D4N": "Sexo", "D6C": "Ano (Código)", "D6N": "Ano"},
+                   {"NC": "1", "V": "123", "D1C": "1", "D1N": "Brasil", "D3C": "2018", "D3N": "2018",
+                    "D4C": "4", "D4N": "Homens", "D6C": "49076", "D6N": "2060"}]"""
+        l = only(MicroSUS._linhas_sidra(json))
+        @test l["Ano"] == "2018" && l["Ano [2]"] == "49076" && l["Ano [2] (nome)"] == "2060"
+        @test l["Sexo (nome)"] == "Homens" && l["V"] == "123"
+
+        @test faixa_etaria(0) == "0 a 4 anos"
+        @test faixa_etaria(37) == "35 a 39 anos"
+        @test faixa_etaria(79.9) == "75 a 79 anos"
+        @test faixa_etaria(80) == "80 anos ou mais"
+        @test faixa_etaria(91; aberta = 90) == "90 anos ou mais"
+        @test faixa_etaria(14; largura = 10, aberta = 60) == "10 a 19 anos"
+        @test ismissing(faixa_etaria(missing)) && ismissing(faixa_etaria(-1))
+        @test_throws ArgumentError faixa_etaria(10; largura = 5, aberta = 82)
+
+        # método direto: Σ wᵢ casosᵢ/popᵢ, com wᵢ = padrãoᵢ / Σ padrão
+        r = taxa_padronizada([10, 30], [1_000, 1_000], [3, 1]; por = 1_000)
+        @test r.taxa ≈ 1_000 * (0.75 * 0.01 + 0.25 * 0.03)        # 15
+        @test r.bruta ≈ 20
+        @test r.pesos ≈ [0.75, 0.25]
+        @test r.erro_padrao ≈ 1_000 * sqrt(0.75^2 * 10 / 1e6 + 0.25^2 * 30 / 1e6)
+        # colunas Union{Missing,…} vindas de um leftjoin, sem missing de fato
+        @test taxa_padronizada(Union{Missing,Int}[10, 30], [1_000, 1_000], [3, 1]; por = 1_000).taxa ≈ 15
+        @test_throws ArgumentError taxa_padronizada([10, missing], [1, 1], [1, 1])
+        @test_throws ArgumentError taxa_padronizada([1, 1], [1, 0], [1, 1])
+        @test_throws DimensionMismatch taxa_padronizada([1], [1, 1], [1, 1])
+
+        # o que o IBGE publica por idade
+        @test MicroSUS._fonte_idade(2022, :municipio) === :censo2022
+        @test MicroSUS._fonte_idade(2015, :uf) === :projecao
+        @test_throws ArgumentError MicroSUS._fonte_idade(2015, :municipio)
+        @test_throws ArgumentError MicroSUS._fonte_idade(2070, :brasil)
+    end
+
     @testset "encoding CP850" begin
         b = UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90, ' ', ' ']
         @test MicroSUS.decodifica_texto(b, 1, 10, :cp850) == "SÃO JOSÉ"
@@ -1299,6 +1338,17 @@ end
     # MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'
     # -----------------------------------------------------------------------
     if get(ENV, "MicroSUS_TEST_NETWORK", "false") == "true"
+        @testset "Rede (IBGE/SIDRA) — populacao_por_idade soma os totais dos Censos" begin
+            for (ano, total) in ((2010, 190_755_799), (2022, 203_080_756))
+                p = populacao_por_idade(ano; nivel = :brasil, cache = false)
+                @test sum(r.populacao for r in p) == total
+                @test length(p) == 2 * 17                       # 2 sexos × 17 faixas
+            end
+            @test sum(r.populacao for r in populacao_por_idade(2022; nivel = :uf)) == 203_080_756
+            pj = populacao_por_idade(2021; nivel = :brasil)
+            @test occursin("projeção", first(pj).fonte)
+        end
+
         @testset "Rede (IBGE/SIDRA) — populacao bate com os totais oficiais" begin
             br(a) = only(populacao(a; nivel = :brasil, cache = false)).populacao
             @test br(2010) == 190_755_799                  # Censo 2010

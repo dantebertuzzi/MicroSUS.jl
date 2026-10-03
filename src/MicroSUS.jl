@@ -47,6 +47,7 @@ export ler, materializar, converter, baixar, url_arquivo,
        capitulo_cid10, eh_agressao,
        normaliza_cid, cid_casa, cids_em, menciona_cid,
        dv_ibge, codigo7_ibge, codigo6_ibge, populacao,
+       populacao_por_idade, faixa_etaria, taxa_padronizada,
        uf_de, regiao, municipio, municipios,
        CabecalhoDBF, CampoDBF, TabelaDBC, TabelaConcatenada, cabecalho,
        fetch_datasus, fontes, fonte,
@@ -65,6 +66,7 @@ include("ftp.jl")
 include("download.jl")
 include("origem.jl")
 include("populacao.jl")
+include("populacao_idade.jl")
 include("sources.jl")
 include("process/process.jl")
 include("process/sim.jl")

@@ -11,6 +11,16 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- `populacao_por_idade(ano; nivel)`: população do IBGE por sexo e faixa
+  etária — Censos 2010 e 2022 até o município, e a projeção da população
+  (revisão 2018, anterior ao Censo 2022, marcada na coluna `fonte`) para
+  Brasil e UFs nos demais anos de 2000–2060. Consulta por idade simples,
+  agregada em faixas configuráveis; a soma bate com o total oficial dos
+  Censos (5.570 municípios, 203.080.756 em 2022). `faixa_etaria(idade)` põe os
+  microdados nas mesmas faixas, e `taxa_padronizada(casos, pop, padrao)` faz a
+  padronização direta. Mortalidade geral em 2022: bruta 956 (RS) contra 510
+  (AM) por 100 mil; padronizadas pelo Brasil, 795 e 776.
+
 - `verificar_cache()`: compara cada arquivo do cache com o FTP do DATASUS,
   sem baixar nada, e classifica em `:atualizado`, `:mudou` (o DATASUS
   republicou), `:era_preliminar` (preliminar guardado como definitivo por

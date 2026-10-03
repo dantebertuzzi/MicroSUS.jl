@@ -83,6 +83,9 @@ cids_em
 menciona_cid
 eh_agressao
 populacao
+populacao_por_idade
+faixa_etaria
+taxa_padronizada
 ```
 
 ## Estruturas DBF
