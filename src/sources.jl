@@ -63,8 +63,11 @@ registrar!(FonteDATASUS(
     nome = "SINASC — Declarações de Nascido Vivo",
     periodicidade = :anual,
     urls = (uf, ano, _) -> [
-        "$FTP_RAIZ/SINASC/NOV/DNRES/DN$(uf)$(ano).dbc",
+        # 1996_ é a pasta canônica: é a única com 2023 em diante e onde o
+        # DATASUS republica (DNPE2016, julho de 2025). NOV é uma cópia que
+        # parou em 2022 e, em 2016, ficou com a versão de 2020.
         "$FTP_RAIZ/SINASC/1996_/Dados/DNRES/DN$(uf)$(ano).dbc",
+        "$FTP_RAIZ/SINASC/NOV/DNRES/DN$(uf)$(ano).dbc",
         "$FTP_RAIZ/SINASC/PRELIM/DNRES/DN$(uf)$(ano).dbc",
     ],
     anos = 1996:2100,

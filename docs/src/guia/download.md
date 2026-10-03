@@ -123,6 +123,55 @@ Cobertura verificada no FTP do DATASUS em 03/10/2026. "Consolidado até" é o
 | `:violencia` — Violência interpessoal/autoprovocada | `:SINAN_VIOLENCIA` | `VIOLBR{aa}` | 2009–2025 | consolidado até 2024 |
 | `:zika` — Zika | `:SINAN_ZIKA` | `ZIKABR{aa}` | 2015–2025 |  |
 
+## O cache está em dia com o DATASUS?
+
+O DATASUS republica bases retroativamente, sem aviso, e o cache não sabe
+disso: o arquivo baixado em julho continua sendo usado depois que o
+DATASUS o substitui. `verificar_cache()` compara cada arquivo do cache com
+o FTP, sem baixar nada, e diz o que fazer:
+
+```julia
+using DataFrames
+v = DataFrame(verificar_cache())
+filter(r -> r.situacao in (:mudou, :era_preliminar), v)
+```
+
+| situação | o que é | o que fazer |
+|---|---|---|
+| `:atualizado` | o FTP tem o mesmo arquivo | nada |
+| `:mudou` | o DATASUS republicou | `forcar = true` / `cache = false` |
+| `:era_preliminar` | preliminar guardado como definitivo por versões até a 0.3.1 | `forcar = true` |
+| `:consolidado_disponivel` | preliminar no cache e consolidado já publicado | o próximo `fetch_datasus` troca sozinho |
+| `:ausente_no_ftp` | nenhuma URL candidata existe mais | — |
+| `:sem_url` / `:sem_resposta` | nome fora do catálogo / servidor não respondeu | — |
+
+A comparação é por tamanho — o FTP não informa a data de modificação por
+essa via —, então uma republicação com exatamente o mesmo número de bytes
+passa como `:atualizado`. A consulta usa só o canal de controle do FTP, que
+responde mesmo onde o firewall bloqueia as transferências, e vai de dois em
+dois arquivos: mais que isso, e o servidor do DATASUS passa a deixar
+conexões sem resposta.
+
+## De onde veio este resultado?
+
+Cada download grava, ao lado do arquivo, um registro `.origem` com a URL,
+a data, o tamanho e o SHA-256. O `fetch_datasus` anexa ao resultado a lista
+dos arquivos de que ele veio:
+
+```julia
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2019:2023)
+DataFrame(proveniencia(df))   # arquivo, url, baixado_em, bytes, sha256, preliminar
+```
+
+É o que uma nota de método precisa para que a análise possa ser refeita
+sobre os mesmos dados: a URL sozinha não identifica a versão de um arquivo
+que o DATASUS republica. A proveniência acompanha o `DataFrame` em cópias,
+filtros e agregações. Para arquivos baixados antes da 0.4.1, `baixado_em` é
+a data do arquivo no cache.
+
+O cache fica no diretório de Scratch do pacote; a variável de ambiente
+`MICROSUS_CACHE` o troca por outro (outro disco, um cache por projeto).
+
 ## Falha de rede não é arquivo ausente
 
 Um arquivo que não existe no FTP (ano ainda não publicado para uma UF,

@@ -93,6 +93,7 @@ function fetch_datasus(fonte_id::Symbol;
     end
 
     arquivos = String[]
+    urls = Dict{String,String}()
     metadados = Dict{String,NamedTuple}()
     faltantes = String[]
     preliminares = String[]
@@ -114,9 +115,10 @@ function fetch_datasus(fonte_id::Symbol;
             push!(faltantes, rotulo)
             continue
         end
-        for caminho in achados
+        for (caminho, url) in achados
             prelim = eh_preliminar(caminho)
             push!(arquivos, caminho)
+            urls[caminho] = url
             metadados[caminho] = f.periodicidade == :mensal ?
                 (UF_ARQUIVO = u, ANO_ARQUIVO = a, MES_ARQUIVO = m, PRELIMINAR = prelim) :
                 (UF_ARQUIVO = u, ANO_ARQUIVO = a, PRELIMINAR = prelim)
@@ -142,6 +144,14 @@ function fetch_datasus(fonte_id::Symbol;
     if processar
         df = processar_fonte(f.id, df; verbose, copiar = false)
     end
+
+    # de quais arquivos o resultado veio — ver `proveniencia`
+    prov = map(arquivos) do c
+        reg = _origem_ou_registra(c, urls[c])
+        (arquivo = basename(c), url = reg.url, baixado_em = reg.baixado_em,
+         bytes = reg.bytes, sha256 = reg.sha256, preliminar = eh_preliminar(c))
+    end
+    metadata!(df, _CHAVE_PROVENIENCIA, prov; style = :note)
 
     return df
 end
@@ -174,11 +184,12 @@ por sufixo (caso do SIA-PA). Para cada sufixo, tenta as URLs candidatas em
 ordem; sufixos vazios ("") que falham em todas as URLs encerram o período.
 """
 function _baixar_periodo(f::FonteDATASUS, uf, ano, mes; cache, verbose)
-    encontrados = String[]
+    encontrados = Pair{String,String}[]   # caminho => URL de onde veio
     for sufixo in f.sufixos
         achou = false
         candidatas = [_inserir_sufixo(u, sufixo) for u in f.urls(uf, ano, mes)]
         for (i, url_suf) in enumerate(candidatas)
+            url_usada = url_suf
             caminho = try
                 baixar_url(url_suf; cache, verbose)
             catch e
@@ -189,10 +200,11 @@ function _baixar_periodo(f::FonteDATASUS, uf, ano, mes; cache, verbose)
                 c === nothing && rethrow()
                 @warn "sem acesso à rede; usando o arquivo do cache" *
                       (eh_preliminar(c) ? " (dados PRELIMINARES)" : "") arquivo = c baixado_em = _baixado_em(c) e.url
+                url_usada = candidatas[findfirst(u -> _destino_cache(u) == c, candidatas)]
                 c
             end
             if caminho !== nothing
-                push!(encontrados, caminho)
+                push!(encontrados, caminho => url_usada)
                 achou = true
                 break
             end

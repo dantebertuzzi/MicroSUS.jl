@@ -9,6 +9,43 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Added
+
+- `verificar_cache()`: compara cada arquivo do cache com o FTP do DATASUS,
+  sem baixar nada, e classifica em `:atualizado`, `:mudou` (o DATASUS
+  republicou), `:era_preliminar` (preliminar guardado como definitivo por
+  versões até a 0.3.1), `:consolidado_disponivel`, `:ausente_no_ftp`,
+  `:sem_url` ou `:sem_resposta`. No cache de quem escreveu isto, achou os três
+  preliminares antigos que só tinham aparecido por comparação manual.
+  Funciona pelo canal de controle do FTP, que responde mesmo onde o firewall
+  bloqueia as transferências.
+- `proveniencia(df)`: os arquivos de que um resultado de `fetch_datasus` veio
+  — URL, data do download, bytes, SHA-256, preliminar —, anexados ao
+  `DataFrame` como metadado e preservados em cópias, filtros e agregações.
+- Cada download grava um registro `.origem` ao lado do arquivo no cache.
+  Arquivos de caches antigos ganham o registro na primeira leitura, com a
+  data do arquivo.
+- `MICROSUS_CACHE` troca o diretório do cache.
+
+### Changed
+
+- Dependências: `SHA` (biblioteca padrão) e DataFrames ≥ 1.4, a primeira com
+  metadados.
+
+### Fixed
+
+- `fetch_datasus(:SINASC)` lia a cópia desatualizada do SINASC. O catálogo
+  tentava primeiro `SINASC/NOV/DNRES`, uma cópia que parou em 2022 e que, para
+  2016, ficou com a versão de janeiro de 2020; a pasta canônica,
+  `SINASC/1996_/Dados/DNRES` (a única com 2023 em diante, e a que o
+  `baixar(:sinasc, …)` já usava), tem a versão republicada em julho de 2025.
+  Nos demais anos as duas pastas têm o mesmo arquivo. Achado pelo
+  `verificar_cache`. Quem tem o `DNPE2016` (ou outra UF de 2016) baixado pela
+  pasta antiga continua com ele no cache — `verificar_cache()` o aponta como
+  `:mudou`.
+- A suíte de testes escrevia no cache de quem a rodava (e deixava arquivos
+  lá); agora usa um diretório temporário.
+
 ## [0.4.0] - 2026-10-03
 
 ### Migrando da 0.3

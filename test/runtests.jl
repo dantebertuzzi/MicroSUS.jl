@@ -1,4 +1,7 @@
 using MicroSUS
+
+# os testes baixam (de file://) para um cache próprio, nunca o de quem os roda
+ENV["MICROSUS_CACHE"] = mktempdir()
 using Test
 using DataFrames
 using Dates
@@ -899,6 +902,65 @@ end
             delete!(MicroSUS.FONTES, :TESTE_CACHE)
             rm(no_cache; force = true)
         end
+    end
+
+    @testset "registro de origem, proveniencia e verificar_cache" begin
+        dir = mktempdir()
+        nome = "TESTEORIGEMPE2023.dbc"
+        fonte_arq = joinpath(dir, nome)
+        escreve_dbc(fonte_arq, [("SEXO", 'C', 1, 0)], [["1"], ["2"]])
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_ORIGEM, nome = "t", periodicidade = :anual,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, "TESTEORIGEM$(uf)$(ano).dbc")],
+            anos = 2023:2023))
+        no_cache = joinpath(MicroSUS._dir_cache(), nome)
+        try
+            df = fetch_datasus(:TESTE_ORIGEM; uf = "PE", anos = 2023, cache = false,
+                               processar = false, verbose = false)
+            # o download grava o registro ao lado do arquivo
+            reg = MicroSUS._le_origem(no_cache)
+            @test reg.url == "file://" * fonte_arq
+            @test reg.bytes == filesize(fonte_arq)
+            @test reg.sha256 == bytes2hex(open(MicroSUS.SHA.sha256, fonte_arq))
+
+            # e o resultado sabe de onde veio, mesmo depois de recortes
+            p = proveniencia(df)
+            @test length(p) == 1 && only(p).arquivo == nome && only(p).sha256 == reg.sha256
+            @test !only(p).preliminar
+            @test proveniencia(df[1:1, :]) == p
+            @test proveniencia(select(df, :SEXO)) == p
+            @test_throws ArgumentError proveniencia(DataFrame(a = [1]))
+
+            # verificar_cache: igual, republicado, sumiu do servidor
+            v(n) = only(verificar_cache(; arquivos = [n], verbose = false))
+            @test v(nome).situacao === :atualizado
+            escreve_dbc(fonte_arq, [("SEXO", 'C', 1, 0)], [["1"], ["2"], ["1"]])
+            r = v(nome)
+            @test r.situacao === :mudou && r.bytes_ftp == filesize(fonte_arq)
+            rm(fonte_arq)
+            @test v(nome).situacao === :ausente_no_ftp
+
+            # arquivo sem registro e sem fonte reconhecível
+            sem = joinpath(MicroSUS._dir_cache(), "TESTESEMNOME.dbc")
+            cp(no_cache, sem; force = true)
+            @test v("TESTESEMNOME.dbc").situacao === :sem_url
+            rm(sem; force = true)
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_ORIGEM)
+            rm(no_cache; force = true); rm(no_cache * ".origem"; force = true)
+        end
+
+        # a URL de um arquivo antigo do cache é deduzida do nome
+        c(n) = MicroSUS._urls_candidatas(n)
+        @test first(c("DOPE2023.dbc")[1]) == url_arquivo(:sim, "PE"; ano = 2023)
+        # SINASC: a pasta canônica (1996_) vem antes da cópia parada em 2022 (NOV)
+        @test first(c("DNPE2016.dbc")[1]) == url_arquivo(:sinasc, "PE"; ano = 2016)
+        @test occursin("SIM/PRELIM/", only(c("DOPE2023.dbc")[2]))
+        @test endswith(first(c("PAPE2312a.dbc")[1]), "SIASUS/200801_/Dados/PAPE2312a.dbc")
+        @test occursin("199201_200712", first(c("RDPE9901.dbc")[1]))
+        @test first(c("DENGBR23.dbc")[1]) == url_sinan(:dengue; ano = 2023)
+        @test first(c("SRCBR21.dbc")[1]) == url_sinan(:rubeola_congenita; ano = 2021)
+        @test c("QUALQUER.dbc") == (String[], String[])
     end
 
     @testset "erro de rede não é arquivo ausente" begin

@@ -65,7 +65,12 @@ function url_arquivo(sistema::Symbol, uf::AbstractString;
                         "(use :sim, :sinasc, :sih, :sia, :cnes)"))
 end
 
-_dir_cache() = @get_scratch!("dbc")
+# `MICROSUS_CACHE` troca o diretório do cache (outro disco, um cache por
+# projeto — e os testes, que não devem escrever no cache de quem os roda)
+function _dir_cache()
+    d = get(ENV, "MICROSUS_CACHE", "")
+    return isempty(d) ? @get_scratch!("dbc") : mkpath(d)
+end
 
 # Preliminar e consolidado têm o mesmo nome de arquivo (DOPE2024.dbc nas
 # duas pastas). No mesmo lugar do cache, o preliminar baixado uma vez
@@ -101,6 +106,7 @@ function _baixa!(url::AbstractString, destino::AbstractString)
         rethrow()
     end
     mv(tmp, destino; force = true)
+    _registra_origem(destino, url)
     return destino
 end
 
@@ -117,6 +123,7 @@ function _cache_valido(caminho::AbstractString)
     catch e
         @warn "arquivo do cache ilegível; será baixado de novo" arquivo = caminho erro = sprint(showerror, e)
         rm(caminho; force = true)
+        rm(_arquivo_origem(caminho); force = true)
         return false
     end
 end

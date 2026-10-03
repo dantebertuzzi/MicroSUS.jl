@@ -37,9 +37,11 @@ using InlineStrings
 using PooledArrays
 using Scratch
 using Tables
+import SHA
 
 export ler, materializar, converter, baixar, url_arquivo,
        baixar_sinan, url_sinan, agravos_sinan, eh_preliminar,
+       verificar_cache, proveniencia,
        dcl_descomprime, descomprime_dbc_para_dbf,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao,
@@ -61,6 +63,7 @@ include("tables.jl")
 include("multi.jl")
 include("ftp.jl")
 include("download.jl")
+include("origem.jl")
 include("populacao.jl")
 include("sources.jl")
 include("process/process.jl")
