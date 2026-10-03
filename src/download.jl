@@ -48,6 +48,9 @@ recusada) viram [`MicroSUS.ErroDeRede`](@ref); só a ausência do arquivo é
 preliminares só pode ser descoberta tentando.
 """
 function baixar_url(url::AbstractString; cache::Bool = true, verbose::Bool = true)
+    # com restaurar_dados, um arquivo travado vem da trava, e não do FTP
+    t = _resolve_travado(url)
+    t === nothing || return t
     destino = _destino_cache(url)
 
     if cache && _cache_valido(destino)

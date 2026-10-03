@@ -272,6 +272,8 @@ padronização.
 
 Downloads interrompidos continuam de onde pararam, e `MICROSUS_ESPELHOS` aponta para espelhos com a árvore de pastas do FTP (uma pasta de rede, um bucket, um servidor do grupo), usados quando o FTP falha — `exportar_espelho(dir)` transforma o seu cache em um.
 
+`travar_dados("dados.toml", df)` é o `Manifest.toml` dos dados: grava URL, SHA-256 e data da extração de cada arquivo de que um resultado veio, e `restaurar_dados("dados.toml")` põe exatamente esses bytes de volta no cache — do DATASUS ou de um espelho, conferidos pelo hash —, para o mesmo script ler os mesmos dados meses depois.
+
 `verificar_cache()` compara o cache com o FTP do DATASUS sem baixar nada e aponta os arquivos que o DATASUS republicou (o cache não sabe disso sozinho); `proveniencia(df)` lista os arquivos — URL, data do download, SHA-256 — de que um resultado do `fetch_datasus` veio, para a nota de método.
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); via `baixar`/`url_arquivo`, SIH/SIA cobrem a estrutura pós-2008 — o `fetch_datasus` alcança também as pastas antigas (SIH desde 1992, SIA desde 1994).
