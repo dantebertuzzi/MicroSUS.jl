@@ -204,12 +204,10 @@ const _PREFIXO_SISTEMA = Dict(
     "PA" => :sia, "ST" => :cnes, "LT" => :cnes, "PF" => :cnes,
 )
 
-# prefixos de agravo do SINAN (arquivos nacionais AGRAVOBR{aa})
-const _PREFIXO_SINAN = Set([
-    "DENG", "CHIK", "ZIKA", "CHIKV", "DENGON",
-    "LEIV", "LEIP", "LTAN", "ESQU", "FTIF", "MENI", "TUBE",
-    "HANS", "HEPA", "ACBI", "ACGR", "VIOL", "IEXO", "ANIM",
-])
+# prefixos de agravo do SINAN (arquivos nacionais AGRAVOBR{aa}), do
+# catálogo único em agravos.jl
+const _PREFIXO_SINAN = Set(a.prefixo for a in AGRAVOS_SINAN)
+const _RE_ARQUIVO_SINAN = r"^([A-Z]{3,4})BR\d{2}\.DB[CF]$"
 
 """
     detecta_sistema(caminho) -> Union{Nothing,Symbol}
@@ -220,10 +218,10 @@ Deduz o sistema pelo prefixo do nome do arquivo (`DOPE2023.dbc` → :sim,
 function detecta_sistema(caminho::AbstractString)
     nome = uppercase(basename(caminho))
     length(nome) ≥ 2 || return nothing
-    # SINAN: arquivos nacionais AGRAVOBR{aa} (DENGBR20, CHIKBR20, ...)
-    if length(nome) ≥ 4 && nome[1:4] in _PREFIXO_SINAN
-        return :sinan
-    end
+    # SINAN: arquivos nacionais AGRAVOBR{aa} (DENGBR20, SRCBR20, ...); o
+    # prefixo tem 3 ou 4 letras, então casa o nome inteiro
+    m = match(_RE_ARQUIVO_SINAN, nome)
+    m !== nothing && m.captures[1] in _PREFIXO_SINAN && return :sinan
     return get(_PREFIXO_SISTEMA, nome[1:2], nothing)
 end
 

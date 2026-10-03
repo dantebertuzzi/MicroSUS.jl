@@ -39,7 +39,7 @@ using Scratch
 using Tables
 
 export ler, materializar, converter, baixar, url_arquivo,
-       baixar_sinan, url_sinan,
+       baixar_sinan, url_sinan, agravos_sinan,
        dcl_descomprime, descomprime_dbc_para_dbf,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao,
@@ -55,6 +55,7 @@ include("encoding.jl")
 include("dbf.jl")
 include("dbc.jl")
 include("dimensoes.jl")
+include("agravos.jl")
 include("schema.jl")
 include("tables.jl")
 include("ftp.jl")

@@ -153,10 +153,14 @@ As duas funções caem automaticamente nas pastas de dados preliminares
 
 #### Agravos do SINAN
 
-`:dengue`, `:chikungunya`, `:zika`, `:meningite`, `:tuberculose`,
-`:hanseniase`, `:hepatites`, `:violencia`, `:leishmaniose_visceral`,
-`:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`,
-`:intoxicacao_exogena`, `:acidente_animais`
+São 48 — a tabela completa, com o ano inicial de cada um, está no
+[guia de download](guia/download.md). [`agravos_sinan`](@ref) devolve a mesma
+lista, e cada agravo é também uma fonte de [`fetch_datasus`](@ref):
+
+```julia
+DataFrame(agravos_sinan())
+sc = fetch_datasus(:SINAN_SIFILIS_CONGENITA; anos = 2022)   # = baixar_sinan(:sifilis_congenita; ano = 2022)
+```
 
 #### Funções de URL
 

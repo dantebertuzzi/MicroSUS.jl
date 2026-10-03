@@ -21,6 +21,14 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `municipio(cod)` devolve nome, UF, região e códigos de 6 e 7 dígitos sem
   acesso à rede; `municipios()` devolve a tabela inteira para joins; `uf_de` e
   `regiao` resolvem UF e grande região a partir de sigla ou código.
+- 48 agravos do SINAN, de 16: entram sífilis congênita, em gestante e
+  adquirida, leptospirose, coqueluche, acidente de trabalho, LER/DORT,
+  toxoplasmose congênita e gestacional, varicela e outros. Cada um é aceito
+  por `baixar_sinan`/`url_sinan` e é uma fonte de `fetch_datasus`
+  (`:sifilis_congenita` → `:SINAN_SIFILIS_CONGENITA`). O ano inicial de cada
+  um foi verificado no FTP do DATASUS; `agravos_sinan()` lista todos, e o guia
+  de download tem a tabela com a cobertura e as lacunas (cólera 2023, surtos de
+  DTA 2014, varicela 2020).
 
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
@@ -37,6 +45,18 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `process_sim` deliberately leaves unlabelled, keeps 8,067 blank occupations that survive
   standardisation looking like data.
 
+### Changed
+
+- Os agravos do SINAN vêm de uma tabela única (`src/agravos.jl`). Eram três
+  listas mantidas à mão — a de `baixar_sinan` (16 agravos), a de
+  `fetch_datasus`/`fontes()` (6) e a de `detecta_sistema` (19 prefixos) — e
+  divergiam: malária estava em `fetch_datasus` mas não era reconhecida como
+  SINAN por `detecta_sistema`, e 10 dos 16 agravos de `baixar_sinan` não
+  existiam em `fontes()`. Todo símbolo e toda fonte que existiam continuam
+  aceitos.
+- `:SINAN_CHIKUNGUNYA` começa em 2014 (era 2015) e `:SINAN_ZIKA` em 2015 (era
+  2016): os dois anos estão publicados.
+
 ### Fixed
 
 - `codigo7_ibge` e `codigo6_ibge` erravam em nove municípios cujo dígito
@@ -46,6 +66,9 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   devolvia 2611531 em vez de 2611533, e `codigo6_ibge(2611533)` rejeitava um
   código válido. As duas agora usam o dígito da tabela oficial e caem no
   algoritmo só para códigos fora dela.
+- `detecta_sistema` olhava só as 4 primeiras letras do nome, o que não serve
+  para prefixos de 3 (`SRCBR21.dbc`, rubéola congênita); agora casa o nome
+  inteiro (`{PREFIXO}BR{aa}.dbc`).
 
 ### Documentation
 

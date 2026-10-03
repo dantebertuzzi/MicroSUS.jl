@@ -199,7 +199,7 @@ pe_dengue = DataFrame(ler(baixar_sinan(:dengue; ano = 2024);
     filtro = r -> r[:ID_MN_RESI] == "261110"))   # Petrolina/PE
 ```
 
-Agravos disponíveis: `:dengue`, `:chikungunya`, `:zika`, `:malaria`, `:tuberculose`, `:hanseniase`, `:meningite`, `:violencia`, `:leishmaniose_visceral`, `:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`, `:hepatites`, `:intoxicacao_exogena`, `:acidente_animais`.
+São 48 agravos — de `:dengue`, `:tuberculose` e `:hanseniase` a `:sifilis_congenita`, `:sifilis_gestante`, `:leptospirose`, `:acidente_trabalho` e `:coqueluche`. `agravos_sinan()` lista todos, com o prefixo do arquivo, o ano inicial publicado e o identificador em `fetch_datasus` (`:sifilis_congenita` → `:SINAN_SIFILIS_CONGENITA`).
 
 > **Malária**: o arquivo do SINAN cobre apenas a notificação **extra-amazônica**. Os casos da região amazônica — a grande maioria — são notificados no SIVEP-Malária, que não faz parte do SINAN e não é servido por este FTP. Um `MALABR{aa}.dbc` de poucas centenas de KB é o esperado, não um download truncado.
 

@@ -136,12 +136,11 @@ function _sinan(id::Symbol, prefixo::String, nome::String, anos::UnitRange{Int})
     ))
 end
 
-_sinan(:SINAN_DENGUE,      "DENG", "Dengue",                        2000:2100)
-_sinan(:SINAN_CHIKUNGUNYA, "CHIK", "Chikungunya",                   2015:2100)
-_sinan(:SINAN_ZIKA,        "ZIKA", "Zika",                          2016:2100)
-_sinan(:SINAN_MALARIA,     "MALA", "Malária",                       2004:2100)
-_sinan(:SINAN_TUBERCULOSE, "TUBE", "Tuberculose",                   2001:2100)
-_sinan(:SINAN_VIOLENCIA,   "VIOL", "Violência interpessoal/autoprovocada", 2009:2100)
+# uma fonte por agravo do catálogo único (agravos.jl): :SINAN_DENGUE,
+# :SINAN_SIFILIS_CONGENITA, …
+for a in AGRAVOS_SINAN
+    _sinan(_fonte_sinan(a.agravo), a.prefixo, a.nome, a.inicio:2100)
+end
 
 """
     fontes() -> Vector{NamedTuple}

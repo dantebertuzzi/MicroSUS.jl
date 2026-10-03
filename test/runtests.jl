@@ -463,6 +463,44 @@ end
         @test c.NU_IDADE_N[2] == 0.5
     end
 
+    @testset "catálogo único dos agravos do SINAN" begin
+        ag = agravos_sinan()
+        @test length(ag) == length(MicroSUS.AGRAVOS_SINAN) ≥ 48
+        @test allunique(a.agravo for a in ag)
+        @test allunique(a.prefixo for a in ag)
+        @test all(a -> 2000 ≤ a.ano_inicial ≤ 2025, ag)
+        for a in ag
+            # as três visões derivam da mesma tabela e concordam
+            f = fonte(a.fonte)
+            @test f.abrangencia == :br && first(f.anos) == a.ano_inicial
+            u = url_sinan(a.agravo; ano = 2023)
+            @test basename(u) == "$(a.prefixo)BR23.dbc"
+            @test first(f.urls(nothing, 2023, nothing)) == u
+            @test MicroSUS.detecta_sistema(basename(u)) === :sinan
+        end
+        # prefixo de 3 letras: o nome do arquivo inteiro é que decide
+        @test MicroSUS.detecta_sistema("SRCBR21.dbc") === :sinan
+        @test MicroSUS.detecta_sistema("srcbr21.DBF") === :sinan
+        @test MicroSUS.detecta_sistema("MALABR22.dbc") === :sinan
+        @test MicroSUS.detecta_sistema("DOPE2023.dbc") === :sim
+        @test MicroSUS.detecta_sistema("XYZWBR21.dbc") === nothing
+        # todo símbolo que baixar_sinan aceitava antes continua aceito
+        for s in (:dengue, :chikungunya, :chik, :zika, :malaria,
+                  :leishmaniose_visceral, :leishmaniose_tegumentar,
+                  :esquistossomose, :febre_tifoide, :meningite, :tuberculose,
+                  :hanseniase, :hepatites, :violencia, :intoxicacao_exogena,
+                  :acidente_animais)
+            @test url_sinan(s; ano = 2020) isa String
+        end
+        @test url_sinan(:chik; ano = 2020) == url_sinan(:chikungunya; ano = 2020)
+        # e toda fonte :SINAN_* que existia continua existindo
+        for id in (:SINAN_DENGUE, :SINAN_CHIKUNGUNYA, :SINAN_ZIKA,
+                   :SINAN_MALARIA, :SINAN_TUBERCULOSE, :SINAN_VIOLENCIA)
+            @test fonte(id) isa MicroSUS.FonteDATASUS
+        end
+        @test occursin("SIFCBR24", url_sinan(:sifilis_congenita; ano = 2024))
+    end
+
     @testset "URLs do FTP" begin
         @test url_arquivo(:sim, "PE"; ano = 2023) ==
               "ftp://ftp.datasus.gov.br/dissemin/publicos/SIM/CID10/DORES/DOPE2023.dbc"

@@ -130,16 +130,12 @@ end
 
 const _FTP_SINAN = "$_FTP_BASE/SINAN/DADOS"
 
-# agravo → prefixo do arquivo nacional (AGRAVOBR{aa})
-const _SINAN_AGRAVO = Dict(
-    :dengue => "DENGBR", :chikungunya => "CHIKBR", :chik => "CHIKBR",
-    :zika => "ZIKABR", :malaria => "MALABR",
-    :leishmaniose_visceral => "LEIVBR", :leishmaniose_tegumentar => "LTANBR",
-    :esquistossomose => "ESQUBR", :febre_tifoide => "FTIFBR",
-    :meningite => "MENIBR", :tuberculose => "TUBEBR", :hanseniase => "HANSBR",
-    :hepatites => "HEPABR", :violencia => "VIOLBR",
-    :intoxicacao_exogena => "IEXOBR", :acidente_animais => "ANIMBR",
-)
+# agravo → prefixo do arquivo nacional (AGRAVOBR{aa}), do catálogo único
+# em agravos.jl, mais os nomes alternativos
+const _SINAN_AGRAVO = merge(
+    Dict(a.agravo => a.prefixo * "BR" for a in AGRAVOS_SINAN),
+    Dict(k => only(a.prefixo for a in AGRAVOS_SINAN if a.agravo === v) * "BR"
+         for (k, v) in _ALIASES_AGRAVO))
 
 """
     url_sinan(agravo; ano, prelim = false) -> String
@@ -150,8 +146,8 @@ por residência no [`ler`](@ref) (`SG_UF`/`ID_MN_RESI`). `prelim = true`
 aponta para a pasta de dados preliminares.
 
 Agravos: `:dengue`, `:chikungunya`, `:zika`, `:meningite`,
-`:tuberculose`, `:hanseniase`, `:hepatites`, `:violencia`, … (ver
-`MicroSUS._SINAN_AGRAVO`).
+`:tuberculose`, `:hanseniase`, `:sifilis_congenita`, `:violencia`, … —
+a lista completa, com o ano inicial de cada um, é [`agravos_sinan`](@ref).
 
 Ex.: `url_sinan(:dengue; ano = 2020)` →
 `.../SINAN/DADOS/FINAIS/DENGBR20.dbc`.
@@ -159,7 +155,7 @@ Ex.: `url_sinan(:dengue; ano = 2020)` →
 function url_sinan(agravo::Symbol; ano::Int, prelim::Bool = false)
     pref = get(_SINAN_AGRAVO, agravo, nothing)
     pref === nothing && throw(ArgumentError(
-        "agravo desconhecido: $agravo (veja MicroSUS._SINAN_AGRAVO)"))
+        "agravo desconhecido: $agravo (veja agravos_sinan())"))
     aa = lpad(ano % 100, 2, '0')
     pasta = prelim ? "PRELIM" : "FINAIS"
     return "$_FTP_SINAN/$pasta/$pref$aa.dbc"

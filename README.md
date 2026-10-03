@@ -199,7 +199,7 @@ pe_dengue = DataFrame(ler(baixar_sinan(:dengue; ano = 2024);
     filtro = r -> r[:ID_MN_RESI] == "261110"))   # Petrolina/PE
 ```
 
-Available SINAN diseases: `:dengue`, `:chikungunya`, `:zika`, `:malaria`, `:tuberculose`, `:hanseniase`, `:meningite`, `:violencia`, `:leishmaniose_visceral`, `:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`, `:hepatites`, `:intoxicacao_exogena`, `:acidente_animais`.
+There are 48 diseases — from `:dengue`, `:tuberculose` and `:hanseniase` to `:sifilis_congenita`, `:sifilis_gestante`, `:leptospirose`, `:acidente_trabalho` and `:coqueluche`. `agravos_sinan()` lists them all, with the file prefix, the first year published and the `fetch_datasus` identifier (`:sifilis_congenita` → `:SINAN_SIFILIS_CONGENITA`).
 
 > **Malaria**: the SINAN file only covers **extra-Amazonian** notification. Cases in the Amazon region — the large majority — are reported through SIVEP-Malária, which is not part of SINAN and is not served by this FTP. A `MALABR{yy}.dbc` of a few hundred KB is expected, not a truncated download.
 
