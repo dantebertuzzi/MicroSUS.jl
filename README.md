@@ -326,6 +326,8 @@ codigo6_ibge(2611101)         # 261110, validating the check digit
 # CID-10 chapters
 capitulo_cid10("X954")        # (numeral = "XX", nome = "Causas externas …")
 capitulo_cid10("I219")        # (numeral = "IX", nome = "Doenças do aparelho circulatório")
+descricao_cid("I219")         # "Infarto agudo do miocárdio não especificado"
+cid10("I21.9").grupo          # "Doenças isquêmicas do coração"
 
 eh_agressao("X954")           # true — X85–Y09 + Y87.1 (CVLI subset)
 eh_agressao("Y10")            # false — indeterminate intent

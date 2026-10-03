@@ -518,6 +518,28 @@ end
         @test !eh_agressao("X8")                   # curto demais para a faixa
     end
 
+    @testset "cid10 e descricao_cid (tabela do DATASUS embarcada)" begin
+        r = cid10("I21.9")
+        @test r.codigo == "I219" && r.descricao == "Infarto agudo do miocárdio não especificado"
+        @test r.nivel === :subcategoria && r.categoria == "I21" && r.capitulo == "IX"
+        @test r.grupo == "Doenças isquêmicas do coração"
+        @test cid10("i21").nivel === :categoria
+        @test cid10("I10X").codigo == "I10"                        # X de preenchimento
+        @test cid10("O800").sexo == 'F'
+        @test count(!, (c -> c.causa_obito)(v) for v in values(MicroSUS._tabela_cid10()[1])) == 1291
+        # posterior à tabela de 2008: categoria ou suplemento
+        f = cid10("I489")
+        @test f.nivel === :categoria_da_subcategoria && f.descricao == f.descricao_categoria
+        @test cid10("A972").descricao == "Dengue grave" && occursin("OMS 2016", cid10("A972").origem)
+        @test cid10("K649") === nothing                            # sem categoria na tabela
+        @test cid10("") === nothing && cid10(missing) === nothing && cid10("ZZZ") === nothing
+        @test isequal(descricao_cid.(["X954", "", missing]),
+                      ["Agressão por meio de disparo de outra arma de fogo ou de arma não " *
+                       "especificada - rua e estrada", missing, missing])
+        sub, cat, grupos = MicroSUS._tabela_cid10()
+        @test length(sub) == 12451 + 4 && length(cat) == 2045 + 1 && length(grupos) == 275
+    end
+
     @testset "busca de CID: prefixos, faixas, causas múltiplas" begin
         @test normaliza_cid(" a81.0 ") == "A810"
         @test normaliza_cid(missing) == ""

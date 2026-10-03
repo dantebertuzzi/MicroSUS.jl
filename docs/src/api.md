@@ -77,6 +77,8 @@ regiao
 municipio
 municipios
 capitulo_cid10
+cid10
+descricao_cid
 normaliza_cid
 cid_casa
 cids_em

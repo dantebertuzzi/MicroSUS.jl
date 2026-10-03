@@ -412,9 +412,19 @@ não têm).
 ```julia
 capitulo_cid10("X954")        # (numeral="XX", nome="Causas externas …")
 capitulo_cid10("I219")        # (numeral="IX", nome="Doenças do aparelho circulatório")
+descricao_cid("I219")         # "Infarto agudo do miocárdio não especificado"
+cid10("I21.9").grupo          # "Doenças isquêmicas do coração"
+descricao_cid.(df.CAUSABAS)   # rotula uma coluna inteira (334 mil causas em 0,13 s)
 eh_agressao("X954")           # true — X85–Y09 + Y87.1 (recorte CVLI)
 eh_agressao("Y10")            # false — intenção indeterminada
 ```
+
+A tabela é a do DATASUS (versão 2008, a última publicada em CSV), embarcada
+no pacote, mais a dengue (A97) da atualização da OMS de 2016. Códigos
+posteriores a 2008 recebem a descrição da categoria — `cid10` diz isso em
+`nivel`. Nos 20,6 milhões de óbitos do SIM de 2010–2024, só 28 ficam sem
+descrição. `cid10` também traz a restrição de sexo do código e se ele é
+válido como causa básica de óbito.
 
 ### Busca de CID-10
 

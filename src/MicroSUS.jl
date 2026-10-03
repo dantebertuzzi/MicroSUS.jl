@@ -44,7 +44,7 @@ export ler, materializar, converter, baixar, url_arquivo,
        verificar_cache, proveniencia,
        dcl_descomprime, descomprime_dbc_para_dbf,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
-       capitulo_cid10, eh_agressao,
+       capitulo_cid10, eh_agressao, cid10, descricao_cid,
        normaliza_cid, cid_casa, cids_em, menciona_cid,
        dv_ibge, codigo7_ibge, codigo6_ibge, populacao,
        populacao_por_idade, faixa_etaria, taxa_padronizada,
@@ -58,6 +58,7 @@ include("encoding.jl")
 include("dbf.jl")
 include("dbc.jl")
 include("dimensoes.jl")
+include("cid10.jl")
 include("agravos.jl")
 include("schema.jl")
 include("tables.jl")
