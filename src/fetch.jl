@@ -150,7 +150,8 @@ function fetch_datasus(fonte_id::Symbol;
     prov = map(arquivos) do c
         reg = _origem_ou_registra(c, urls[c])
         (arquivo = basename(c), url = reg.url, baixado_em = reg.baixado_em,
-         bytes = reg.bytes, sha256 = reg.sha256, preliminar = eh_preliminar(c))
+         bytes = reg.bytes, sha256 = reg.sha256, preliminar = eh_preliminar(c),
+         obtido_de = reg.obtido_de)
     end
     metadata!(df, _CHAVE_PROVENIENCIA, prov; style = :note)
 

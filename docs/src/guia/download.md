@@ -194,6 +194,40 @@ catch e
 end
 ```
 
+## Downloads interrompidos são retomados
+
+O FTP do DATASUS derruba transferências no meio. Um download que cai depois
+de ter avançado continua de onde parou — até cinco vezes na mesma chamada —,
+e o que já veio fica no cache como `ARQUIVO.dbc.parcial` para a próxima
+chamada retomar. Antes de retomar, o tamanho do arquivo no servidor é
+conferido: se mudou (o DATASUS republicou), o parcial é descartado. Nada
+disso pede configuração; o arquivo só aparece no cache inteiro.
+
+## Espelhos: quando o FTP não responde
+
+O DATASUS publica só por FTP, e há redes — e dias — em que ele não entrega
+nada. `MICROSUS_ESPELHOS` aponta para outras origens com a mesma árvore de
+pastas do FTP (`<espelho>/SIM/CID10/DORES/DOPE2023.dbc`), separadas por `;`:
+uma pasta de rede (`file://`), um bucket, um servidor HTTP do grupo.
+
+```julia
+# quem tem os arquivos publica o seu cache na árvore do FTP
+exportar_espelho("/mnt/grupo/datasus")
+
+# quem não alcança o FTP aponta para lá
+ENV["MICROSUS_ESPELHOS"] = "file:///mnt/grupo/datasus"
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023)
+proveniencia(df)    # obtido_de diz de qual espelho cada arquivo veio
+```
+
+Por padrão o espelho só entra quando o DATASUS falha por **rede**; com
+`MICROSUS_ESPELHO_PRIMEIRO=true`, é tentado antes dele (um espelho
+institucional mais rápido). Em qualquer caso o DATASUS decide se um arquivo
+**existe**: se ele responde que não, o espelho não é consultado — é disso que
+dependem as partições do SIA e o PRELIM. Um espelho não é conferido contra o
+DATASUS; o SHA-256 em [`proveniencia`](@ref) é o que permite verificar que os
+bytes são os mesmos.
+
 A exceção é o preliminar já no cache: sem rede, ele é usado, com um aviso
 que diz que foi por falta de rede.
 

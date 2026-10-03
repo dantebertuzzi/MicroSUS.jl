@@ -269,6 +269,8 @@ them with their year ranges. They come raw, with no standardization routine.
 
 **Preliminary data**: if the consolidated file doesn't exist (recent SIM/SINASC years), `baixar` automatically tries the corresponding `PRELIM/` folder, with a `@warn` — an indicator computed over preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)` builds the preliminary URL directly. The preliminary file is cached in a `PRELIM/` subfolder, apart from the consolidated file of the same name: the consolidated one is always tried first and replaces the preliminary one once it is out.
 
+Interrupted downloads resume where they stopped, and `MICROSUS_ESPELHOS` points to mirrors with the FTP's folder tree (a network share, a bucket, a group server) used when the FTP fails — `exportar_espelho(dir)` turns your cache into one.
+
 `verificar_cache()` compares the cache with the DATASUS FTP without downloading anything and points out the files DATASUS has republished (the cache can't tell on its own); `proveniencia(df)` lists the files — URL, download date, SHA-256 — a `fetch_datasus` result came from, for the methods note.
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); via `baixar`/`url_arquivo`, SIH/SIA cover the post-2008 structure — `fetch_datasus` also reaches the older folders (SIH from 1992, SIA from 1994).
