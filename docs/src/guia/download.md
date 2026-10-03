@@ -35,6 +35,11 @@ download falha com `550`:
 | `:sia` | `SIASUS/200801_/Dados/` | `PA{UF}{aamm}.dbc` |
 | `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{aamm}.dbc` |
 
+As demais fontes de [`fontes`](@ref) seguem os mesmos padrões: os recortes
+nacionais do SIM em `SIM/CID10/DOFET/` (`DOFET{aa}`, `DOINF{aa}`, `DOEXT{aa}`,
+`DOMAT{aa}`), os outros arquivos da AIH na pasta do `RD` (`SP`, `RJ`, `ER`) e cada
+tabela do CNES na sua pasta (`CNES/200508_/Dados/LT/LT{UF}{aamm}.dbc` e afins).
+
 [`url_arquivo`](@ref) monta a URL sem baixar:
 
 ```julia
@@ -244,11 +249,12 @@ combine(groupby(df, :ANO_ARQUIVO), :PRELIMINAR => first)
 - **SINASC**: o helper cobre 1996+ (estrutura `1996_/Dados`); 1994–1995
   ficam em `SINASC/1994_1995/`, com outro padrão de nomes — monte a URL
   manualmente e use [`ler`](@ref) no arquivo baixado.
-- **SIH/SIA**: estrutura pós-2008 (`200801_`); os arquivos de
-  1992–2007 / 1994–2007 têm pastas e layouts próprios.
-- **CNES**: só o `ST` (estabelecimentos) tem helper; os outros tipos
-  (`LT`, `PF`, `EQ`, ...) seguem o mesmo padrão de URL — adapte a partir
-  de `url_arquivo(:cnes, ...)`.
+- **SIH/SIA**: `baixar` e `url_arquivo` cobrem a estrutura pós-2008
+  (`200801_`); [`fetch_datasus`](@ref) alcança também as pastas de
+  1992–2007 / 1994–2007, cujos layouts têm diferenças próprias.
+- **CNES**: `baixar(:cnes, ...)` e `url_arquivo(:cnes, ...)` são do `ST`
+  (estabelecimentos); as outras tabelas (`:CNES_PF`, `:CNES_LT`,
+  `:CNES_EQ`, …) vêm por [`fetch_datasus`](@ref).
 
 ## Paralelizar a leitura entre arquivos
 

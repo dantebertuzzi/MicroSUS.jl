@@ -9,6 +9,8 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-10-03
+
 ### Added
 
 - 17 fontes novas no catálogo, cada uma com a faixa de anos conferida no FTP:
@@ -563,7 +565,8 @@ Mudanças que alteram o resultado de código que já existia:
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.2.1...v0.3.0

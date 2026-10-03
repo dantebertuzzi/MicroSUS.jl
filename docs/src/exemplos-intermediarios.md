@@ -711,22 +711,18 @@ UF cai de 111 para 44 pontos, sem padrão comum entre estados.
 Levantados enquanto a página era escrita; viram sugestão de melhoria do
 MicroSUS.jl:
 
-Escrever esta página serviu de teste de uso do pacote. Dois dos atritos
-encontrados foram corrigidos na **v0.3.0**; três continuam de pé.
-
-**Corrigidos**
+Escrever esta página serviu de teste de uso do pacote. Os cinco atritos
+encontrados foram corrigidos na **v0.3.0**:
 
 | Atrito | Correção |
 |---|---|
 | Tipagem incompleta do schema `:sih` — `MORTE` era `:pool` apesar de ser tipo `N` no DBF, e `COD_IDADE`/`ANO_CMPT`/`MES_CMPT` nem constavam do schema | Os quatro agora são `:inteiro` |
 | Faltava `process_sih` — o SIM tinha `IDADE_ANOS` pronto, o SIH exigia combinar `IDADE` + `COD_IDADE` na mão | [`process_sih`](@ref) e [`idade_sih`](@ref), aplicados por `fetch_datasus(:SIH_RD)` |
-
 | Pedir coluna inexistente era erro fatal — `colunas = [:DIAGSEC1]` derrubava a leitura de 2010 | `ler(...; ignorar_ausentes = true)` |
 | `cabecalho` era API interna, apesar de ser a primeira coisa que toda análise multi-ano faz | Exportada e documentada na referência pública |
 | `DIAG_SECUN` some sem aviso a partir de 2015 | Documentado no [guia de schemas](guia/schemas.md) e na tabela acima |
 
-Nenhum atrito conhecido em aberto no momento — os cinco viraram as mudanças da
-v0.3.0.
+Nenhum atrito conhecido em aberto no momento.
 
 ---
 

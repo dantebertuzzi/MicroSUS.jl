@@ -46,7 +46,7 @@ julia --project=docs docs/make.jl     # output at docs/build/index.html
 
 Documentation: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** (in Portuguese). Version history in [CHANGELOG.md](CHANGELOG.md).
 
-Julia ≥ 1.9 (conditional extensions). Dependencies: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates. Arrow is optional (weak dep).
+Julia ≥ 1.9 (conditional extensions). Dependencies: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates, SHA. Arrow is optional (weak dep).
 
 ## Notebook
 
@@ -128,7 +128,7 @@ ler(caminho; colunas = nothing, filtro = nothing, tamanho_lote = 100_000,
 ```
 julia> ler(caminho; colunas = [:DTOBITO, :IDADE, :SEXO])
 TabelaDBC — DOPE2023.dbc
-  registros (cabeçalho): 68437   encoding: cp850   lote: 100000
+  registros (cabeçalho): 68527   encoding: cp850   lote: 100000
   colunas (3):
     DTOBITO     C(8)     → data_ddmmyyyy
     IDADE       C(3)     → idade_sim
@@ -261,11 +261,17 @@ Current FTP paths (checked against `microdatasus`, Jul 2026):
 | `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{yymm}.dbc` |
 | SINAN | `SINAN/DADOS/FINAIS/` | `{DISEASE}BR{yy}.dbc` (national — use `baixar_sinan`) |
 
+Beyond these, `fetch_datasus` reaches the national SIM extracts (fetal, infant,
+external-cause and maternal deaths: `:SIM_DOFET`, `:SIM_DOINF`, `:SIM_DOEXT`,
+`:SIM_DOMAT`), the other AIH files (`:SIH_SP`, `:SIH_RJ`, `:SIH_ER`) and the other
+CNES tables (`:CNES_LT`, `:CNES_EQ`, `:CNES_SR` and seven more) — `fontes()` lists
+them with their year ranges. They come raw, with no standardization routine.
+
 **Preliminary data**: if the consolidated file doesn't exist (recent SIM/SINASC years), `baixar` automatically tries the corresponding `PRELIM/` folder, with a `@warn` — an indicator computed over preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)` builds the preliminary URL directly. The preliminary file is cached in a `PRELIM/` subfolder, apart from the consolidated file of the same name: the consolidated one is always tried first and replaces the preliminary one once it is out.
 
 `verificar_cache()` compares the cache with the DATASUS FTP without downloading anything and points out the files DATASUS has republished (the cache can't tell on its own); `proveniencia(df)` lists the files — URL, download date, SHA-256 — a `fetch_datasus` result came from, for the methods note.
 
-**Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); SIH/SIA cover the post-2008 structure.
+**Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); via `baixar`/`url_arquivo`, SIH/SIA cover the post-2008 structure — `fetch_datasus` also reaches the older folders (SIH from 1992, SIA from 1994).
 
 ## Standardization: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan` / `process_cnes`
 
@@ -333,9 +339,11 @@ eh_agressao("X954")           # true — X85–Y09 + Y87.1 (CVLI subset)
 eh_agressao("Y10")            # false — indeterminate intent
 eh_agressao(missing)          # false
 
-# IBGE → microdata join (common pattern)
-df.cod7 = codigo7_ibge.(String.(df.CODMUNRES))
-leftjoin!(df, tabela_ibge; on = :cod7 => :codigo_municipio)
+# municipality names, UF and regions, embedded (no network) — join by codigo6
+municipio("261160").nome      # "Recife"
+mun = DataFrame(municipios())
+df.codigo6 = parse.(Int, df.CODMUNRES)
+leftjoin!(df, mun[:, [:codigo6, :nome, :regiao_saude]]; on = :codigo6)
 ```
 
 ### Populations and rates
@@ -393,7 +401,7 @@ fontes() |> DataFrame
 
 - No intra-file parallelism (DCL is sequential by nature); parallelize across files (`baixar(...; anos = ...)` + tasks).
 - Schemas cover the most-used fields of each system; fields outside the schema fall back to DBF typing (`N` → integer/float, `D` → date, `C` → text). Schema PRs are welcome.
-- Dimension tables with *names* (municipalities, 4-digit CID-10, CBO) are out of scope for the package — join with IBGE's DTB.
+- Municipalities (with health and IBGE regions) and CID-10 descriptions are embedded (`municipios()`, `descricao_cid`); occupations (CBO) are not — join with the official CBO table.
 
 ## Disclaimer
 
@@ -443,7 +451,7 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.4.0},
+  version = {0.4.1},
   doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
@@ -494,7 +502,7 @@ or a transfer. Two DOIs coexist, and they are not interchangeable:
 | DOI | What it identifies |
 |---|---|
 | [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — the project as a whole. Always resolves to the newest version; it is what the badge at the top of this README points at. |
-| one per release | Each archived version gets its own — 0.3.0 is [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). All of them are listed on the [Zenodo page](https://doi.org/10.5281/zenodo.22164178). |
+| one per release | Each archived version gets its own: 0.4.0 is [10.5281/zenodo.23126730](https://doi.org/10.5281/zenodo.23126730), 0.3.1 is [10.5281/zenodo.22164475](https://doi.org/10.5281/zenodo.22164475), 0.3.0 is [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). Zenodo mints a version's DOI only after the release is published, so the newest one is always on the [Zenodo page](https://doi.org/10.5281/zenodo.22164178) before it is here. |
 
 The BibTeX above carries the concept DOI, so it keeps working across releases.
 **In a paper, swap it for the DOI of the version you used**: the concept DOI
