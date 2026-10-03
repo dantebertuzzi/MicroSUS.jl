@@ -204,7 +204,38 @@ end
 Tables.istable(::Type{TabelaDBC}) = true
 Tables.columnaccess(::Type{TabelaDBC}) = true
 Tables.partitions(t::TabelaDBC) = _canal_lotes(t)
-Tables.columns(t::TabelaDBC) = materializar(t)
+# As colunas são vetores novos, de ninguém: CopiedColumns diz isso ao
+# DataFrame, que de outro modo copiaria tudo de novo (DataFrame(t) ia a
+# 3,6× o tamanho do resultado no DOSP2023).
+Tables.columns(t::TabelaDBC) = Tables.CopiedColumns(materializar(t))
+
+# Acumula os lotes com append! em vez de guardá-los todos e concatenar no
+# fim: cada lote é liberado assim que é anexado, e o pico fica perto do
+# tamanho do resultado em vez do dobro. Os vetores do primeiro lote são
+# nossos (cada lote é alocado do zero), então crescer neles é seguro.
+#
+# `capacidade` é o total de registros quando não há filtro (o cabeçalho
+# diz exatamente quantos são): reservado de antemão, o append! não deixa
+# folga. Com filtro o total é desconhecido, e a folga é devolvida no fim.
+# sizehint! em PooledArray só existe a partir do Julia 1.11 (pelo fallback
+# genérico de AbstractVector); a capacidade que importa é a dos índices
+_reserva!(v::PooledArray, n) = (sizehint!(v.refs, n); v)
+_reserva!(v, n) = sizehint!(v, n)
+
+function _acumula(lotes, capacidade::Union{Nothing,Int})
+    acc = nothing
+    for l in lotes
+        if acc === nothing
+            acc = l
+            capacidade === nothing || foreach(v -> _reserva!(v, capacidade), values(acc))
+        else
+            foreach(append!, values(acc), values(l))
+        end
+    end
+    acc === nothing || capacidade !== nothing ||
+        foreach(v -> _reserva!(v, length(v)), values(acc))
+    return acc
+end
 
 """
     materializar(t::TabelaDBC) -> NamedTuple
@@ -213,12 +244,8 @@ Consome todas as partições e concatena as colunas. É o que
 `DataFrame(t)` chama por baixo via `Tables.columns`.
 """
 function materializar(t::TabelaDBC)
-    partes = collect(_canal_lotes(t))
-    isempty(partes) && return _fecha_lote(t, _novos_vetores(t))
-    length(partes) == 1 && return partes[1]
-    nomes = _nomes(t)
-    return NamedTuple{nomes}(Tuple(
-        reduce(vcat, (p[nome] for p in partes)) for nome in nomes))
+    acc = _acumula(_canal_lotes(t), t.filtro === nothing ? t.cab.n_registros : nothing)
+    return acc === nothing ? _fecha_lote(t, _novos_vetores(t)) : acc
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::TabelaDBC)

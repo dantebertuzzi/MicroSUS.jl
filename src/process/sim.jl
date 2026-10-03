@@ -78,7 +78,7 @@ function idade_sim(v)
 end
 
 """
-    process_sim(df::DataFrame) -> DataFrame
+    process_sim(df::DataFrame; copiar = true) -> DataFrame
 
 Padroniza microdados do SIM (`:SIM_DO`): converte datas (`DTOBITO`,
 `DTNASC`, ...) para `Date`, rotula variáveis categóricas (sexo, raça/cor,
@@ -88,9 +88,12 @@ etc.) e cria `IDADE_ANOS` a partir do campo codificado `IDADE`.
 Colunas ausentes no layout do ano são simplesmente ignoradas; a coluna
 original `IDADE` é preservada. Chamado automaticamente por
 [`fetch_datasus`](@ref) quando `processar = true`.
+
+`copiar = false` padroniza `df` no lugar, sem a cópia inicial — o que
+[`fetch_datasus`](@ref) faz, já que o `DataFrame` é dele.
 """
-function process_sim(df::DataFrame)
-    df = copy(df)
+function process_sim(df::DataFrame; copiar::Bool = true)
+    copiar && (df = copy(df))
 
     for col in (:DTOBITO, :DTNASC, :DTATESTADO, :DTINVESTIG, :DTCADASTRO)
         para_data!(df, col)

@@ -28,9 +28,13 @@ em sequência, todos com as mesmas colunas e os mesmos tipos, e
 """
 struct TabelaConcatenada
     tabelas::Vector{TabelaDBC}
-    nomes::Vector{Symbol}             # colunas de saída, sem a de origem
+    nomes::Vector{Symbol}             # colunas dos arquivos
     destinos::Vector{_Destino}
-    origem::Union{Nothing,Symbol}
+    # colunas constantes por arquivo (`origem`): nome, tipo e o valor de
+    # cada arquivo, na ordem de `tabelas`
+    extras::Vector{Symbol}
+    extras_T::Vector{Type}
+    extras_val::Vector{Tuple}
 end
 
 _eltipo_base(tl::Symbol, c::CampoDBF) = eltype(_novo_vetor(tl, c))
@@ -60,6 +64,27 @@ function _destino(nome::Symbol, pares, falta_em_algum::Bool)
     return _Destino(T, tl === :pool)
 end
 
+# `origem` → colunas constantes por arquivo. Um Symbol é o atalho para o
+# nome do arquivo; uma função recebe o caminho e devolve um NamedTuple,
+# com as mesmas chaves para todo arquivo.
+function _metadados(tabelas, origem)
+    origem === nothing && return Symbol[], Type[], Tuple[() for _ in tabelas]
+    f = origem isa Symbol ? (c -> NamedTuple{(origem,)}((basename(c),))) : origem
+    nts = [f(t.caminho) for t in tabelas]
+    ks = keys(first(nts))
+    for (t, nt) in zip(tabelas, nts)
+        nt isa NamedTuple && keys(nt) == ks || throw(ArgumentError(
+            "`origem` deve devolver um NamedTuple com as mesmas chaves para todo " *
+            "arquivo; $(basename(t.caminho)) deu $(repr(nt))"))
+    end
+    Ts = Type[reduce(promote_type, (typeof(nt[k]) for nt in nts)) for k in ks]
+    return collect(Symbol, ks), Ts, Tuple[Tuple(nt) for nt in nts]
+end
+
+# valor constante de um arquivo, n vezes; texto vai como categórico
+_coluna_constante(::Type{T}, v, n) where {T<:AbstractString} = PooledArray(fill(convert(T, v), n))
+_coluna_constante(::Type{T}, v, n) where {T} = fill(convert(T, v), n)
+
 _lista_curta(v; n = 8) = length(v) ≤ n ? join(v, ", ") :
     join(first(v, n), ", ") * " e mais $(length(v) - n)"
 
@@ -82,8 +107,11 @@ function _concatena(tabelas::Vector{TabelaDBC}, uniao::Bool, origem,
                 "com missing as que faltam."))
         end
     end
-    origem !== nothing && origem in nomes && throw(ArgumentError(
-        "a coluna de origem :$origem já existe nos arquivos; escolha outro nome"))
+    extras, extras_T, extras_val = _metadados(tabelas, origem)
+    for e in extras
+        e in nomes && throw(ArgumentError(
+            "a coluna de origem :$e já existe nos arquivos; escolha outro nome"))
+    end
 
     destinos = map(nomes) do n
         pares = Tuple{Symbol,CampoDBF}[]
@@ -93,7 +121,7 @@ function _concatena(tabelas::Vector{TabelaDBC}, uniao::Bool, origem,
         end
         _destino(n, pares, length(pares) < length(tabelas))
     end
-    return TabelaConcatenada(tabelas, nomes, destinos, origem)
+    return TabelaConcatenada(tabelas, nomes, destinos, extras, extras_T, extras_val)
 end
 
 _converte(::Type, ::Missing) = missing
@@ -104,33 +132,46 @@ _converte_base(::Type{S}, x) where {S} = convert(S, x)
 
 function _ajusta(v, d::_Destino)
     (v isa PooledArray) == d.pooled && eltype(v) === d.T && return v
-    w = Vector{d.T}(undef, length(v))
-    for i in eachindex(v, w)
-        w[i] = _converte(d.T, v[i])
+    return _ajusta(v, d.T, d.pooled)
+end
+
+# barreira de função: d.T é um campo ::Type, abstrato — sem ela o
+# _converte era despachado em tempo de execução, elemento por elemento
+# (3,2 s em 12 s no SIM de PE 2014–2023)
+function _ajusta(v, ::Type{T}, pooled::Bool) where {T}
+    if pooled && v isa PooledArray
+        # categórico → categórico: converte só o dicionário
+        pool = T[_converte(T, x) for x in v.pool]
+        return PooledArray(PooledArrays.RefArray(copy(v.refs)), Dict{T,eltype(v.refs)}(
+            p => eltype(v.refs)(i) for (i, p) in enumerate(pool)))
     end
-    return d.pooled ? PooledArray(w) : w
+    w = Vector{T}(undef, length(v))
+    @inbounds for i in eachindex(v, w)
+        w[i] = _converte(T, v[i])
+    end
+    return pooled ? PooledArray(w) : w
 end
 
 _vazia(d::_Destino, n::Int) =
     d.pooled ? PooledArray(Vector{d.T}(fill(missing, n))) : Vector{d.T}(fill(missing, n))
 
-_nomes(t::TabelaConcatenada) =
-    Tuple(t.origem === nothing ? t.nomes : [t.nomes; t.origem])
+_nomes(t::TabelaConcatenada) = Tuple([t.nomes; t.extras])
 
-function _lote_ajustado(t::TabelaConcatenada, tab::TabelaDBC, lote)
+function _lote_ajustado(t::TabelaConcatenada, i::Int, lote)
     n = length(first(lote))
     cols = Any[haskey(lote, nome) ? _ajusta(lote[nome], d) : _vazia(d, n)
                for (nome, d) in zip(t.nomes, t.destinos)]
-    t.origem === nothing ||
-        push!(cols, PooledArray(fill(basename(tab.caminho), n)))
+    for (T, v) in zip(t.extras_T, t.extras_val[i])
+        push!(cols, _coluna_constante(T, v, n))
+    end
     return NamedTuple{_nomes(t)}(Tuple(cols))
 end
 
 function _canal_lotes(t::TabelaConcatenada)
     Channel{NamedTuple}(1; spawn = true) do saida
-        for tab in t.tabelas
+        for (i, tab) in enumerate(t.tabelas)
             for lote in _canal_lotes(tab)
-                put!(saida, _lote_ajustado(t, tab, lote))
+                put!(saida, _lote_ajustado(t, i, lote))
             end
         end
     end
@@ -158,7 +199,11 @@ Arrow.write("cvli_pe.arrow", t) # um record batch por lote, schema único
   difere. Com `true`, a saída tem a união das colunas, e as que faltam num
   arquivo vêm como `missing` nas linhas dele.
 - `origem`: nome da coluna acrescentada ao fim com o nome do arquivo de
-  cada linha (`"DOPE2023.dbc"`); `nothing` para não acrescentar.
+  cada linha (`"DOPE2023.dbc"`); `nothing` para não acrescentar. Também
+  pode ser uma função `caminho -> NamedTuple`, que vira uma coluna
+  constante por chave — é assim que [`fetch_datasus`](@ref) acrescenta
+  `UF_ARQUIVO`, `ANO_ARQUIVO` e `PRELIMINAR`:
+  `origem = c -> (ANO = parse(Int, basename(c)[5:8]),)`.
 
 Os tipos são unificados por coluna: texto de larguras diferentes vira a
 `InlineString` mais larga, inteiro e decimal viram `Float64`, texto e
@@ -168,7 +213,7 @@ com um aviso.
 """
 function ler(caminhos::AbstractVector{<:AbstractString};
              uniao::Bool = false,
-             origem::Union{Nothing,Symbol} = :ARQUIVO,
+             origem::Union{Nothing,Symbol,Function} = :ARQUIVO,
              kwargs...)
     isempty(caminhos) && throw(ArgumentError("nenhum arquivo para ler"))
     tabelas = [ler(c; kwargs...) for c in caminhos]
@@ -178,7 +223,7 @@ end
 Tables.istable(::Type{TabelaConcatenada}) = true
 Tables.columnaccess(::Type{TabelaConcatenada}) = true
 Tables.partitions(t::TabelaConcatenada) = _canal_lotes(t)
-Tables.columns(t::TabelaConcatenada) = materializar(t)
+Tables.columns(t::TabelaConcatenada) = Tables.CopiedColumns(materializar(t))
 
 """
     materializar(t::TabelaConcatenada) -> NamedTuple
@@ -186,16 +231,15 @@ Tables.columns(t::TabelaConcatenada) = materializar(t)
 Consome as partições de todos os arquivos e concatena as colunas.
 """
 function materializar(t::TabelaConcatenada)
-    partes = collect(_canal_lotes(t))
-    nomes = _nomes(t)
-    if isempty(partes)
-        vazias = Any[d.pooled ? PooledArray(d.T[]) : d.T[] for d in t.destinos]
-        t.origem === nothing || push!(vazias, PooledArray(String[]))
-        return NamedTuple{nomes}(Tuple(vazias))
+    sem_filtro = all(tab -> tab.filtro === nothing, t.tabelas)
+    acc = _acumula(_canal_lotes(t),
+                   sem_filtro ? sum(tab.cab.n_registros for tab in t.tabelas) : nothing)
+    acc === nothing || return acc
+    vazias = Any[d.pooled ? PooledArray(d.T[]) : d.T[] for d in t.destinos]
+    for T in t.extras_T
+        push!(vazias, T <: AbstractString ? PooledArray(T[]) : T[])
     end
-    length(partes) == 1 && return partes[1]
-    return NamedTuple{nomes}(Tuple(
-        reduce(vcat, (p[nome] for p in partes)) for nome in nomes))
+    return NamedTuple{_nomes(t)}(Tuple(vazias))
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::TabelaConcatenada)
@@ -212,6 +256,6 @@ function Base.show(io::IO, ::MIME"text/plain", t::TabelaConcatenada)
     for (n, d) in zip(t.nomes, t.destinos)
         println(io, "    ", rpad(String(n), 12), d.pooled ? "pool " : "", d.T)
     end
-    t.origem === nothing || println(io, "  origem: :", t.origem)
+    isempty(t.extras) || println(io, "  por arquivo: ", join((":" * string(e) for e in t.extras), ", "))
     first(t.tabelas).filtro !== nothing && println(io, "  filtro: ativo")
 end

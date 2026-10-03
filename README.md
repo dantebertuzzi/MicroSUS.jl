@@ -237,6 +237,11 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 # SINAN: dengue in all of Brazil (national source: uf is ignored)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 
+# only what you need, straight in the reader: ten years of CVLI in PE, three columns
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))
+
 # all sources available, including dates of reported/symptom onset
 do_pe.DT_NOTIFIC = coalesce.(do_pe.DT_SIN_PRI, do_pe.DT_NOTIFIC)
 ```

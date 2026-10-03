@@ -12,13 +12,15 @@
 Despacha para a rotina de padronização da fonte, se existir. Fontes sem
 rotina implementada devolvem o `DataFrame` inalterado (com um aviso).
 """
-function processar_fonte(id::Symbol, df::DataFrame; verbose::Bool = true)
-    id === :SIM_DO  && return process_sim(df)
-    id === :SINASC  && return process_sinasc(df)
-    id === :SIH_RD  && return process_sih(df)
+function processar_fonte(id::Symbol, df::DataFrame; verbose::Bool = true,
+                         copiar::Bool = true)
+    id === :SIM_DO  && return process_sim(df; copiar)
+    id === :SINASC  && return process_sinasc(df; copiar)
+    id === :SIH_RD  && return process_sih(df; copiar)
     if startswith(string(id), "SINAN_")
         agravo = Symbol(lowercase(string(id)[7:end]))
-        return process_sinan(df; agravo = haskey(SINAN_AGRAVOS, agravo) ? agravo : nothing)
+        return process_sinan(df; agravo = haskey(SINAN_AGRAVOS, agravo) ? agravo : nothing,
+                             copiar)
     end
     verbose && @info "fonte :$id ainda não tem rotina de padronização; devolvendo dados brutos (use processar = false para silenciar)"
     return df

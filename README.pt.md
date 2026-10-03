@@ -237,6 +237,11 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 # SINAN: dengue no Brasil inteiro (fonte nacional: uf é ignorada)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 
+# só o que interessa, direto no leitor: dez anos de CVLI em PE, três colunas
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))
+
 # SIA: produção ambulatorial em SP, 2023
 pa = fetch_datasus(:SIA_PA; uf = "SP", anos = 2023, meses = 1:12)
 ```

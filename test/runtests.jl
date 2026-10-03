@@ -340,6 +340,23 @@ end
         @test_throws ArgumentError ler([a, b]; origem = :ID)
         @test_throws ArgumentError ler(String[])
 
+        # origem como função: colunas constantes por arquivo
+        meta = Dict(a => (FONTE = "A", N = 1, FLAG = true), b => (FONTE = "B", N = 2, FLAG = false))
+        dm = DataFrame(ler([a, b]; origem = c -> meta[c], tamanho_lote = 1_000))
+        @test propertynames(dm) == [:ID, :COD, :FONTE, :N, :FLAG]
+        @test dm.FONTE == [fill("A", 2_500); fill("B", 1_500)]
+        @test dm.N == [fill(1, 2_500); fill(2, 1_500)] && eltype(dm.N) == Int
+        @test count(dm.FLAG) == 2_500
+        @test_throws ArgumentError ler([a, b]; origem = c -> c == a ? (X = 1,) : (Y = 1,))
+        @test_throws ArgumentError ler([a, b]; origem = c -> (ID = 1,))   # colide
+
+        # materialização: vários lotes == um lote, e o DataFrame não recopia
+        @test isequal(DataFrame(ler([a, b]; tamanho_lote = 300)), DataFrame(ler([a, b])))
+        @test Tables.columns(ler(a)) isa Tables.CopiedColumns
+        @test Tables.columns(ler([a, b])) isa Tables.CopiedColumns
+        com_filtro = materializar(ler(a; filtro = r -> r[:COD] == "x0", tamanho_lote = 100))
+        @test length(com_filtro.ID) == 833
+
         # filtro e colunas valem para cada arquivo
         f = DataFrame(ler([a, b]; colunas = [:COD], filtro = r -> r[:COD] in ("x0", "y0")))
         @test nrow(f) == 833 + 750
@@ -696,6 +713,17 @@ end
                                                     anos = 2023, processar = false,
                                                     cache = false, verbose = false)
             @test Set(df2.UF_ARQUIVO) == Set(["PE"])
+
+            # colunas e filtro vão para o leitor; o filtro vê o código cru
+            df3 = fetch_datasus(:TESTE_FIC_UF; uf = ["PE", "BA"], anos = 2023,
+                                colunas = [:SEXO, :IDADE], filtro = r -> r[:SEXO] == "1",
+                                processar = false, cache = false, verbose = false)
+            @test nrow(df3) == 2
+            @test propertynames(df3) == [:SEXO, :IDADE, :UF_ARQUIVO, :ANO_ARQUIVO, :PRELIMINAR]
+            @test Set(df3.UF_ARQUIVO) == Set(["PE", "BA"])
+            # coluna que não existe em nenhum layout: erro, não missing silencioso
+            @test_throws ArgumentError fetch_datasus(:TESTE_FIC_UF; uf = "PE", anos = 2023,
+                colunas = [:NAO_EXISTE], processar = false, cache = false, verbose = false)
         finally
             # não deixa a fonte fictícia vazar para outros testes (ex.: o
             # teste de rede, que itera fontes() por completo).
@@ -842,6 +870,13 @@ end
         # coluna ausente é ignorada, não lança erro
         dfsem = DataFrame(OUTRACOISA = [1, 2])
         @test MicroSUS.process_sim(dfsem) == dfsem
+
+        # copiar = false padroniza no lugar; o padrão não toca no original
+        orig = DataFrame(SEXO = ["1", "2"])
+        MicroSUS.process_sim(orig)
+        @test orig.SEXO == ["1", "2"]
+        MicroSUS.process_sim(orig; copiar = false)
+        @test orig.SEXO == ["Masculino", "Feminino"]
     end
 
     @testset "process_sinan: núcleo, zeros à esquerda, agravo, idade" begin

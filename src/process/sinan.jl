@@ -117,7 +117,7 @@ function _idade_anos_sinan(v)
 end
 
 """
-    process_sinan(df::DataFrame; agravo = :auto) -> DataFrame
+    process_sinan(df::DataFrame; agravo = :auto, copiar = true) -> DataFrame
 
 Padroniza microdados do SINAN. Rotula o núcleo comum às fichas de todos os
 agravos — `TP_NOT`, `CS_SEXO`, `CS_RACA`, `CS_GESTANT`, `CS_ESCOL_N`,
@@ -145,9 +145,13 @@ com o agravo da fonte (`:SINAN_DENGUE` → `:dengue`).
     `TUBEBR01` traz `CS_RACA = "0"` em 83% dos registros, campo que a
     ficha da época não coletava. Rotular esses anos exige o dicionário da
     ficha correspondente.
+
+`copiar = false` padroniza `df` no lugar, sem a cópia inicial — o que
+[`fetch_datasus`](@ref) faz, já que o `DataFrame` é dele.
 """
-function process_sinan(df::DataFrame; agravo::Union{Symbol,Nothing} = :auto)
-    df = copy(df)
+function process_sinan(df::DataFrame; agravo::Union{Symbol,Nothing} = :auto,
+                       copiar::Bool = true)
+    copiar && (df = copy(df))
     agravo === :auto && (agravo = _agravo_do_df(df))
     agravo === nothing || haskey(SINAN_AGRAVOS, agravo) ||
         throw(ArgumentError("agravo :$agravo sem dicionário; use um de " *

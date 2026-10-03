@@ -79,9 +79,24 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 ```
 
-O resultado concatena por nome de coluna (`cols = :union`) e acrescenta
-as colunas de origem `UF_ARQUIVO`, `ANO_ARQUIVO` e, nas fontes mensais,
+O resultado concatena por nome de coluna e acrescenta as colunas de
+origem `UF_ARQUIVO`, `ANO_ARQUIVO`, `PRELIMINAR` e, nas fontes mensais,
 `MES_ARQUIVO`. Arquivos ausentes no FTP geram `@warn` e são pulados.
+
+Os arquivos são lidos em streaming e a padronização roda no próprio
+resultado, sem cópia — o SIM de PE 2014–2023 (675 mil óbitos, 92
+colunas) chega a 3,4 GiB de pico, contra 5,9 GiB antes. `colunas` e
+`filtro` vão para o leitor, como em [`ler`](@ref), e aí só o que foi
+pedido chega a existir:
+
+```julia
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))   # 580 MiB de pico
+```
+
+O filtro vê os códigos crus do arquivo (`r[:SEXO] == "2"`), não os
+rótulos da padronização.
 
 Use [`fontes`](@ref) para listar todas as fontes disponíveis com seus
 identificadores, descrições, periodicidade e faixa de anos, ou

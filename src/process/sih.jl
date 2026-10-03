@@ -57,7 +57,7 @@ _int_ou_missing(v) = v === missing ? missing :
     something(tryparse(Int, strip(string(v))), missing)
 
 """
-    process_sih(df::DataFrame) -> DataFrame
+    process_sih(df::DataFrame; copiar = true) -> DataFrame
 
 Padroniza microdados do SIH/SUS (`:SIH_RD`): rotula as variáveis categóricas
 de domínio fechado (`SEXO`, `RACA_COR`, `IDENT`, `CAR_INT`, `MORTE`) e cria
@@ -79,9 +79,12 @@ originais são preservadas.
     significa.
 
 Chamada automaticamente por [`fetch_datasus`](@ref) quando `processar = true`.
+
+`copiar = false` padroniza `df` no lugar, sem a cópia inicial — o que
+[`fetch_datasus`](@ref) faz, já que o `DataFrame` é dele.
 """
-function process_sih(df::DataFrame)
-    df = copy(df)
+function process_sih(df::DataFrame; copiar::Bool = true)
+    copiar && (df = copy(df))
 
     for col in (:DT_INTER, :DT_SAIDA, :NASC)
         para_data!(df, col; formato = dateformat"yyyymmdd")

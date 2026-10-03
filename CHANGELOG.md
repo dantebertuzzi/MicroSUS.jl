@@ -54,6 +54,10 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   PE 2010–2023 (902.936 registros, 100 colunas na união) e o SIH de 2010 + 2016
   (`DIAGSEC1` só a partir de 2011): idêntico à leitura arquivo a arquivo.
 - `converter` aceita um vetor de caminhos e grava um `.arrow` só.
+- `ler(caminhos; origem = f)`: `origem` também aceita uma função
+  `caminho -> NamedTuple`, cujas chaves viram colunas constantes por arquivo.
+- `process_sim`, `process_sinasc`, `process_sih` e `process_sinan` aceitam
+  `copiar = false`, para padronizar no lugar.
 
 - `eh_preliminar(caminho)` diz se um arquivo veio de uma pasta `PRELIM/` do
   DATASUS; `fetch_datasus` acrescenta a coluna `PRELIMINAR` e lista num `@warn`
@@ -89,6 +93,17 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   standardisation looking like data.
 
 ### Changed
+
+- `fetch_datasus` lê os arquivos em streaming, por `ler(caminhos)`, e
+  padroniza o próprio resultado sem copiá-lo. No SIM de PE 2014–2023 (675.806
+  óbitos, 92 colunas) o pico de memória cai de 5,9 para 3,4 GiB, com o mesmo
+  resultado coluna a coluna e o mesmo tempo. Ganha `colunas` e `filtro`, que
+  vão para o leitor: dez anos de CVLI em PE com três colunas ficam em 580 MiB
+  de pico. `UF_ARQUIVO` passa a ser categórica.
+- `DataFrame(ler(...))` não copia mais as colunas (`Tables.columns` devolve
+  `Tables.CopiedColumns`) e a materialização acumula os lotes em vez de
+  guardá-los todos para concatenar no fim: no `DOSP2023`, pico de 2,1 para
+  1,5 GiB.
 
 - Os agravos do SINAN vêm de uma tabela única (`src/agravos.jl`). Eram três
   listas mantidas à mão — a de `baixar_sinan` (16 agravos), a de
