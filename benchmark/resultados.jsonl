@@ -1,0 +1,30 @@
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOPE2023.dbc","tarefa":"tudo","linhas":68527,"colunas":87,"t_frio":3.5,"t_quente":0.38,"rss_base_mb":368.4,"rss_pico_mb":584.0}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOPE2023.dbc","tarefa":"tudo","linhas":68527,"colunas":87,"t_frio":2.734,"t_quente":0.275,"rss_base_mb":414.8,"rss_pico_mb":699.0}
+{"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DOPE2023.dbc","tarefa":"tudo","linhas":68527,"colunas":87,"t_frio":4.253,"t_quente":4.180,"rss_base_mb":73.4,"rss_pico_mb":969.6}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOSP2023.dbc","tarefa":"tudo","linhas":334303,"colunas":87,"t_frio":5.626,"t_quente":2.04,"rss_base_mb":368.4,"rss_pico_mb":1315.7}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOSP2023.dbc","tarefa":"tudo","linhas":334303,"colunas":87,"t_frio":3.556,"t_quente":1.214,"rss_base_mb":422.6,"rss_pico_mb":1785.6}
+{"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DOSP2023.dbc","tarefa":"tudo","linhas":334303,"colunas":87,"t_frio":21.702,"t_quente":21.142,"rss_base_mb":73.4,"rss_pico_mb":4445.1}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DNSP2023.dbc","tarefa":"tudo","linhas":503910,"colunas":61,"t_frio":4.412,"t_quente":1.612,"rss_base_mb":366.0,"rss_pico_mb":982.7}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DNSP2023.dbc","tarefa":"tudo","linhas":503910,"colunas":61,"t_frio":3.104,"t_quente":1.183,"rss_base_mb":420.7,"rss_pico_mb":1276.7}
+{"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DNSP2023.dbc","tarefa":"tudo","linhas":503910,"colunas":61,"t_frio":22.496,"t_quente":22.448,"rss_base_mb":73.3,"rss_pico_mb":4109.8}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DENGBR23.dbc","tarefa":"tudo","linhas":1645956,"colunas":121,"t_frio":9.844,"t_quente":6.818,"rss_base_mb":368.1,"rss_pico_mb":1869.1}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DENGBR23.dbc","tarefa":"tudo","linhas":1645956,"colunas":121,"t_frio":5.271,"t_quente":3.044,"rss_base_mb":420.7,"rss_pico_mb":2044.9}
+{"ferramenta":"python","arquivo":"DENGBR23.dbc","tarefa":"tudo","falhou":true}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":2.136,"t_quente":0.225,"rss_base_mb":368.0,"rss_pico_mb":473.9}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":1.856,"t_quente":0.198,"rss_base_mb":420.4,"rss_pico_mb":537.9}
+{"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":4.322,"t_quente":4.114,"rss_base_mb":73.1,"rss_pico_mb":968.5}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":88,"t_frio":6.537,"t_quente":0.408,"rss_base_mb":368.1,"rss_pico_mb":810.1}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":88,"t_frio":5.876,"t_quente":0.379,"rss_base_mb":418.7,"rss_pico_mb":978.8}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":3.022,"t_quente":1.148,"rss_base_mb":368.1,"rss_pico_mb":480.0}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":2.788,"t_quente":1.015,"rss_base_mb":420.6,"rss_pico_mb":539.8}
+{"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":22.014,"t_quente":21.116,"rss_base_mb":73.2,"rss_pico_mb":4445.1}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":88,"t_frio":8.684,"t_quente":2.471,"rss_base_mb":368.1,"rss_pico_mb":1865.9}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":88,"t_frio":7.242,"t_quente":1.597,"rss_base_mb":420.4,"rss_pico_mb":2208.3}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOPE2023.dbc","tarefa":"tudo","linhas":68527,"colunas":87,"t_frio":0.590,"t_quente":0.379,"rss_base_mb":74.8,"rss_pico_mb":170.4}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOSP2023.dbc","tarefa":"tudo","linhas":334303,"colunas":87,"t_frio":2.769,"t_quente":1.918,"rss_base_mb":74.8,"rss_pico_mb":366.9}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DNSP2023.dbc","tarefa":"tudo","linhas":503910,"colunas":61,"t_frio":2.992,"t_quente":2.059,"rss_base_mb":74.7,"rss_pico_mb":396.5}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DENGBR23.dbc","tarefa":"tudo","linhas":1645956,"colunas":121,"t_frio":42.386,"t_quente":39.887,"rss_base_mb":74.8,"rss_pico_mb":2757.8}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":0.610,"t_quente":0.384,"rss_base_mb":74.8,"rss_pico_mb":170.2}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":100,"t_frio":3.480,"t_quente":2.941,"rss_base_mb":74.8,"rss_pico_mb":349.5}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":3.015,"t_quente":2.021,"rss_base_mb":74.8,"rss_pico_mb":367.0}
+{"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":100,"t_frio":15.973,"t_quente":13.279,"rss_base_mb":74.7,"rss_pico_mb":1304.2}
