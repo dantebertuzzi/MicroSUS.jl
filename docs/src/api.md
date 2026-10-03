@@ -60,6 +60,13 @@ process_sinan
 process_cnes
 ```
 
+## Qualidade dos dados
+
+```@docs
+auditar
+MicroSUS.Auditoria
+```
+
 ## Decodificação de schemas
 
 ```@docs

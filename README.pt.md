@@ -278,6 +278,8 @@ Downloads interrompidos continuam de onde pararam, e `MICROSUS_ESPELHOS` aponta 
 
 `travar_dados("dados.toml", df)` é o `Manifest.toml` dos dados: grava URL, SHA-256 e data da extração de cada arquivo de que um resultado veio, e `restaurar_dados("dados.toml")` põe exatamente esses bytes de volta no cache — do DATASUS ou de um espelho, conferidos pelo hash —, para o mesmo script ler os mesmos dados meses depois.
 
+`auditar(df)` faz as checagens de antes de analisar: completude por campo e ano, campos que param de ser preenchidos (em Pernambuco, o CRM do médico atestante some a partir de 2019), causas básicas mal definidas ou inválidas e valores implausíveis.
+
 `verificar_cache()` compara o cache com o FTP do DATASUS sem baixar nada e aponta os arquivos que o DATASUS republicou (o cache não sabe disso sozinho); `proveniencia(df)` lista os arquivos — URL, data do download, SHA-256 — de que um resultado do `fetch_datasus` veio, para a nota de método.
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); via `baixar`/`url_arquivo`, SIH/SIA cobrem a estrutura pós-2008 — o `fetch_datasus` alcança também as pastas antigas (SIH desde 1992, SIA desde 1994).

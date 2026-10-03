@@ -1313,6 +1313,52 @@ end
         end
     end
 
+    @testset "auditar: completude, descontinuidades, causas, implausíveis" begin
+        df = DataFrame(
+            ANO_ARQUIVO = [2020, 2020, 2021, 2021],
+            CAUSABAS = ["R99", "A311", "O800", "I219"],      # mal definida, não vale como básica
+            SEXO = ["Masculino", "Feminino", "Masculino", missing],
+            IDADE = [30.0, 130.0, 40.0, missing],
+            DTOBITO = [Date(2020, 1, 1), Date(2020, 2, 1), Date(2021, 1, 1), Date(2099, 1, 1)],
+            DTNASC = [Date(1990), Date(2021, 1, 1), Date(1980), missing],
+            ESC = ["1", "2", missing, " "])
+        a = auditar(df)
+        @test a.n == 4 && a.coluna_ano === :ANO_ARQUIVO
+        c = a.completude
+        @test only(c[(c.coluna .== :ESC) .& (c.ano .== 2020), :pct_preenchido]) == 100.0
+        @test only(c[(c.coluna .== :ESC) .& (c.ano .== 2021), :pct_preenchido]) == 0.0   # vazio conta
+        @test !(:ANO_ARQUIVO in c.coluna)
+        d = a.descontinuidades
+        @test only(d[d.coluna .== :ESC, :salto]) == -100.0
+        @test !(:CAUSABAS in d.coluna)
+        @test a.causas.mal_definidas == [1, 0] && a.causas.nao_causa_basica == [1, 0]
+        @test a.causas.pct_mal_definidas == [50.0, 0.0]
+        imp = Dict(r.regra => r.n for r in eachrow(a.implausiveis))
+        @test imp["idade acima de 120 anos ou negativa"] == 1
+        @test imp["nascimento depois do óbito"] == 1
+        @test imp["causa básica incompatível com o sexo"] == 1     # O80 em homem
+        @test only(r.exemplos for r in eachrow(a.implausiveis)
+                   if r.regra == "causa básica incompatível com o sexo") == [3]
+        @test sum(r.n for r in eachrow(a.implausiveis) if r.regra == "data no futuro ou antes de 1900") == 1
+        @test only(r.n for r in eachrow(a.implausiveis) if r.regra == "data no futuro") == 0
+        s = sprint(show, MIME"text/plain"(), a)
+        @test occursin("4 registros", s) && occursin("Descontinuidades", s) && occursin("25.0% mal definidas", s)
+
+        # sem coluna de ano: tudo junto; sem CAUSABAS: sem a parte de causas
+        b = auditar(DataFrame(PESO = ["3200", "50", ""], IDADEMAE = [25, 70, 99],
+                              SEMAGESTAC = ["39", "99", "3"]))
+        @test b.coluna_ano === nothing && b.causas === nothing
+        @test Dict(r.regra => r.n for r in eachrow(b.implausiveis)) ==
+              Dict("peso fora de 100–7.000 g" => 1, "idade da mãe fora de 10–60 anos" => 1,
+                   "semanas de gestação fora de 20–45" => 1)          # 99 é "ignorado"
+        # um ano com poucos registros não gera descontinuidade
+        poucos = DataFrame(ANO_ARQUIVO = [fill(2020, 50); 2021], X = [fill("a", 50); ""])
+        @test isempty(auditar(poucos).descontinuidades)
+        # o ano pode vir de uma data tipada
+        @test auditar(select(df, Not(:ANO_ARQUIVO))).coluna_ano === :DTOBITO
+        @test auditar(df; ano = false).coluna_ano === nothing
+    end
+
     @testset "erro de rede não é arquivo ausente" begin
         recusada = "http://127.0.0.1:1"            # conexão recusada, sem rede de fato
         # ausente continua sendo nothing (partições e PRELIM dependem disso)

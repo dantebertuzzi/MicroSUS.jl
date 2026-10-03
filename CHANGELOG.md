@@ -27,6 +27,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   sobreviver — e ativa a trava na sessão (`soltar_dados()` desativa).
   Arquivo que não volta com o mesmo hash é erro, salvo `estrito = false`.
   Nova dependência: `TOML` (biblioteca padrão).
+- `auditar(df)`: checagens de qualidade antes de analisar — completude por
+  coluna e ano, descontinuidades (campo que para ou começa a ser preenchido
+  entre anos), causas básicas mal definidas (R00–R99) e códigos que não
+  valem como causa básica, e valores implausíveis (idade, datas, peso, idade
+  da mãe, semanas de gestação, causa incompatível com o sexo). No SIM de PE
+  2014–2023 (676 mil óbitos, 1,3 s): o CRM do atestante some a partir de
+  2019.
 
 ## [0.4.1] - 2026-10-03
 
