@@ -24,7 +24,7 @@ Pkg.add("MicroSUS")
 ```
 
 Julia ≥ 1.9. Dependências: DataFrames, Tables, InlineStrings,
-PooledArrays, Scratch, Downloads, Dates. Arrow é opcional (extensão
+PooledArrays, Scratch, Downloads, Dates, SHA. Arrow é opcional (extensão
 condicional).
 
 ## Começo rápido

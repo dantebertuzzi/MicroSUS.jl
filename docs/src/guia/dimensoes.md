@@ -20,13 +20,26 @@ O algoritmo é o módulo 10 do IBGE: pesos alternados 1,2 da esquerda
 para a direita, produtos ≥ 10 reduzidos (−9), DV = (10 − soma mod 10)
 mod 10.
 
-Join típico com a DTB do IBGE (que traz nomes, UF, região):
+## Nomes, UF e regiões dos municípios
+
+A tabela de municípios do IBGE vem embarcada no pacote, sem rede:
+[`municipio`](@ref) para um código, [`municipios`](@ref) para a tabela
+inteira. O join com os microdados é pelo código de 6 dígitos:
 
 ```julia
 using DataFrames
-df.cod7 = codigo7_ibge.(String.(df.CODMUNRES))
-leftjoin!(df, dtb; on = :cod7 => :codigo_municipio)
+municipio("261160")     # (codigo7 = 2611606, codigo6 = 261160, nome = "Recife", uf = "PE", …)
+
+mun = DataFrame(municipios())
+df.codigo6 = parse.(Int, df.CODMUNRES)
+leftjoin!(df, mun[:, [:codigo6, :nome, :uf, :regiao_saude]]; on = :codigo6)
 ```
+
+Cada município traz as divisões abaixo da UF, com código e nome: região de
+saúde (CIR) e macrorregião de saúde, do DATASUS, e regiões imediata e
+intermediária do IBGE. Os nomes se repetem entre UFs — agrupe pelo código.
+[`populacao`](@ref) dá o denominador nos mesmos níveis
+(`nivel = :regiao_saude` e afins).
 
 !!! warning "Códigos vazios ou ignorados"
     Campos de município podem vir vazios ou como códigos-fantasma
@@ -46,6 +59,20 @@ capitulo_cid10("")               # nothing (código inválido)
 Cobre os 22 capítulos, com os limites não-óbvios corretos (C00–D48 é
 um capítulo, D50–D89 é outro; S00–T98 é natureza da lesão, V01–Y98 é
 causa externa).
+
+## Descrições da CID-10
+
+```julia
+descricao_cid("I219")          # "Infarto agudo do miocárdio não especificado"
+descricao_cid.(df.CAUSABAS)    # rotula uma coluna inteira
+cid10("I21.9").grupo           # "Doenças isquêmicas do coração"
+cid10("O800").sexo             # 'F'
+```
+
+A tabela é a do DATASUS (versão 2008, a última publicada em CSV), embarcada,
+mais a dengue (A97) da atualização de 2016. Códigos posteriores a 2008
+recebem a descrição da categoria, marcado em `cid10(cod).nivel`; ver
+[`cid10`](@ref).
 
 ## Agressões e o recorte CVLI
 

@@ -16,8 +16,10 @@ abstract: >-
   microdata (DATASUS): constant-memory streaming reads of
   .dbc (PKWare DCL) and .dbf files, per-system typed schemas
   (SIM, SINASC, SIH, SIA, CNES, SINAN), CP850 to UTF-8
-  transcoding, cached downloads, and a Tables.jl interface
-  with partitions.
+  transcoding, cached downloads with provenance records, and a
+  Tables.jl interface with partitions; plus IBGE population
+  denominators (by age and sex, and by health region) and
+  embedded municipality and ICD-10 tables.
 keywords:
   - julia
   - datasus
@@ -27,7 +29,7 @@ keywords:
   - brazil
   - dbc
 license: MIT
-version: 0.4.0
+version: 0.4.1
 date-released: 2026-10-03
 doi: 10.5281/zenodo.22164178
 identifiers:
@@ -35,9 +37,7 @@ identifiers:
     value: 10.5281/zenodo.22164178
     description: >-
       Concept DOI — always resolves to the most recent
-      version of MicroSUS.jl.
-  - type: doi
-    value: 10.5281/zenodo.22164179
-    description: DOI of version 0.3.0.
-    # Each release is archived separately; see the Zenodo page for the
-    # DOI of every other version.
+      version of MicroSUS.jl. Each release also gets its own
+      DOI, minted by Zenodo after the release is published
+      (so it cannot be recorded in the release itself); see
+      the Zenodo page for the DOI of every version.
