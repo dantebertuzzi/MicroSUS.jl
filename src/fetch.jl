@@ -221,7 +221,7 @@ function _no_cache(urls, cache::Bool)
     cache || return nothing
     for u in urls
         c = _destino_cache(u)
-        isfile(c) && filesize(c) > 0 && return c
+        _cache_valido(c) && return c
     end
     return nothing
 end

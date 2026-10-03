@@ -874,6 +874,33 @@ end
         end
     end
 
+    @testset "cache corrompido é baixado de novo; haskey no filtro" begin
+        dir = mktempdir()
+        nome = "TESTECACHEPE2023.dbc"
+        escreve_dbc(joinpath(dir, nome), [("SEXO", 'C', 1, 0), ("LINHAA", 'C', 5, 0)],
+                    [["1", "*A810"], ["2", ""]])
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_CACHE, nome = "t", periodicidade = :anual,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, "TESTECACHE$(uf)$(ano).dbc")],
+            anos = 2023:2023))
+        no_cache = joinpath(MicroSUS._dir_cache(), nome)
+        try
+            write(no_cache, UInt8[0x03, 0x7b, 0x01, 0x01, 0x05])   # truncado, como o DENGBR00.dbc
+            df = @test_logs (:warn, r"ilegível") match_mode = :any fetch_datasus(
+                :TESTE_CACHE; uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test nrow(df) == 2
+            @test cabecalho(no_cache).n_registros == 2              # o cache foi refeito
+
+            # haskey no filtro: campo que existe ou não, em qualquer caixa
+            f = joinpath(dir, nome)
+            @test nrow(DataFrame(ler(f; filtro = r -> haskey(r, :linhaa) && !haskey(r, :LINHAB) &&
+                                                     menciona_cid(r[:LINHAA], "A810")))) == 1
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_CACHE)
+            rm(no_cache; force = true)
+        end
+    end
+
     @testset "erro de rede não é arquivo ausente" begin
         recusada = "http://127.0.0.1:1"            # conexão recusada, sem rede de fato
         # ausente continua sendo nothing (partições e PRELIM dependem disso)
