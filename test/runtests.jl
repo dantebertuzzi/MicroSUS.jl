@@ -350,6 +350,16 @@ end
         @test_throws ArgumentError ler([a, b]; origem = c -> c == a ? (X = 1,) : (Y = 1,))
         @test_throws ArgumentError ler([a, b]; origem = c -> (ID = 1,))   # colide
 
+        # arquivos abertos à frente (leitura paralela): mesma saída, mesma
+        # ordem, de 0 a mais arquivos à frente do que existem
+        varios = [a, b, a, b, a]
+        lotes_de(k) = collect(MicroSUS._canal_lotes(ler(varios; tamanho_lote = 700); adiante = k))
+        seq = lotes_de(0)
+        @test length(seq) == 3 * 4 + 2 * 3            # a: 2.500 → 4 lotes; b: 1.500 → 3
+        for k in (1, 2, 8)
+            @test isequal(lotes_de(k), seq)
+        end
+
         # materialização: vários lotes == um lote, e o DataFrame não recopia
         @test isequal(DataFrame(ler([a, b]; tamanho_lote = 300)), DataFrame(ler([a, b])))
         @test Tables.columns(ler(a)) isa Tables.CopiedColumns

@@ -154,6 +154,8 @@ unified per column across files — DATASUS widens fields and changes some
 fields' DBF type between years — so every batch has the same schema and
 `converter(caminhos, "out.arrow")` writes a single `.arrow`.
 
+With more than one thread (`julia -t auto`), `ler(caminhos)` and `fetch_datasus` read several files in parallel, without changing row order.
+
 ## Schemas
 
 `schema = :auto` infers the system from the filename prefix:

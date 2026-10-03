@@ -94,6 +94,14 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Changed
 
+- `fetch_datasus` baixa até 4 arquivos ao mesmo tempo (como o `baixar` no
+  plural), em vez de um por vez; e, com mais de uma thread, `ler(caminhos)` —
+  e portanto `fetch_datasus` — lê os arquivos seguintes enquanto o atual é
+  consumido, com a saída na mesma ordem. Os 10 anos do SIM de PE: 4,3 → 2,1 s
+  com 4 threads, 1,7 s com 8; `fetch_datasus` dos mesmos anos: 4,9 → 2,7 s e
+  2,1 s. Oito downloads com 1 s de latência simulada: 8,8 → 2,7 s. Com uma
+  thread, a leitura é a sequencial de sempre. Resultado idêntico com 8
+  threads nas 1.078 colunas dos 12 casos de comparação.
 - A leitura converte cada lote coluna a coluna, em vez de linha a linha. Antes,
   cada campo de cada registro passava por uma chamada despachada em tempo de
   execução (29 milhões no `DOSP2023`), o texto virava uma `String` temporária

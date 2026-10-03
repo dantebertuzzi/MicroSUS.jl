@@ -1,5 +1,9 @@
 # fetch.jl — Interface principal do pacote.
 
+# o mesmo limite do `baixar` no plural: o FTP do DATASUS não gosta de
+# muitas conexões simultâneas
+const _DOWNLOADS_SIMULTANEOS = 4
+
 """
     fetch_datasus(fonte::Symbol; uf = :all, anos, meses = nothing,
                   colunas = nothing, filtro = nothing,
@@ -31,7 +35,9 @@ Os arquivos são lidos em streaming, um depois do outro
 (ver `ler(caminhos::AbstractVector)`), e a padronização roda no próprio
 resultado, sem cópia: o pico de memória fica perto do tamanho do
 `DataFrame` devolvido. Com `colunas` e `filtro`, só o que foi pedido chega
-a existir.
+a existir. Até 4 arquivos são baixados ao mesmo tempo, e com mais de uma
+thread (`julia -t auto`) vários são lidos em paralelo; a ordem das linhas
+não muda.
 
 Arquivos ausentes no FTP (ano ainda não publicado para uma UF, mês sem
 partição extra) geram um `@warn` e são pulados; o resultado concatena tudo
@@ -91,8 +97,14 @@ function fetch_datasus(fonte_id::Symbol;
     faltantes = String[]
     preliminares = String[]
 
-    for u in ufs, a in anos_, m in meses_
-        achados = _baixar_periodo(f, u, a, m; cache, verbose)
+    # downloads em paralelo (como o `baixar` no plural), resultados na ordem
+    # dos períodos; a leitura e os avisos seguem essa ordem
+    periodos = [(u, a, m) for u in ufs for a in anos_ for m in meses_]
+    baixados = asyncmap(periodos; ntasks = _DOWNLOADS_SIMULTANEOS) do (u, a, m)
+        _baixar_periodo(f, u, a, m; cache, verbose)
+    end
+
+    for ((u, a, m), achados) in zip(periodos, baixados)
         if isempty(achados)
             rotulo = f.periodicidade == :mensal ? "$u $a-$(mm(m))" : "$u $a"
             push!(faltantes, rotulo)

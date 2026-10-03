@@ -154,6 +154,8 @@ unificados por coluna entre os arquivos — o DATASUS alarga campos e troca o
 tipo DBF de alguns entre anos —, então todo lote tem o mesmo schema e
 `converter(caminhos, "saida.arrow")` grava um `.arrow` só.
 
+Com mais de uma thread (`julia -t auto`), `ler(caminhos)` e `fetch_datasus` leem vários arquivos em paralelo, sem mudar a ordem das linhas.
+
 ## Schemas
 
 `schema = :auto` deduz o sistema pelo prefixo do nome do arquivo:

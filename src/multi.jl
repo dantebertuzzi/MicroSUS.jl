@@ -167,12 +167,26 @@ function _lote_ajustado(t::TabelaConcatenada, i::Int, lote)
     return NamedTuple{_nomes(t)}(Tuple(cols))
 end
 
-function _canal_lotes(t::TabelaConcatenada)
+# Quantos arquivos à frente do atual ficam abertos. Cada arquivo roda em
+# duas tarefas (descompressão e conversão), então metade das threads; com
+# uma thread só, nada é aberto à frente e a leitura é a sequencial de
+# sempre. Cada arquivo aberto segura no máximo dois lotes prontos (o do
+# canal e o que espera para entrar), então a memória continua O(lote).
+_arquivos_adiante() = clamp(Threads.nthreads() ÷ 2, 0, 8)
+
+function _canal_lotes(t::TabelaConcatenada; adiante::Int = _arquivos_adiante())
     Channel{NamedTuple}(1; spawn = true) do saida
-        for (i, tab) in enumerate(t.tabelas)
-            for lote in _canal_lotes(tab)
+        n = length(t.tabelas)
+        canais = Dict{Int,Channel{NamedTuple}}()
+        abre(i) = (i ≤ n && !haskey(canais, i)) && (canais[i] = _canal_lotes(t.tabelas[i]))
+        foreach(abre, 1:min(1 + adiante, n))
+        for i in 1:n
+            abre(i)
+            for lote in canais[i]
                 put!(saida, _lote_ajustado(t, i, lote))
             end
+            delete!(canais, i)
+            abre(i + 1 + adiante)     # mantém `adiante` arquivos à frente, em ordem
         end
     end
 end
