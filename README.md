@@ -358,6 +358,8 @@ to the census (1,488,920). IBGE published no population for 2023;
 `interpolar = true` interpolates between 2022 and 2024 and records it in
 `fonte`.
 
+By sex and age, `populacao_por_idade(ano; nivel)` returns the censuses (2010, 2022, down to municipalities) and IBGE's projection in other years (Brazil and states); with `faixa_etaria` on the microdata and `taxa_padronizada`, comparisons between places stop depending on the age structure. In 2022, the crude mortality of RS (956 per 100,000) is almost twice that of AM (510); standardized to Brazil's population, they are 795 and 776.
+
 ## Utilities
 
 ```julia

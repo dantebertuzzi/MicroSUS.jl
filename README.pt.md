@@ -357,6 +357,8 @@ para 636 entre 2021 e 2022, mas a taxa *subiu* de 39,4 para 42,7 por 100 mil
 (1.488.920). O IBGE não publicou população para 2023; `interpolar = true`
 interpola entre 2022 e 2024 e registra isso em `fonte`.
 
+Por sexo e idade, `populacao_por_idade(ano; nivel)` traz os Censos (2010, 2022, até o município) e a projeção do IBGE nos demais anos (Brasil e UFs); com `faixa_etaria` nos microdados e `taxa_padronizada`, a comparação entre lugares deixa de depender da estrutura etária. Em 2022, a mortalidade bruta do RS (956 por 100 mil) é quase o dobro da do AM (510); padronizadas pela população do Brasil, ficam em 795 e 776.
+
 ## Utilitários
 
 ```julia

@@ -368,6 +368,45 @@ O IBGE não publicou população para 2023: pedir esse ano é erro, a menos
 que `interpolar = true` (interpolação geométrica entre 2022 e 2024,
 registrada em `fonte`).
 
+#### Por sexo e idade, e taxas padronizadas
+
+Uma população envelhecida tem mais óbitos sem ter mais risco. Para
+comparar lugares com estruturas etárias diferentes, a taxa padronizada
+pergunta quanto seria a taxa de cada um se todos tivessem a mesma
+estrutura — a de uma população-padrão. Mortalidade geral em 2022,
+padronizada pela população do Brasil no Censo 2022:
+
+| UF | óbitos | abaixo de 30 anos | taxa bruta | padronizada por idade |
+|---|---|---|---|---|
+| Amazonas | 20.155 | 54% | 510 /100 mil | 776 /100 mil |
+| Rio Grande do Sul | 104.096 | 38% | 956 /100 mil | 795 /100 mil |
+
+O RS parece ter quase o dobro da mortalidade do AM; padronizadas, as duas
+taxas ficam próximas — a diferença bruta era a idade da população.
+
+```julia
+using DataFrames
+pop = DataFrame(populacao_por_idade(2022; nivel = :uf))          # sexo × faixa, por UF
+br  = combine(groupby(DataFrame(populacao_por_idade(2022; nivel = :brasil)),
+                      [:faixa, :idade_min]), :populacao => sum => :padrao)
+
+do_am = fetch_datasus(:SIM_DO; uf = "AM", anos = 2022, colunas = [:IDADE])
+do_am.faixa = faixa_etaria.(do_am.IDADE_ANOS)                    # mesmas faixas
+casos = combine(groupby(dropmissing(do_am, :faixa), :faixa), nrow => :casos)
+am = combine(groupby(pop[pop.codigo_uf .== 13, :], :faixa), :populacao => sum => :populacao)
+
+t = sort!(leftjoin(leftjoin(br, am; on = :faixa), casos; on = :faixa), :idade_min)
+t.casos = coalesce.(t.casos, 0)
+taxa_padronizada(t.casos, t.populacao, t.padrao)   # (taxa = 776.2, bruta = 509.8, erro_padrao = 5.7, …)
+```
+
+[`populacao_por_idade`](@ref) vem dos Censos (2010, 2022 — até o
+município) e, nos demais anos, da projeção da população revista em 2018
+(Brasil e UFs), que é anterior ao Censo 2022 e está marcada na coluna
+`fonte`. A soma das faixas bate com o total oficial dos Censos. A taxa
+bruta acima conta só os óbitos com idade conhecida (61 de 20.155 no AM
+não têm).
+
 ### Capítulos da CID-10
 
 ```julia
