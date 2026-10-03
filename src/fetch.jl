@@ -24,7 +24,9 @@ Arquivos ausentes no FTP (ano ainda não publicado para uma UF, mês sem
 partição extra) geram um `@warn` e são pulados; o resultado concatena tudo
 que foi encontrado, unindo colunas por nome (`cols = :union`). As colunas
 `UF_ARQUIVO`, `ANO_ARQUIVO` e, se aplicável, `MES_ARQUIVO` identificam a
-origem de cada linha.
+origem de cada linha, e `PRELIMINAR` diz se ela veio de um arquivo ainda não
+consolidado pelo DATASUS (pasta `PRELIM/`, ver [`eh_preliminar`](@ref)) —
+quando houver algum, um `@warn` lista quais.
 
 # Exemplos
 ```julia
@@ -66,6 +68,7 @@ function fetch_datasus(fonte_id::Symbol;
 
     partes = DataFrame[]
     faltantes = String[]
+    preliminares = String[]
 
     for u in ufs, a in anos_, m in meses_
         arquivos = _baixar_periodo(f, u, a, m; cache, verbose)
@@ -79,11 +82,17 @@ function fetch_datasus(fonte_id::Symbol;
             df[!, :UF_ARQUIVO]  .= u
             df[!, :ANO_ARQUIVO] .= a
             f.periodicidade == :mensal && (df[!, :MES_ARQUIVO] .= m)
+            df[!, :PRELIMINAR] .= eh_preliminar(caminho)
+            eh_preliminar(caminho) && push!(preliminares,
+                "$(basename(caminho)) (baixado em $(_baixado_em(caminho)))")
             push!(partes, df)
         end
     end
 
     isempty(faltantes) || @warn "arquivos não encontrados no FTP" faltantes
+    isempty(preliminares) ||
+        @warn "o resultado inclui dados PRELIMINARES, sujeitos a revisão " *
+              "(coluna PRELIMINAR; `cache = false` rebaixa)" preliminares
 
     isempty(partes) && error(
         "nenhum arquivo encontrado para :$(f.id) com os parâmetros informados")

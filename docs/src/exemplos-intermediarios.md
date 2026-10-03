@@ -37,8 +37,9 @@ println("extração: ", today())     # registre e guarde no material suplementar
 Fixe o ambiente com `Project.toml` **e** `Manifest.toml` — o segundo prende a
 árvore inteira de dependências e é o que torna o ambiente reconstituível com
 `Pkg.instantiate()`. Guarde a data de extração junto do resultado. Se o
-`baixar` emitir `@warn` sobre dados preliminares (`PRELIM/`), isso vai para a
-nota de rodapé da tabela.
+`baixar` emitir `@warn` sobre dados preliminares (`PRELIM/`) — ou a coluna
+`PRELIMINAR` do `fetch_datasus` tiver algum `true` —, isso vai para a nota de
+rodapé da tabela.
 
 ---
 

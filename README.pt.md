@@ -254,7 +254,7 @@ Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 | `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{aamm}.dbc` |
 | SINAN | `SINAN/DADOS/FINAIS/` | `{AGRAVO}BR{aa}.dbc` (nacional — use `baixar_sinan`) |
 
-**Dados preliminares**: se o arquivo consolidado não existir (anos recentes do SIM/SINASC), o `baixar` tenta automaticamente a pasta `PRELIM/` correspondente, com um `@warn` — indicador calculado sobre dado preliminar merece asterisco. `url_arquivo(...; prelim = true)` monta a URL preliminar diretamente.
+**Dados preliminares**: se o arquivo consolidado não existir (anos recentes do SIM/SINASC), o `baixar` tenta automaticamente a pasta `PRELIM/` correspondente, com um `@warn` — indicador calculado sobre dado preliminar merece asterisco. `url_arquivo(...; prelim = true)` monta a URL preliminar diretamente. O preliminar fica no cache numa subpasta `PRELIM/`, separado do consolidado de mesmo nome: o consolidado é sempre tentado primeiro e substitui o preliminar quando sai.
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); SIH/SIA cobrem a estrutura pós-2008.
 
@@ -360,8 +360,9 @@ Três consequências práticas:
   diferentes pode devolver números diferentes. Registre a data de extração
   (ver [Como citar](#como-citar)).
 - **Dados preliminares existem e são sinalizados.** Quando o `baixar` cai numa
-  pasta `PRELIM/`, ele emite `@warn`. Indicador calculado sobre dado
-  preliminar merece asterisco.
+  pasta `PRELIM/`, ele emite `@warn`; `eh_preliminar(caminho)` diz de onde veio
+  cada arquivo, e o `fetch_datasus` marca as linhas na coluna `PRELIMINAR`.
+  Indicador calculado sobre dado preliminar merece asterisco.
 - **Os microdados têm defeitos próprios.** Códigos implausíveis, campos que
   deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
   A documentação registra os que conhecemos — ver

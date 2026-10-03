@@ -55,6 +55,12 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   (`DIAGSEC1` só a partir de 2011): idêntico à leitura arquivo a arquivo.
 - `converter` aceita um vetor de caminhos e grava um `.arrow` só.
 
+- `eh_preliminar(caminho)` diz se um arquivo veio de uma pasta `PRELIM/` do
+  DATASUS; `fetch_datasus` acrescenta a coluna `PRELIMINAR` e lista num `@warn`
+  os arquivos preliminares do resultado; o `show` de `ler` avisa. Antes, a
+  única marca era um `@warn` no download, que não chegava ao resultado — nem
+  aparecia nas chamadas seguintes, servidas do cache.
+
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
   (SIM, 2023 — 68,527 records) with `fetch_datasus(...; processar = false)`, audits the raw codes
@@ -112,6 +118,16 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   o arquivo (`MethodError` em `resize!` de um `DictEncoded`) — o que acontece
   ao juntar UFs ou anos num `.arrow` só. O `DOSP2023` sai 13% maior (161 MiB
   contra 142 MiB) e é gravado 3× mais rápido.
+- Preliminar e consolidado têm o mesmo nome de arquivo e eram guardados no
+  mesmo lugar do cache. Um preliminar baixado uma vez passava a ser devolvido
+  para sempre — sem aviso, como se fosse definitivo, e mesmo depois que o
+  DATASUS publicasse o consolidado. Agora o preliminar mora em `PRELIM/` dentro
+  do cache, e o consolidado é sempre tentado antes: quando sai, substitui o
+  preliminar. Vale para `baixar`, `baixar_sinan` e `fetch_datasus`. **Caches
+  montados até a 0.3.1 podem ter preliminares antigos na raiz**: rebaixe os
+  anos recentes com `forcar = true`, ou rode `MicroSUS.limpar_cache()`.
+- `limpar_cache` agora apaga também subpastas do cache.
+
 ### Documentation
 
 - `docs/checa_blocos.jl`, rodado pelo CI antes de construir a documentação. As

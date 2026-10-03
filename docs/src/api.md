@@ -34,6 +34,7 @@ url_arquivo
 baixar_sinan
 url_sinan
 agravos_sinan
+eh_preliminar
 MicroSUS.limpar_cache
 MicroSUS.UFS
 ```

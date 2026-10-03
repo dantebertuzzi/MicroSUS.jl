@@ -233,4 +233,6 @@ function Base.show(io::IO, ::MIME"text/plain", t::TabelaDBC)
                 rpad(string(c.tipo, "(", c.largura, ")"), 8), " → ", tl)
     end
     t.filtro !== nothing && println(io, "  filtro: ativo")
+    eh_preliminar(t.caminho) &&
+        printstyled(io, "  dados PRELIMINARES (pasta PRELIM/ do DATASUS)\n"; color = :yellow)
 end

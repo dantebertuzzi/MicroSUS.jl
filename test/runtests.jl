@@ -663,6 +663,47 @@ end
         end
     end
 
+    @testset "dados preliminares: cache separado, metadado e consolidação" begin
+        dir = mktempdir()
+        mkpath(joinpath(dir, "FINAIS")); mkpath(joinpath(dir, "PRELIM"))
+        campos = [("DTOBITO", 'C', 8, 0), ("SEXO", 'C', 1, 0)]
+        # mesmo nome nas duas pastas, como no FTP; nome que não colide com
+        # nada do cache real do usuário
+        nome = "TESTEPRELIMPE2023.dbc"
+        escreve_dbc(joinpath(dir, "PRELIM", nome), campos, [["15012023", "1"]])
+
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_PRELIM, nome = "Fonte fictícia (preliminar)",
+            periodicidade = :anual, abrangencia = :uf,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, p, "TESTEPRELIM$(uf)$(ano).dbc")
+                                    for p in ("FINAIS", "PRELIM")],
+            anos = 2023:2023,
+        ))
+        cache_final = joinpath(MicroSUS._dir_cache(), nome)
+        cache_prelim = joinpath(MicroSUS._dir_cache(), "PRELIM", nome)
+        try
+            df = @test_logs (:warn, r"PRELIMINARES") fetch_datasus(:TESTE_PRELIM;
+                uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test df.PRELIMINAR == [true]
+            @test isfile(cache_prelim) && !isfile(cache_final)
+            @test eh_preliminar(cache_prelim) && !eh_preliminar(cache_final)
+            @test occursin("PRELIMINARES", sprint(show, MIME"text/plain"(), ler(cache_prelim)))
+
+            # o DATASUS consolida: com o preliminar ainda no cache, o
+            # consolidado é tentado primeiro e passa a ser o usado
+            escreve_dbc(joinpath(dir, "FINAIS", nome), campos,
+                        [["15012023", "1"], ["16012023", "2"]])
+            df2 = @test_logs fetch_datasus(:TESTE_PRELIM; uf = "PE", anos = 2023,
+                                           processar = false, verbose = false)
+            @test df2.PRELIMINAR == [false, false]
+            @test nrow(df2) == 2
+            @test !occursin("PRELIMINARES", sprint(show, MIME"text/plain"(), ler(cache_final)))
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_PRELIM)
+            rm(cache_final; force = true); rm(cache_prelim; force = true)
+        end
+    end
+
     @testset "fetch_datasus — fonte sintética nacional (abrangência :br)" begin
         dir = mktempdir()
         campos_fic = [("DT_NOTIFIC", 'C', 8, 0), ("SG_UF", 'C', 2, 0)]

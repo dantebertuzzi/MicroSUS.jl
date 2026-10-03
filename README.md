@@ -254,7 +254,7 @@ Current FTP paths (checked against `microdatasus`, Jul 2026):
 | `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{yymm}.dbc` |
 | SINAN | `SINAN/DADOS/FINAIS/` | `{DISEASE}BR{yy}.dbc` (national — use `baixar_sinan`) |
 
-**Preliminary data**: if the consolidated file doesn't exist (recent SIM/SINASC years), `baixar` automatically tries the corresponding `PRELIM/` folder, with a `@warn` — an indicator computed over preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)` builds the preliminary URL directly.
+**Preliminary data**: if the consolidated file doesn't exist (recent SIM/SINASC years), `baixar` automatically tries the corresponding `PRELIM/` folder, with a `@warn` — an indicator computed over preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)` builds the preliminary URL directly. The preliminary file is cached in a `PRELIM/` subfolder, apart from the consolidated file of the same name: the consolidated one is always tried first and replaces the preliminary one once it is out.
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); SIH/SIA cover the post-2008 structure.
 
@@ -360,8 +360,9 @@ Three practical consequences:
   dates can return different numbers. Record your extraction date (see
   [How to cite](#how-to-cite)).
 - **Preliminary data exists and is flagged.** When `baixar` falls back to a
-  `PRELIM/` folder it emits a `@warn`. An indicator computed over preliminary
-  data deserves an asterisk.
+  `PRELIM/` folder it emits a `@warn`; `eh_preliminar(path)` tells where each
+  file came from, and `fetch_datasus` marks the rows in a `PRELIMINAR` column.
+  An indicator computed over preliminary data deserves an asterisk.
 - **The microdata has defects of its own.** Implausible codes, fields that stop
   being filled mid-series, layouts that change between years. The documentation
   records the ones we know — see

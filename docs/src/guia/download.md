@@ -140,6 +140,36 @@ url_arquivo(:sim, "PE"; ano = 2025, prelim = true)   # URL direta
 
 Se as duas falharem, o erro relançado é o da URL principal (consolidada).
 
+O preliminar fica no cache numa subpasta `PRELIM/`, separado do consolidado de
+mesmo nome. Duas consequências:
+
+- **dá para saber de onde veio cada arquivo**: `eh_preliminar(caminho)`; o
+  `show` de `ler(caminho)` avisa; e `fetch_datasus` acrescenta a coluna
+  `PRELIMINAR` e lista, num `@warn`, os arquivos preliminares do resultado;
+- **o consolidado substitui o preliminar quando sai**: o consolidado é sempre
+  tentado primeiro, mesmo com o preliminar em cache. O custo é uma tentativa
+  de rede por chamada enquanto o ano não consolida; sem rede, o preliminar do
+  cache é usado (com aviso).
+
+O próprio preliminar também muda — o DATASUS o republica até consolidar —, e o
+do cache não é atualizado sozinho: o aviso diz quando ele foi baixado, e
+`forcar = true` (ou `cache = false` no `fetch_datasus`) o rebaixa.
+
+```julia
+c = baixar(:sim, "PE"; ano = 2025)
+eh_preliminar(c)                                       # true
+
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2023:2025)
+combine(groupby(df, :ANO_ARQUIVO), :PRELIMINAR => first)
+```
+
+!!! warning "Cache de versões anteriores"
+    Até a 0.3.1 o preliminar era guardado no mesmo lugar do consolidado, com o
+    mesmo nome — e, uma vez no cache, era devolvido para sempre como se fosse
+    definitivo. Um cache montado por essas versões pode ter preliminares
+    antigos na raiz; rebaixe os anos recentes com `forcar = true` (ou rode
+    `MicroSUS.limpar_cache()`).
+
 ## Limites de cobertura
 
 - **SINASC**: o helper cobre 1996+ (estrutura `1996_/Dados`); 1994–1995

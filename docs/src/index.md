@@ -400,8 +400,9 @@ conteúdo, a exatidão e a completude desses arquivos são de responsabilidade d
 
 - O DATASUS **republica bases retroativamente**: a mesma consulta em datas
   diferentes pode devolver números diferentes. Registre a data de extração.
-- Dados **preliminares** existem e são sinalizados por `@warn` quando o
-  `baixar` cai numa pasta `PRELIM/`.
+- Dados **preliminares** existem e são sinalizados: `@warn` quando o `baixar`
+  cai numa pasta `PRELIM/`, [`eh_preliminar`](@ref) para cada arquivo e a
+  coluna `PRELIMINAR` no resultado de [`fetch_datasus`](@ref).
 - Os microdados têm **defeitos próprios** — códigos implausíveis, campos que
   deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
   Os que conhecemos estão em [Exemplos intermediários](exemplos-intermediarios.md)
