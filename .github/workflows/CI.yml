@@ -29,6 +29,12 @@ jobs:
   docs:
     name: Documentation
     runs-on: ubuntu-latest
+    # Cada PR publica uma prévia no gh-pages (push_preview em docs/make.jl).
+    # Vários PRs ao mesmo tempo disputavam o push e um deles falhava com
+    # "failed to push some refs" (#16, #24). Em fila, um de cada vez.
+    concurrency:
+      group: docs-gh-pages
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - uses: julia-actions/setup-julia@v2

@@ -242,11 +242,11 @@ cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
                      colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
                      filtro = r -> eh_agressao(r[:CAUSABAS]))
 
-# all sources available, including dates of reported/symptom onset
-do_pe.DT_NOTIFIC = coalesce.(do_pe.DT_SIN_PRI, do_pe.DT_NOTIFIC)
+# SIA: outpatient production in SP, 2023
+pa = fetch_datasus(:SIA_PA; uf = "SP", anos = 2023, meses = 1:12)
 ```
 
-`fetch_datasus` concatenates by column name (`cols = :union`), adds `UF_ARQUIVO`, `ANO_ARQUIVO`, and `MES_ARQUIVO` origin columns, and skips missing files with a `@warn`. Use `fontes()` to list all available sources with their IDs, descriptions, periodicity, and year ranges, or `fonte(:SIM_DO)` to inspect a single one.
+`fetch_datasus` concatenates by column name, unifying types across years, adds the origin columns `UF_ARQUIVO`, `ANO_ARQUIVO`, `MES_ARQUIVO` (monthly sources) and `PRELIMINAR`, and skips missing files with a `@warn`. Use `fontes()` to list all available sources with their IDs, descriptions, periodicity, and year ranges, or `fonte(:SIM_DO)` to inspect a single one.
 
 Current FTP paths (checked against `microdatasus`, Jul 2026):
 
