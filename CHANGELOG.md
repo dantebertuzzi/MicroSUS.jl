@@ -149,6 +149,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Fixed
 
+- No Windows, um download que falhava podia terminar num `IOError` (`EBUSY` ao
+  apagar o `.part`): com os downloads simultâneos, dois pedidos do mesmo
+  arquivo escreviam no mesmo `.part`, e o Windows não apaga arquivo aberto por
+  outra tarefa. O `IOError` escondia o erro do download, e com ele a diferença
+  entre arquivo ausente e falha de rede. Cada download passa a usar um `.part`
+  próprio, e uma falha ao limpá-lo nunca esconde o erro original.
+
 - Falha de rede era tratada como arquivo ausente. `baixar_url` — e com ela
   `fetch_datasus` — contava todo `RequestError` como "o arquivo não existe",
   embora a docstring prometesse propagar timeout e DNS: sem acesso ao FTP, um
