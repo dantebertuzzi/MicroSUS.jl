@@ -11,6 +11,17 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Added
 
+- 17 fontes novas no catálogo, cada uma com a faixa de anos conferida no FTP:
+  os recortes nacionais do SIM (`:SIM_DOFET`, `:SIM_DOINF`, `:SIM_DOEXT`,
+  `:SIM_DOMAT`, 1996 em diante), os demais arquivos da AIH (`:SIH_SP` desde
+  1997, `:SIH_RJ` desde 2006, `:SIH_ER` desde 2011) e as demais tabelas do
+  CNES (`:CNES_LT`, `:CNES_EQ`, `:CNES_SR` e mais sete; `:CNES_EE` parou em
+  2018). Vêm brutas, sem rotina de padronização. `fontes()` ganha
+  `ano_final`, e `verificar_cache` reconhece os arquivos delas. Os nacionais
+  do SIM de 2025 estão em `CID10/DOFET` e, idênticos, em `PRELIM/DOFET`: essas
+  fontes tentam o PRELIM primeiro, o preliminar do cache só vale enquanto
+  estiver no FTP, e `verificar_cache` não toma a cópia por consolidação.
+
 - Regiões abaixo da UF em `municipio`/`municipios()`: região de saúde (CIR,
   439) e macrorregião de saúde (121), das tabelas territoriais do DATASUS, e
   regiões imediata e intermediária do IBGE (510 e 133), cada uma com código e
