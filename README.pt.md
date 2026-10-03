@@ -248,7 +248,7 @@ cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
 pa = fetch_datasus(:SIA_PA; uf = "SP", anos = 2023, meses = 1:12)
 ```
 
-`fetch_datasus` concatena por nome de coluna (`cols = :union`), adiciona colunas de origem (`UF_ARQUIVO`, `ANO_ARQUIVO`, `MES_ARQUIVO`) e pula arquivos inexistentes com `@warn`. Use `fontes()` para listar todas as fontes disponíveis com seus identificadores, descrições, periodicidade e faixa de anos, ou `fonte(:SIM_DO)` para inspecionar uma só.
+`fetch_datasus` concatena por nome de coluna, unificando os tipos entre anos, adiciona as colunas de origem `UF_ARQUIVO`, `ANO_ARQUIVO`, `MES_ARQUIVO` (fontes mensais) e `PRELIMINAR`, e pula arquivos inexistentes com `@warn`. Use `fontes()` para listar todas as fontes disponíveis com seus identificadores, descrições, periodicidade e faixa de anos, ou `fonte(:SIM_DO)` para inspecionar uma só.
 
 Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 
