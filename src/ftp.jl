@@ -82,13 +82,22 @@ function _destino_cache(url::AbstractString)
 end
 
 # baixa para um .part e só então move: download interrompido não deixa
-# arquivo truncado com o nome definitivo no cache
+# arquivo truncado com o nome definitivo no cache.
+#
+# O .part é exclusivo de cada chamada: com os downloads simultâneos, dois
+# pedidos do mesmo arquivo escreviam no mesmo .part, e no Windows — que
+# não apaga arquivo aberto por outra tarefa — o rm de um falhava com EBUSY
+# enquanto o outro o segurava. E uma falha ao limpar nunca esconde o erro
+# do download, do qual depende saber se é ausência ou falta de rede.
 function _baixa!(url::AbstractString, destino::AbstractString)
-    tmp = destino * ".part"
+    tmp = string(destino, ".", getpid(), "-", rand(UInt32), ".part")
     try
-        Downloads.download(url, tmp)
+        open(io -> Downloads.download(url, io), tmp, "w")
     catch
-        rm(tmp; force = true)
+        try
+            rm(tmp; force = true)
+        catch
+        end
         rethrow()
     end
     mv(tmp, destino; force = true)
@@ -156,19 +165,22 @@ function baixar(sistema::Symbol, uf::AbstractString;
         # SIM/SINASC ficam lá até a consolidação). O consolidado é sempre
         # tentado antes, mesmo com o preliminar em cache: é assim que a
         # versão definitiva substitui a preliminar quando sai.
-        sistema in (:sim, :sinasc) || rethrow()
+        sistema in (:sim, :sinasc) || throw(_erro_de_rede(u, e))
+        sem_rede = !_eh_ausente(e)
         up = url_arquivo(sistema, uf; ano = ano, mes = mes, prelim = true)
         dp = _destino_cache(up)
         if isfile(dp) && !forcar
-            @warn "consolidado ainda não publicado; usando dados PRELIMINARES do cache " *
-                  "(o DATASUS os atualiza — `forcar = true` rebaixa)" arquivo = dp baixado_em = _baixado_em(dp)
+            @warn (sem_rede ? "sem acesso à rede" : "consolidado ainda não publicado") *
+                  "; usando dados PRELIMINARES do cache (o DATASUS os atualiza — " *
+                  "`forcar = true` rebaixa)" arquivo = dp baixado_em = _baixado_em(dp)
             return dp
         end
+        sem_rede && throw(_erro_de_rede(u, e))
         @warn "não achei o consolidado; tentando dados PRELIMINARES" url = up
         try
             return _baixa!(up, dp)
-        catch
-            throw(e)   # erro original, com a URL principal
+        catch e2
+            throw(_eh_ausente(e2) ? e : _erro_de_rede(up, e2))   # ausente: erro da URL principal
         end
     end
 end
@@ -245,7 +257,12 @@ function baixar_sinan(agravo::Symbol; ano::Union{Nothing,Int} = nothing,
             quieto || @info "baixando $u"
             return _baixa!(u, destino)
         catch e
-            erro = e
+            erro = _erro_de_rede(u, e)
+            # sem rede, o PRELIM só serve se já estiver no cache (o laço
+            # confere na próxima volta); baixá-lo também falharia
+            erro isa ErroDeRede && !pl && prelim === nothing &&
+                !isfile(_destino_cache(url_sinan(agravo; ano = ano, prelim = true))) &&
+                throw(erro)
         end
     end
     throw(erro)

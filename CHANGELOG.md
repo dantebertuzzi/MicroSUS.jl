@@ -94,6 +94,22 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Changed
 
+- Com mais de uma thread, as colunas de cada lote são convertidas em
+  paralelo (uma tarefa por coluna; lotes com menos de 2.000 linhas ficam na
+  thread atual). Acelera também a leitura de um arquivo só: `DOSP2023` 1,72 →
+  1,23 s com 4 threads e 1,15 s com 8 — perto do piso de 1,0 s da
+  descompressão, que é sequencial —; `DENGBR23` 4,7 → 3,3 s e 2,9 s; os 10
+  anos do SIM de PE 2,2 → 1,9 s e 1,4 s. Com uma thread, nada muda. O pico de
+  memória com 8 threads sobe cerca de 12%. Resultado idêntico com 8 threads
+  nas 1.078 colunas de comparação.
+- `fetch_datasus` baixa até 4 arquivos ao mesmo tempo (como o `baixar` no
+  plural), em vez de um por vez; e, com mais de uma thread, `ler(caminhos)` —
+  e portanto `fetch_datasus` — lê os arquivos seguintes enquanto o atual é
+  consumido, com a saída na mesma ordem. Os 10 anos do SIM de PE: 4,3 → 2,1 s
+  com 4 threads, 1,7 s com 8; `fetch_datasus` dos mesmos anos: 4,9 → 2,7 s e
+  2,1 s. Oito downloads com 1 s de latência simulada: 8,8 → 2,7 s. Com uma
+  thread, a leitura é a sequencial de sempre. Resultado idêntico com 8
+  threads nas 1.078 colunas dos 12 casos de comparação.
 - A leitura converte cada lote coluna a coluna, em vez de linha a linha. Antes,
   cada campo de cada registro passava por uma chamada despachada em tempo de
   execução (29 milhões no `DOSP2023`), o texto virava uma `String` temporária
@@ -132,6 +148,24 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   que dependia do tipo exato do elemento, sim.
 
 ### Fixed
+
+- No Windows, um download que falhava podia terminar num `IOError` (`EBUSY` ao
+  apagar o `.part`): com os downloads simultâneos, dois pedidos do mesmo
+  arquivo escreviam no mesmo `.part`, e o Windows não apaga arquivo aberto por
+  outra tarefa. O `IOError` escondia o erro do download, e com ele a diferença
+  entre arquivo ausente e falha de rede. Cada download passa a usar um `.part`
+  próprio, e uma falha ao limpá-lo nunca esconde o erro original.
+
+- Falha de rede era tratada como arquivo ausente. `baixar_url` — e com ela
+  `fetch_datasus` — contava todo `RequestError` como "o arquivo não existe",
+  embora a docstring prometesse propagar timeout e DNS: sem acesso ao FTP, um
+  `fetch_datasus(:SIM_DO; uf = :all, …)` devolvia um resultado incompleto, ou
+  vazio, com só um `@warn` de "arquivos não encontrados". Agora só conta como
+  ausente a resposta de arquivo inexistente (libcurl 78/19/37; HTTP/FTP 404,
+  410, 550); o resto interrompe com `MicroSUS.ErroDeRede`. Sem rede, um
+  preliminar já no cache continua sendo usado, e o aviso passa a dizer que foi
+  por falta de rede (antes dizia "consolidado ainda não publicado").
+  `baixar` e `baixar_sinan` seguem a mesma regra.
 
 - `codigo7_ibge` e `codigo6_ibge` erravam em nove municípios cujo dígito
   verificador oficial não segue o algoritmo de `dv_ibge` (Bom Princípio do

@@ -222,9 +222,24 @@ function _coluna(tl::Symbol, c::CampoDBF, regs, enc::Symbol)
     return _preenche(d -> _texto(T, d, lo, hi, enc), T, regs)   # :texto
 end
 
-_converte_lote(t::TabelaDBC, regs) =
-    _fecha_lote(t, Any[_coluna(t.tipos[j], t.campos[j], regs, t.encoding)
-                       for j in eachindex(t.campos)])
+# As colunas de um lote são independentes: cada uma lê os mesmos registros
+# (só leitura) e aloca o próprio vetor. Com mais de uma thread, cada
+# coluna vira uma tarefa. Lotes pequenos ficam na thread atual, onde o
+# custo de criar as tarefas pesaria mais que a conversão.
+const _MIN_LINHAS_PARALELO = 2_000
+
+function _converte_lote(t::TabelaDBC, regs)
+    col(j) = _coluna(t.tipos[j], t.campos[j], regs, t.encoding)
+    js = eachindex(t.campos)
+    cols = if Threads.nthreads() > 1 && length(js) > 1 &&
+              length(regs) ≥ _MIN_LINHAS_PARALELO
+        tarefas = [Threads.@spawn col(j) for j in js]
+        Any[fetch(x) for x in tarefas]
+    else
+        Any[col(j) for j in js]
+    end
+    return _fecha_lote(t, cols)
+end
 
 _nomes(t::TabelaDBC) = Tuple(c.nome for c in t.campos)
 

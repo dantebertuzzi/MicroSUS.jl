@@ -1,5 +1,9 @@
 # fetch.jl — Interface principal do pacote.
 
+# o mesmo limite do `baixar` no plural: o FTP do DATASUS não gosta de
+# muitas conexões simultâneas
+const _DOWNLOADS_SIMULTANEOS = 4
+
 """
     fetch_datasus(fonte::Symbol; uf = :all, anos, meses = nothing,
                   colunas = nothing, filtro = nothing,
@@ -31,7 +35,9 @@ Os arquivos são lidos em streaming, um depois do outro
 (ver `ler(caminhos::AbstractVector)`), e a padronização roda no próprio
 resultado, sem cópia: o pico de memória fica perto do tamanho do
 `DataFrame` devolvido. Com `colunas` e `filtro`, só o que foi pedido chega
-a existir.
+a existir. Até 4 arquivos são baixados ao mesmo tempo, e com mais de uma
+thread (`julia -t auto`) vários são lidos em paralelo; a ordem das linhas
+não muda.
 
 Arquivos ausentes no FTP (ano ainda não publicado para uma UF, mês sem
 partição extra) geram um `@warn` e são pulados; o resultado concatena tudo
@@ -91,8 +97,18 @@ function fetch_datasus(fonte_id::Symbol;
     faltantes = String[]
     preliminares = String[]
 
-    for u in ufs, a in anos_, m in meses_
-        achados = _baixar_periodo(f, u, a, m; cache, verbose)
+    # downloads em paralelo (como o `baixar` no plural), resultados na ordem
+    # dos períodos; a leitura e os avisos seguem essa ordem
+    periodos = [(u, a, m) for u in ufs for a in anos_ for m in meses_]
+    baixados = try
+        asyncmap(periodos; ntasks = _DOWNLOADS_SIMULTANEOS) do (u, a, m)
+            _baixar_periodo(f, u, a, m; cache, verbose)
+        end
+    catch e
+        throw(_desembrulha(e))   # ErroDeRede chega a quem chamou como ErroDeRede
+    end
+
+    for ((u, a, m), achados) in zip(periodos, baixados)
         if isempty(achados)
             rotulo = f.periodicidade == :mensal ? "$u $a-$(mm(m))" : "$u $a"
             push!(faltantes, rotulo)
@@ -161,9 +177,20 @@ function _baixar_periodo(f::FonteDATASUS, uf, ano, mes; cache, verbose)
     encontrados = String[]
     for sufixo in f.sufixos
         achou = false
-        for url in f.urls(uf, ano, mes)
-            url_suf = _inserir_sufixo(url, sufixo)
-            caminho = baixar_url(url_suf; cache, verbose)
+        candidatas = [_inserir_sufixo(u, sufixo) for u in f.urls(uf, ano, mes)]
+        for (i, url_suf) in enumerate(candidatas)
+            caminho = try
+                baixar_url(url_suf; cache, verbose)
+            catch e
+                e isa ErroDeRede || rethrow()
+                # sem rede: uma candidata seguinte já no cache (tipicamente
+                # o preliminar) serve, com aviso; nada no cache é erro
+                c = _no_cache(candidatas[i+1:end], cache)
+                c === nothing && rethrow()
+                @warn "sem acesso à rede; usando o arquivo do cache" *
+                      (eh_preliminar(c) ? " (dados PRELIMINARES)" : "") arquivo = c baixado_em = _baixado_em(c) e.url
+                c
+            end
             if caminho !== nothing
                 push!(encontrados, caminho)
                 achou = true
@@ -174,6 +201,29 @@ function _baixar_periodo(f::FonteDATASUS, uf, ano, mes; cache, verbose)
         achou || break
     end
     return encontrados
+end
+
+# asyncmap embrulha o erro da tarefa (CapturedException; TaskFailedException
+# em outras versões do Julia)
+function _desembrulha(e)
+    while true
+        if e isa CapturedException
+            e = e.ex
+        elseif e isa TaskFailedException
+            e = e.task.result
+        else
+            return e
+        end
+    end
+end
+
+function _no_cache(urls, cache::Bool)
+    cache || return nothing
+    for u in urls
+        c = _destino_cache(u)
+        isfile(c) && filesize(c) > 0 && return c
+    end
+    return nothing
 end
 
 _inserir_sufixo(url, sufixo) =

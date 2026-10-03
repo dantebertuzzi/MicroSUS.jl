@@ -123,6 +123,26 @@ Cobertura verificada no FTP do DATASUS em 03/10/2026. "Consolidado até" é o
 | `:violencia` — Violência interpessoal/autoprovocada | `:SINAN_VIOLENCIA` | `VIOLBR{aa}` | 2009–2025 | consolidado até 2024 |
 | `:zika` — Zika | `:SINAN_ZIKA` | `ZIKABR{aa}` | 2015–2025 |  |
 
+## Falha de rede não é arquivo ausente
+
+Um arquivo que não existe no FTP (ano ainda não publicado para uma UF,
+partição `PA...b` que não houve) é pulado com um `@warn`. Uma falha de
+rede — timeout, DNS, conexão recusada, canal de dados do FTP bloqueado por
+firewall — é outra coisa e interrompe com [`MicroSUS.ErroDeRede`](@ref):
+seguir daria um resultado incompleto que parece completo.
+
+```julia
+try
+    fetch_datasus(:SIM_DO; uf = :all, anos = 2023)
+catch e
+    e isa MicroSUS.ErroDeRede || rethrow()
+    # sem acesso ao FTP: e.url diz qual arquivo, e.causa traz o erro original
+end
+```
+
+A exceção é o preliminar já no cache: sem rede, ele é usado, com um aviso
+que diz que foi por falta de rede.
+
 ## Dados preliminares
 
 SIM e SINASC dos anos recentes ficam em `PRELIM/` até a consolidação

@@ -36,6 +36,8 @@ url_sinan
 agravos_sinan
 eh_preliminar
 MicroSUS.limpar_cache
+MicroSUS.ErroDeRede
+MicroSUS.baixar_url
 MicroSUS.UFS
 ```
 

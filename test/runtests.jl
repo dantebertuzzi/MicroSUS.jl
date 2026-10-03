@@ -368,6 +368,32 @@ end
         @test_throws ArgumentError ler([a, b]; origem = c -> c == a ? (X = 1,) : (Y = 1,))
         @test_throws ArgumentError ler([a, b]; origem = c -> (ID = 1,))   # colide
 
+        # arquivos abertos à frente (leitura paralela): mesma saída, mesma
+        # ordem, de 0 a mais arquivos à frente do que existem
+        varios = [a, b, a, b, a]
+        lotes_de(k) = collect(MicroSUS._canal_lotes(ler(varios; tamanho_lote = 700); adiante = k))
+        seq = lotes_de(0)
+        @test length(seq) == 3 * 4 + 2 * 3            # a: 2.500 → 4 lotes; b: 1.500 → 3
+        for k in (1, 2, 8)
+            @test isequal(lotes_de(k), seq)
+        end
+
+        # colunas convertidas em paralelo: a suíte roda com uma thread, então
+        # o caminho paralelo só é exercitado num processo com várias
+        grande = escreve_dbc(joinpath(dir, "grande.dbc"),
+            [("ID", 'N', 6, 0), ("COD", 'C', 3, 0), ("DT", 'C', 8, 0)],
+            [[string(i), "x$(i % 7)", "0$(1 + i % 9)012023"] for i in 1:6_000])
+        assinatura(f) = hash(map(collect, values(materializar(ler(f; schema = Dict(:COD => :pool,
+            :DT => :data_ddmmyyyy), tamanho_lote = 2_500)))))
+        codigo = """
+            using MicroSUS
+            m = materializar(ler($(repr(grande)); schema = Dict(:COD => :pool, :DT => :data_ddmmyyyy),
+                                 tamanho_lote = 2_500))
+            print(Threads.nthreads(), " ", hash(map(collect, values(m))))
+            """
+        saida = read(`$(Base.julia_cmd()) -t 4 --project=$(Base.active_project()) -e $codigo`, String)
+        @test saida == "4 $(assinatura(grande))"
+
         # materialização: vários lotes == um lote, e o DataFrame não recopia
         @test isequal(DataFrame(ler([a, b]; tamanho_lote = 300)), DataFrame(ler([a, b])))
         @test Tables.columns(ler(a)) isa Tables.CopiedColumns
@@ -805,6 +831,50 @@ end
         finally
             delete!(MicroSUS.FONTES, :TESTE_PRELIM)
             rm(cache_final; force = true); rm(cache_prelim; force = true)
+        end
+    end
+
+    @testset "erro de rede não é arquivo ausente" begin
+        recusada = "http://127.0.0.1:1"            # conexão recusada, sem rede de fato
+        # ausente continua sendo nothing (partições e PRELIM dependem disso)
+        @test MicroSUS.baixar_url("file:///nao/existe/TESTEREDEX.dbc"; verbose = false) === nothing
+        @test_throws MicroSUS.ErroDeRede MicroSUS.baixar_url("$recusada/TESTEREDEX.dbc"; verbose = false)
+        e = try MicroSUS.baixar_url("$recusada/TESTEREDEX.dbc"; verbose = false) catch err; err end
+        @test occursin("Não é ausência do arquivo", sprint(showerror, e))
+
+        dir = mktempdir()
+        mkpath(joinpath(dir, "PRELIM"))
+        nome = "TESTEREDEPE2023.dbc"
+        escreve_dbc(joinpath(dir, "PRELIM", nome), [("SEXO", 'C', 1, 0)], [["1"], ["2"]])
+        finais = Ref("file://" * joinpath(dir, "FINAIS", nome))   # não existe
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_REDE, nome = "teste de rede", periodicidade = :anual,
+            urls = (uf, ano, _) -> [finais[], "file://" * joinpath(dir, "PRELIM", nome)],
+            anos = 2023:2023))
+        cache_prelim = joinpath(MicroSUS._dir_cache(), "PRELIM", nome)
+        try
+            # sem rede e sem nada no cache: erro, não resultado vazio com aviso
+            finais[] = "$recusada/FINAIS/$nome"
+            rm(cache_prelim; force = true)
+            MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+                id = :TESTE_REDE_SO, nome = "t", periodicidade = :anual,
+                urls = (uf, ano, _) -> ["$recusada/$nome"], anos = 2023:2023))
+            @test_throws MicroSUS.ErroDeRede fetch_datasus(:TESTE_REDE_SO; uf = ["PE", "BA"],
+                anos = 2023, processar = false, verbose = false)
+
+            # o preliminar entra no cache (consolidado ausente, com rede)
+            finais[] = "file://" * joinpath(dir, "FINAIS", nome)
+            df = fetch_datasus(:TESTE_REDE; uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test df.PRELIMINAR == [true, true] && isfile(cache_prelim)
+
+            # sem rede, com o preliminar no cache: usa, e o aviso diz o porquê
+            finais[] = "$recusada/FINAIS/$nome"
+            df2 = @test_logs (:warn, r"sem acesso à rede") match_mode = :any fetch_datasus(
+                :TESTE_REDE; uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test nrow(df2) == 2 && all(df2.PRELIMINAR)
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_REDE); delete!(MicroSUS.FONTES, :TESTE_REDE_SO)
+            rm(cache_prelim; force = true)
         end
     end
 
