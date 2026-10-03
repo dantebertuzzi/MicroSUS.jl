@@ -158,6 +158,10 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Fixed
 
+- Ler o cabeçalho de um `.dbc` corrompido deixava o arquivo aberto: `abre_dbc`
+  não o fechava quando a leitura falhava. No Windows, o arquivo ficava preso
+  (`EBUSY`) e não podia ser apagado nem baixado de novo.
+
 - Um `.dbc` truncado no cache era devolvido para sempre: o cache só conferia
   se o arquivo existia (`DENGBR00.dbc`, com o cabeçalho cortado, no cache de
   quem escreveu isto). O cabeçalho passa a ser lido antes de usar o arquivo

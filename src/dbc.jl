@@ -12,14 +12,21 @@ do fluxo comprimido (cabeçalho + 4 bytes de CRC).
 """
 function abre_dbc(caminho::AbstractString)
     io = open(caminho, "r")
-    seek(io, 8)
-    hsize = Int(read(io, UInt8)) | (Int(read(io, UInt8)) << 8)
-    seekstart(io)
-    header = read(io, hsize)
-    length(header) == hsize || error("arquivo truncado: $caminho")
-    cab = le_cabecalho_dbf(header)
-    seek(io, hsize + 4)
-    return io, cab
+    try
+        seek(io, 8)
+        hsize = Int(read(io, UInt8)) | (Int(read(io, UInt8)) << 8)
+        seekstart(io)
+        header = read(io, hsize)
+        length(header) == hsize || error("arquivo truncado: $caminho")
+        cab = le_cabecalho_dbf(header)
+        seek(io, hsize + 4)
+        return io, cab
+    catch
+        # sem isto, um arquivo corrompido ficava aberto — e no Windows não
+        # pode ser apagado (EBUSY), nem para baixá-lo de novo
+        close(io)
+        rethrow()
+    end
 end
 
 _eh_dbc(caminho) = lowercase(splitext(caminho)[2]) == ".dbc"
