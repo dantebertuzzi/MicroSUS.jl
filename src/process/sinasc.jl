@@ -42,7 +42,7 @@ const SINASC_RACACOR = Dict(
 const SINASC_STPARTO = Dict("1" => "Sim", "2" => "Não", "3" => "Não se aplica")
 
 """
-    process_sinasc(df::DataFrame) -> DataFrame
+    process_sinasc(df::DataFrame; copiar = true) -> DataFrame
 
 Padroniza microdados do SINASC (`:SINASC`): converte datas (`DTNASC`,
 `DTNASCMAE`, ...) para `Date`, rotula variáveis categóricas (sexo, tipo de
@@ -52,9 +52,12 @@ pré-natal, local de nascimento) e converte numéricos armazenados como texto
 
 Colunas ausentes no layout do ano são ignoradas. Chamado automaticamente
 por [`fetch_datasus`](@ref) quando `processar = true`.
+
+`copiar = false` padroniza `df` no lugar, sem a cópia inicial — o que
+[`fetch_datasus`](@ref) faz, já que o `DataFrame` é dele.
 """
-function process_sinasc(df::DataFrame)
-    df = copy(df)
+function process_sinasc(df::DataFrame; copiar::Bool = true)
+    copiar && (df = copy(df))
 
     for col in (:DTNASC, :DTNASCMAE, :DTULTMENST, :DTCADASTRO, :DTDECLARAC)
         para_data!(df, col)

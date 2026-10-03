@@ -79,9 +79,24 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 ```
 
-O resultado concatena por nome de coluna (`cols = :union`) e acrescenta
-as colunas de origem `UF_ARQUIVO`, `ANO_ARQUIVO` e, nas fontes mensais,
+O resultado concatena por nome de coluna e acrescenta as colunas de
+origem `UF_ARQUIVO`, `ANO_ARQUIVO`, `PRELIMINAR` e, nas fontes mensais,
 `MES_ARQUIVO`. Arquivos ausentes no FTP geram `@warn` e são pulados.
+
+Os arquivos são lidos em streaming e a padronização roda no próprio
+resultado, sem cópia — o SIM de PE 2014–2023 (675 mil óbitos, 92
+colunas) chega a 3,4 GiB de pico, contra 5,9 GiB antes. `colunas` e
+`filtro` vão para o leitor, como em [`ler`](@ref), e aí só o que foi
+pedido chega a existir:
+
+```julia
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))   # 580 MiB de pico
+```
+
+O filtro vê os códigos crus do arquivo (`r[:SEXO] == "2"`), não os
+rótulos da padronização.
 
 Use [`fontes`](@ref) para listar todas as fontes disponíveis com seus
 identificadores, descrições, periodicidade e faixa de anos, ou
@@ -121,6 +136,30 @@ Devolve uma [`TabelaDBC`](@ref) — uma tabela preguiçosa que implementa
 `Tables.partitions` (lotes) e `Tables.columns` (materialização
 completa). Funciona direto em `DataFrame(t)`, `Arrow.write(saida, t)` etc.
 
+#### Vários arquivos
+
+Um vetor de caminhos vira uma tabela só, ainda em streaming: os lotes
+saem de um arquivo depois do outro, e a memória continua
+O(`tamanho_lote`) — dez anos de SIM passam como passaria um.
+
+```julia
+caminhos = baixar(:sim, "PE"; anos = 2014:2023)
+t = ler(caminhos; colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))
+cvli = DataFrame(t)        # + coluna :ARQUIVO ("DOPE2014.dbc", …)
+```
+
+Os kwargs de sempre valem para cada arquivo. Dois a mais:
+
+| kwarg | default | descrição |
+|---|---|---|
+| `uniao` | `false` | com `false`, arquivos com colunas diferentes são erro (a mensagem diz quais faltam onde); com `true`, a saída tem a união e as que faltam num arquivo vêm `missing` |
+| `origem` | `:ARQUIVO` | nome da coluna com o arquivo de cada linha; `nothing` para não criar |
+
+Os tipos são unificados por coluna — o DATASUS alarga campos e troca o
+tipo DBF de alguns entre anos —, então todo lote sai com o mesmo
+schema, como o Arrow exige. Devolve uma [`TabelaConcatenada`](@ref).
+
 ### `baixar` / `baixar_sinan` — download com cache
 
 Baixam arquivos `.dbc` do servidor FTP do DATASUS com cache local
@@ -153,10 +192,14 @@ As duas funções caem automaticamente nas pastas de dados preliminares
 
 #### Agravos do SINAN
 
-`:dengue`, `:chikungunya`, `:zika`, `:meningite`, `:tuberculose`,
-`:hanseniase`, `:hepatites`, `:violencia`, `:leishmaniose_visceral`,
-`:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`,
-`:intoxicacao_exogena`, `:acidente_animais`
+São 48 — a tabela completa, com o ano inicial de cada um, está no
+[guia de download](guia/download.md). [`agravos_sinan`](@ref) devolve a mesma
+lista, e cada agravo é também uma fonte de [`fetch_datasus`](@ref):
+
+```julia
+DataFrame(agravos_sinan())
+sc = fetch_datasus(:SINAN_SIFILIS_CONGENITA; anos = 2022)   # = baixar_sinan(:sifilis_congenita; ano = 2022)
+```
 
 #### Funções de URL
 
@@ -177,6 +220,11 @@ converter(caminho, "saida.arrow")
 converter(caminho, "saida.arrow";
           colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
           filtro  = r -> eh_agressao(r[:CAUSABAS]))
+
+# vários arquivos num .arrow só, com schema unificado
+converter(baixar(:sih, "PE"; anos = 2010:2016, meses = 1:12), "rd_pe.arrow";
+          colunas = [:DIAG_PRINC, :DIAGSEC1, :VAL_TOT],
+          ignorar_ausentes = true, uniao = true)   # DIAGSEC1 só existe a partir de 2011
 ```
 
 ### `materializar` — materializar as partições
@@ -214,6 +262,20 @@ No SIM isso rotula sexo, raça/cor, estado civil, escolaridade, local de
 ocorrência e circunstância do óbito, e cria a coluna `IDADE_ANOS` em
 anos completos. No SINASC, rotula tipo de parto, gravidez, escolaridade
 e estado civil da mãe, consultas de pré-natal e local de nascimento.
+
+[`process_sinan`](@ref) rotula o núcleo comum às fichas de notificação
+(tipo de notificação, sexo, raça/cor, gestação, escolaridade,
+hospitalização) e cria `IDADE_ANOS`. Classificação final, critério e
+evolução mudam de sentido entre agravos e só são rotulados para dengue,
+chikungunya e zika:
+
+```julia
+dg = fetch_datasus(:SINAN_DENGUE; anos = 2024)        # agravo = :dengue
+combine(groupby(dg, :CLASSI_FIN), nrow)  # "Dengue", "Dengue grave", "Descartado", …
+
+zk = fetch_datasus(:SINAN_ZIKA; anos = 2023, processar = false)
+process_sinan(zk; agravo = :zika)                      # explícito
+```
 
 ### Decodificação de idade
 
@@ -265,6 +327,38 @@ DataFrame(municipios())       # 5.571 linhas, para leftjoin por codigo6
 Nove municípios têm dígito verificador oficial fora do algoritmo
 (Quixaba-PE é 2611533, não 2611531): `codigo7_ibge` e `codigo6_ibge` usam o
 da tabela.
+
+### Populações — o denominador das taxas
+
+[`populacao`](@ref) traz a população residente do IBGE (API SIDRA, com
+cache local) por município, UF ou Brasil, de 2000 em diante. O `codigo6`
+casa com `CODMUNRES` (SIM, SINASC) e `MUNIC_RES` (SIH):
+
+```julia
+using DataFrames
+pop = DataFrame(populacao(2022))   # codigo7, codigo6, nome, ano, populacao, fonte
+
+do22 = DataFrame(ler(baixar(:sim, "PE"; ano = 2022);
+                     colunas = [:CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS])))
+n = combine(groupby(do22, :CODMUNRES), nrow => :obitos)
+n.codigo6 = parse.(Int, n.CODMUNRES)
+taxas = innerjoin(n, pop; on = :codigo6)
+taxas.por_100mil = 100_000 .* taxas.obitos ./ taxas.populacao
+```
+
+A série **não é homogênea**: cada ano vem do Censo (2000, 2010, 2022), da
+Contagem (2007) ou da estimativa anual (os demais), e a coluna `fonte` diz
+qual. As estimativas de 2011–2021 superestimaram a população — o Censo
+2022 achou 203,1 milhões contra 213,3 milhões estimados para 2021. No
+Recife, os óbitos por agressão caíram de 655 para 636 de 2021 para 2022,
+mas a taxa *subiu* de 39,4 para 42,7 por 100 mil, só pela troca de
+denominador (1.661.017 → 1.488.920). Com a população do Censo nos dois
+anos, 2021 daria 44,0, e a queda apareceria.
+
+O IBGE não publicou população para 2023: pedir esse ano é erro, a menos
+que `interpolar = true` (interpolação geométrica entre 2022 e 2024,
+registrada em `fonte`).
 
 ### Capítulos da CID-10
 
@@ -353,8 +447,9 @@ conteúdo, a exatidão e a completude desses arquivos são de responsabilidade d
 
 - O DATASUS **republica bases retroativamente**: a mesma consulta em datas
   diferentes pode devolver números diferentes. Registre a data de extração.
-- Dados **preliminares** existem e são sinalizados por `@warn` quando o
-  `baixar` cai numa pasta `PRELIM/`.
+- Dados **preliminares** existem e são sinalizados: `@warn` quando o `baixar`
+  cai numa pasta `PRELIM/`, [`eh_preliminar`](@ref) para cada arquivo e a
+  coluna `PRELIMINAR` no resultado de [`fetch_datasus`](@ref).
 - Os microdados têm **defeitos próprios** — códigos implausíveis, campos que
   deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
   Os que conhecemos estão em [Exemplos intermediários](exemplos-intermediarios.md)

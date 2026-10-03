@@ -15,6 +15,7 @@ MicroSUS.MicroSUS
 ```@docs
 ler
 TabelaDBC
+TabelaConcatenada
 materializar
 ```
 
@@ -32,6 +33,8 @@ baixar
 url_arquivo
 baixar_sinan
 url_sinan
+agravos_sinan
+eh_preliminar
 MicroSUS.limpar_cache
 MicroSUS.UFS
 ```
@@ -45,6 +48,7 @@ fonte
 process_sim
 process_sinasc
 process_sih
+process_sinan
 ```
 
 ## Decodificação de schemas
@@ -73,6 +77,7 @@ cid_casa
 cids_em
 menciona_cid
 eh_agressao
+populacao
 ```
 
 ## Estruturas DBF

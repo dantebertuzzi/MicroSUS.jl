@@ -5,6 +5,7 @@ using Dates
 using Random
 using Tables
 using PooledArrays
+using Arrow
 
 # ═════════════════════════════════════════════════════════════════════
 # Infra de teste 1: compressor DCL mínimo (literais crus + matches +
@@ -334,6 +335,103 @@ end
         @test mat.ID == Int32.(1:n)
     end
 
+    @testset "ler(caminhos) — vários arquivos como uma tabela" begin
+        dir = mktempdir()
+        # mesmo layout, larguras diferentes: COD C(3) num, C(10) noutro
+        a = escreve_dbc(joinpath(dir, "a.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 3, 0)],
+                        [[string(i), "x$(i % 3)"] for i in 1:2_500])
+        b = escreve_dbc(joinpath(dir, "b.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 10, 0)],
+                        [[string(i), "y$(i % 2)"] for i in 2_501:4_000])
+
+        t = ler([a, b]; tamanho_lote = 1_000)
+        @test t isa TabelaConcatenada
+        lotes = collect(Tables.partitions(t))
+        @test length(lotes) == 5                       # 3 de a + 2 de b
+        @test length(unique(map(l -> map(typeof, values(l)), lotes))) == 1
+        @test eltype(lotes[1].COD) == eltype(lotes[end].COD)   # largura unificada
+        d = DataFrame(t)
+        @test d.ID == Int32.(1:4_000)
+        @test d.COD[1] == "x1" && d.COD[end] == "y0"
+        @test d.ARQUIVO == [fill("a.dbc", 2_500); fill("b.dbc", 1_500)]
+        @test propertynames(DataFrame(ler([a, b]; origem = nothing))) == [:ID, :COD]
+        @test propertynames(DataFrame(ler([a, b]; origem = :FONTE))) == [:ID, :COD, :FONTE]
+        @test_throws ArgumentError ler([a, b]; origem = :ID)
+        @test_throws ArgumentError ler(String[])
+
+        # origem como função: colunas constantes por arquivo
+        meta = Dict(a => (FONTE = "A", N = 1, FLAG = true), b => (FONTE = "B", N = 2, FLAG = false))
+        dm = DataFrame(ler([a, b]; origem = c -> meta[c], tamanho_lote = 1_000))
+        @test propertynames(dm) == [:ID, :COD, :FONTE, :N, :FLAG]
+        @test dm.FONTE == [fill("A", 2_500); fill("B", 1_500)]
+        @test dm.N == [fill(1, 2_500); fill(2, 1_500)] && eltype(dm.N) == Int
+        @test count(dm.FLAG) == 2_500
+        @test_throws ArgumentError ler([a, b]; origem = c -> c == a ? (X = 1,) : (Y = 1,))
+        @test_throws ArgumentError ler([a, b]; origem = c -> (ID = 1,))   # colide
+
+        # materialização: vários lotes == um lote, e o DataFrame não recopia
+        @test isequal(DataFrame(ler([a, b]; tamanho_lote = 300)), DataFrame(ler([a, b])))
+        @test Tables.columns(ler(a)) isa Tables.CopiedColumns
+        @test Tables.columns(ler([a, b])) isa Tables.CopiedColumns
+        com_filtro = materializar(ler(a; filtro = r -> r[:COD] == "x0", tamanho_lote = 100))
+        @test length(com_filtro.ID) == 833
+
+        # filtro e colunas valem para cada arquivo
+        f = DataFrame(ler([a, b]; colunas = [:COD], filtro = r -> r[:COD] in ("x0", "y0")))
+        @test nrow(f) == 833 + 750
+        @test propertynames(f) == [:COD, :ARQUIVO]
+
+        # layouts diferentes: erro por padrão, união com missing se pedido
+        c = escreve_dbc(joinpath(dir, "c.dbc"), [("ID", 'N', 6, 0), ("NOVO", 'C', 2, 0)],
+                        [["9001", "n1"], ["9002", "n2"]])
+        e = try ler([a, c]); nothing catch err; err end
+        @test e isa ArgumentError && occursin("faltam em", e.msg) && occursin("uniao = true", e.msg)
+        u = DataFrame(ler([a, c]; uniao = true))
+        @test propertynames(u) == [:ID, :COD, :NOVO, :ARQUIVO]
+        @test all(ismissing, u.COD[2_501:end]) && all(ismissing, u.NOVO[1:2_500])
+        @test u.NOVO[end] == "n2"
+        # com `colunas`, a ordem é a pedida mesmo que o 1º arquivo não tenha a coluna
+        o = DataFrame(ler([c, a]; colunas = [:COD, :NOVO, :ID], ignorar_ausentes = true,
+                          uniao = true))
+        @test propertynames(o) == [:COD, :NOVO, :ID, :ARQUIVO]
+
+        # campo que muda de tipo: inteiro + decimal → Float64; N + C → texto, com aviso
+        g = escreve_dbc(joinpath(dir, "g.dbc"), [("ID", 'N', 8, 2), ("COD", 'C', 3, 0)],
+                        [["1.50", "z"]])
+        @test eltype(DataFrame(ler([a, g])).ID) == Union{Missing,Float64}
+        h = escreve_dbc(joinpath(dir, "h.dbc"), [("ID", 'C', 6, 0), ("COD", 'C', 3, 0)],
+                        [["abc", "z"]])
+        th = @test_logs (:warn, r"ID muda de tipo") ler([a, h])
+        dh = DataFrame(th)
+        @test eltype(dh.ID) == String && dh.ID[1] == "1" && dh.ID[end] == "abc"
+
+        # colunas categóricas: pool de String em todo arquivo e lote
+        pa = DataFrame(ler([a, b]; schema = Dict(:COD => :pool), tamanho_lote = 1_000))
+        @test pa.COD isa PooledArray && eltype(pa.COD) == String
+    end
+
+    @testset "Arrow: vários lotes com coluna categórica, e vários arquivos" begin
+        dir = mktempdir()
+        a = escreve_dbc(joinpath(dir, "a.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 3, 0)],
+                        [[string(i), "x$(i % 3)"] for i in 1:2_500])
+        b = escreve_dbc(joinpath(dir, "b.dbc"), [("ID", 'N', 6, 0), ("COD", 'C', 10, 0)],
+                        [[string(i), "y$(i % 2)"] for i in 2_501:4_000])
+        pool = Dict(:COD => :pool)
+        # regressão: o dicionário de InlineString quebrava o Arrow no 2º lote
+        s1 = converter(a, joinpath(dir, "a.arrow"); schema = pool, tamanho_lote = 1_000)
+        @test DataFrame(Arrow.Table(s1)) == DataFrame(ler(a; schema = pool))
+        s2 = converter([a, b], joinpath(dir, "ab.arrow"); schema = pool, tamanho_lote = 1_000)
+        r = DataFrame(Arrow.Table(s2))
+        @test nrow(r) == 4_000
+        @test r == DataFrame(ler([a, b]; schema = pool))
+        # valores novos de categoria em lotes posteriores: com dicionário, o
+        # leitor do Arrow.jl falhava de vez em quando; sem ele, nunca
+        c = escreve_dbc(joinpath(dir, "c.dbc"), [("COD", 'C', 3, 0)],
+                        [["z$(i ÷ 500)"] for i in 1:2_500])
+        s3 = converter(c, joinpath(dir, "c.arrow"); schema = pool, tamanho_lote = 500)
+        @test all(_ -> length(Arrow.Table(s3).COD) == 2_500, 1:20)
+        @test !(Arrow.Table(s3).COD isa Arrow.DictEncoded)
+    end
+
     @testset "idade SIM — tabela de unidades" begin
         @test decodifica_idade_sim("425") == 25.0
         @test decodifica_idade_sim("400") == 0.0
@@ -436,6 +534,64 @@ end
         @test municipio(2611533).nome == "Quixaba"
     end
 
+    @testset "populacao: parse da SIDRA, fontes por ano, interpolação" begin
+        # trecho no formato real da API (cabeçalho + linhas; "..." = município
+        # ainda não criado)
+        json = """
+        [
+          {"NC": "Nível Territorial (Código)", "V": "Valor",
+           "D1C": "Município (Código)", "D1N": "Município"},
+          {"NC": "6", "V": "1537704", "D1C": "2611606", "D1N": "Recife - PE"},
+          {"NC": "6", "V": "...", "D1C": "5300108", "D1N": "Brasília - DF"},
+          {"NC": "6", "V": "21494", "D1C": "1100015", "D1N": "Alta Floresta D'Oeste - RO"}
+        ]"""
+        l = MicroSUS._parse_sidra(json)
+        @test length(l) == 2
+        @test l[1] == (codigo = 2611606, nome = "Recife - PE", populacao = 1537704)
+        @test l[2].nome == "Alta Floresta D'Oeste - RO"
+        @test isempty(MicroSUS._parse_sidra("[]"))
+
+        # cada ano, a fonte que o IBGE publicou; 2023 e antes de 2000, nenhuma
+        @test occursin("Censo 2000", last(MicroSUS._fonte_pop(2000)))
+        @test occursin("Contagem", last(MicroSUS._fonte_pop(2007)))
+        @test occursin("Censo 2010", last(MicroSUS._fonte_pop(2010)))
+        @test occursin("Censo 2022", last(MicroSUS._fonte_pop(2022)))
+        @test all(a -> occursin("estimativa", last(MicroSUS._fonte_pop(a))),
+                  [2001:2006; 2008:2009; 2011:2021; 2024:2026])
+        @test MicroSUS._fonte_pop(2023) === nothing
+        @test MicroSUS._fonte_pop(1999) === nothing
+
+        # geométrica: no meio do intervalo, a média geométrica; sem par, fora
+        l0 = [(codigo = 1, nome = "a", populacao = 100), (codigo = 2, nome = "b", populacao = 50)]
+        l1 = [(codigo = 1, nome = "a", populacao = 400)]
+        r = MicroSUS._interpola_geom(l0, l1, 0.5)
+        @test r == [(codigo = 1, nome = "a", populacao = 200)]
+
+        # validações não tocam a rede
+        e = try populacao(2023); nothing catch err; err end
+        @test e isa ArgumentError && occursin("interpolar = true", e.msg)
+        @test_throws ArgumentError populacao(1999)
+        @test_throws ArgumentError populacao(2021; nivel = :bairro)
+    end
+
+    @testset "conversão por coluna: texto CP850, categórica, ASCII sem String" begin
+        dir = mktempdir()
+        cp850 = String(UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90])   # "SÃO JOSÉ" em CP850
+        campos = [("NOME", 'C', 12, 0), ("MUN", 'C', 12, 0), ("COD", 'C', 4, 0)]
+        linhas = [[cp850, cp850, "A1"], ["RECIFE", "RECIFE", ""], [cp850, "OLINDA", "A1  "]]
+        f = escreve_dbc(joinpath(dir, "enc.dbc"), campos, linhas)
+        for lote in (1, 2, 100)
+            m = materializar(ler(f; schema = Dict(:MUN => :pool), tamanho_lote = lote))
+            @test m.NOME == ["SÃO JOSÉ", "RECIFE", "SÃO JOSÉ"]
+            @test m.MUN == ["SÃO JOSÉ", "RECIFE", "OLINDA"]
+            @test m.MUN isa PooledArray && eltype(m.MUN) == String
+            @test m.COD == ["A1", "", "A1"]                  # espaços à direita somem
+            @test eltype(m.NOME) <: MicroSUS.InlineStrings.InlineString && eltype(m.COD) <: MicroSUS.InlineStrings.InlineString
+        end
+        # mesmo valor que o filtro vê (RegistroDBF → decodifica_texto)
+        @test length(materializar(ler(f; filtro = r -> r[:NOME] == "SÃO JOSÉ")).NOME) == 2
+    end
+
     @testset "encoding CP850" begin
         b = UInt8['S', 0xC7, 'O', ' ', 'J', 'O', 'S', 0x90, ' ', ' ']
         @test MicroSUS.decodifica_texto(b, 1, 10, :cp850) == "SÃO JOSÉ"
@@ -479,6 +635,44 @@ end
         @test isequal(c.DT_NOTIFIC[1], Date(2020, 3, 15))
         @test c.NU_IDADE_N[1] == 25.0                   # idade_sinan
         @test c.NU_IDADE_N[2] == 0.5
+    end
+
+    @testset "catálogo único dos agravos do SINAN" begin
+        ag = agravos_sinan()
+        @test length(ag) == length(MicroSUS.AGRAVOS_SINAN) ≥ 48
+        @test allunique(a.agravo for a in ag)
+        @test allunique(a.prefixo for a in ag)
+        @test all(a -> 2000 ≤ a.ano_inicial ≤ 2025, ag)
+        for a in ag
+            # as três visões derivam da mesma tabela e concordam
+            f = fonte(a.fonte)
+            @test f.abrangencia == :br && first(f.anos) == a.ano_inicial
+            u = url_sinan(a.agravo; ano = 2023)
+            @test basename(u) == "$(a.prefixo)BR23.dbc"
+            @test first(f.urls(nothing, 2023, nothing)) == u
+            @test MicroSUS.detecta_sistema(basename(u)) === :sinan
+        end
+        # prefixo de 3 letras: o nome do arquivo inteiro é que decide
+        @test MicroSUS.detecta_sistema("SRCBR21.dbc") === :sinan
+        @test MicroSUS.detecta_sistema("srcbr21.DBF") === :sinan
+        @test MicroSUS.detecta_sistema("MALABR22.dbc") === :sinan
+        @test MicroSUS.detecta_sistema("DOPE2023.dbc") === :sim
+        @test MicroSUS.detecta_sistema("XYZWBR21.dbc") === nothing
+        # todo símbolo que baixar_sinan aceitava antes continua aceito
+        for s in (:dengue, :chikungunya, :chik, :zika, :malaria,
+                  :leishmaniose_visceral, :leishmaniose_tegumentar,
+                  :esquistossomose, :febre_tifoide, :meningite, :tuberculose,
+                  :hanseniase, :hepatites, :violencia, :intoxicacao_exogena,
+                  :acidente_animais)
+            @test url_sinan(s; ano = 2020) isa String
+        end
+        @test url_sinan(:chik; ano = 2020) == url_sinan(:chikungunya; ano = 2020)
+        # e toda fonte :SINAN_* que existia continua existindo
+        for id in (:SINAN_DENGUE, :SINAN_CHIKUNGUNYA, :SINAN_ZIKA,
+                   :SINAN_MALARIA, :SINAN_TUBERCULOSE, :SINAN_VIOLENCIA)
+            @test fonte(id) isa MicroSUS.FonteDATASUS
+        end
+        @test occursin("SIFCBR24", url_sinan(:sifilis_congenita; ano = 2024))
     end
 
     @testset "URLs do FTP" begin
@@ -555,10 +749,62 @@ end
                                                     anos = 2023, processar = false,
                                                     cache = false, verbose = false)
             @test Set(df2.UF_ARQUIVO) == Set(["PE"])
+
+            # colunas e filtro vão para o leitor; o filtro vê o código cru
+            df3 = fetch_datasus(:TESTE_FIC_UF; uf = ["PE", "BA"], anos = 2023,
+                                colunas = [:SEXO, :IDADE], filtro = r -> r[:SEXO] == "1",
+                                processar = false, cache = false, verbose = false)
+            @test nrow(df3) == 2
+            @test propertynames(df3) == [:SEXO, :IDADE, :UF_ARQUIVO, :ANO_ARQUIVO, :PRELIMINAR]
+            @test Set(df3.UF_ARQUIVO) == Set(["PE", "BA"])
+            # coluna que não existe em nenhum layout: erro, não missing silencioso
+            @test_throws ArgumentError fetch_datasus(:TESTE_FIC_UF; uf = "PE", anos = 2023,
+                colunas = [:NAO_EXISTE], processar = false, cache = false, verbose = false)
         finally
             # não deixa a fonte fictícia vazar para outros testes (ex.: o
             # teste de rede, que itera fontes() por completo).
             delete!(MicroSUS.FONTES, :TESTE_FIC_UF)
+        end
+    end
+
+    @testset "dados preliminares: cache separado, metadado e consolidação" begin
+        dir = mktempdir()
+        mkpath(joinpath(dir, "FINAIS")); mkpath(joinpath(dir, "PRELIM"))
+        campos = [("DTOBITO", 'C', 8, 0), ("SEXO", 'C', 1, 0)]
+        # mesmo nome nas duas pastas, como no FTP; nome que não colide com
+        # nada do cache real do usuário
+        nome = "TESTEPRELIMPE2023.dbc"
+        escreve_dbc(joinpath(dir, "PRELIM", nome), campos, [["15012023", "1"]])
+
+        MicroSUS.registrar!(MicroSUS.FonteDATASUS(
+            id = :TESTE_PRELIM, nome = "Fonte fictícia (preliminar)",
+            periodicidade = :anual, abrangencia = :uf,
+            urls = (uf, ano, _) -> ["file://" * joinpath(dir, p, "TESTEPRELIM$(uf)$(ano).dbc")
+                                    for p in ("FINAIS", "PRELIM")],
+            anos = 2023:2023,
+        ))
+        cache_final = joinpath(MicroSUS._dir_cache(), nome)
+        cache_prelim = joinpath(MicroSUS._dir_cache(), "PRELIM", nome)
+        try
+            df = @test_logs (:warn, r"PRELIMINARES") fetch_datasus(:TESTE_PRELIM;
+                uf = "PE", anos = 2023, processar = false, verbose = false)
+            @test df.PRELIMINAR == [true]
+            @test isfile(cache_prelim) && !isfile(cache_final)
+            @test eh_preliminar(cache_prelim) && !eh_preliminar(cache_final)
+            @test occursin("PRELIMINARES", sprint(show, MIME"text/plain"(), ler(cache_prelim)))
+
+            # o DATASUS consolida: com o preliminar ainda no cache, o
+            # consolidado é tentado primeiro e passa a ser o usado
+            escreve_dbc(joinpath(dir, "FINAIS", nome), campos,
+                        [["15012023", "1"], ["16012023", "2"]])
+            df2 = @test_logs fetch_datasus(:TESTE_PRELIM; uf = "PE", anos = 2023,
+                                           processar = false, verbose = false)
+            @test df2.PRELIMINAR == [false, false]
+            @test nrow(df2) == 2
+            @test !occursin("PRELIMINARES", sprint(show, MIME"text/plain"(), ler(cache_final)))
+        finally
+            delete!(MicroSUS.FONTES, :TESTE_PRELIM)
+            rm(cache_final; force = true); rm(cache_prelim; force = true)
         end
     end
 
@@ -660,6 +906,93 @@ end
         # coluna ausente é ignorada, não lança erro
         dfsem = DataFrame(OUTRACOISA = [1, 2])
         @test MicroSUS.process_sim(dfsem) == dfsem
+
+        # copiar = false padroniza no lugar; o padrão não toca no original
+        orig = DataFrame(SEXO = ["1", "2"])
+        MicroSUS.process_sim(orig)
+        @test orig.SEXO == ["1", "2"]
+        MicroSUS.process_sim(orig; copiar = false)
+        @test orig.SEXO == ["Masculino", "Feminino"]
+    end
+
+    @testset "process_sinan: núcleo, zeros à esquerda, agravo, idade" begin
+        df = DataFrame(
+            ID_AGRAVO  = ["A90", "A90", "A90"],
+            TP_NOT     = ["2", "2", "3"],
+            CS_SEXO    = ["M", "F", "I"],
+            CS_RACA    = ["4", "9", ""],
+            CS_GESTANT = ["1", "6", "9"],
+            CS_ESCOL_N = ["01", "1", "00"],       # mesmo arquivo, duas formas
+            HOSPITALIZ = ["1", "2", "9"],
+            CLASSI_FIN = ["10", "5", "0"],
+            CRITERIO   = ["1", "2", ""],
+            EVOLUCAO   = ["1", "2", "9"],
+            NU_IDADE_N = [25.4, 0.5, missing],    # já em anos (schema)
+            DT_ENCERRA = ["20230115", "", "00000000"],
+        )
+        out = process_sinan(df)
+        @test isequal(out.CS_SEXO, ["Masculino", "Feminino", missing])
+        @test out.TP_NOT == ["Individual", "Individual", "Surto"]
+        @test isequal(out.CS_RACA, ["Parda", missing, missing])
+        @test isequal(out.CS_GESTANT, ["1º trimestre", "Não se aplica", missing])
+        @test out.CS_ESCOL_N == ["1ª a 4ª série incompleta do EF",
+                                 "1ª a 4ª série incompleta do EF", "Analfabeto"]
+        @test isequal(out.HOSPITALIZ, ["Sim", "Não", missing])
+        @test isequal(out.CLASSI_FIN, ["Dengue", "Descartado", missing])
+        @test isequal(out.CRITERIO, ["Laboratorial", "Clínico-epidemiológico", missing])
+        @test isequal(out.EVOLUCAO, ["Cura", "Óbito pelo agravo", missing])
+        @test isequal(out.IDADE_ANOS, [25, 0, missing])
+        @test isequal(out.DT_ENCERRA, [Date(2023, 1, 15), missing, missing])
+        @test df.CS_SEXO == ["M", "F", "I"]       # original intacto
+
+        # o mesmo "1" muda de sentido com o agravo
+        z = DataFrame(ID_AGRAVO = ["A928", "A92."], CLASSI_FIN = ["1", "2"])
+        @test process_sinan(z).CLASSI_FIN == ["Confirmado", "Descartado"]
+        d = DataFrame(CLASSI_FIN = ["1", "2"])
+        @test process_sinan(d; agravo = :dengue).CLASSI_FIN ==
+              ["Dengue clássico", "Dengue com complicações"]
+        @test process_sinan(d; agravo = :chikungunya).CLASSI_FIN ==
+              ["Confirmado", "Descartado"]
+
+        # agravo desconhecido ou misto: CLASSI_FIN/EVOLUCAO ficam crus
+        v = DataFrame(ID_AGRAVO = ["Y09", "Y09"], CLASSI_FIN = ["1", "3"], CS_SEXO = ["F", "M"])
+        outv = process_sinan(v)
+        @test outv.CLASSI_FIN == ["1", "3"]
+        @test outv.CS_SEXO == ["Feminino", "Masculino"]
+        misto = DataFrame(ID_AGRAVO = ["A90", "A928"], CLASSI_FIN = ["1", "1"])
+        @test process_sinan(misto).CLASSI_FIN == ["1", "1"]
+        @test process_sinan(misto; agravo = nothing).CLASSI_FIN == ["1", "1"]
+        @test_throws ArgumentError process_sinan(misto; agravo = :malaria)
+
+        # NU_IDADE_N cru: texto e inteiro (campo N lido sem schema) são o código
+        @test isequal(process_sinan(DataFrame(NU_IDADE_N = ["4025", "3006", "999"])).IDADE_ANOS,
+                      [25, 0, missing])
+        @test process_sinan(DataFrame(NU_IDADE_N = [4025, 5010, 2015])).IDADE_ANOS ==
+              [25, 110, 0]
+
+        # despacho pelo id da fonte
+        zf = DataFrame(CLASSI_FIN = ["1"], CS_SEXO = ["F"])
+        @test MicroSUS.processar_fonte(:SINAN_ZIKA, zf).CLASSI_FIN == ["Confirmado"]
+        tf = MicroSUS.processar_fonte(:SINAN_TUBERCULOSE, zf)
+        @test tf.CLASSI_FIN == ["1"] && tf.CS_SEXO == ["Feminino"]
+
+        @test process_sinan(DataFrame(OUTRACOISA = [1])) == DataFrame(OUTRACOISA = [1])
+    end
+
+    @testset "rotular! — ignora_zeros" begin
+        df = DataFrame(X = ["01", "1", "00", "10", "A1"])
+        dic = Dict("0" => "zero", "1" => "um", "10" => "dez", "A1" => "a-um")
+        @test isequal(MicroSUS.rotular!(copy(df), :X, dic).X, [missing, "um", missing, "dez", "a-um"])
+        @test MicroSUS.rotular!(copy(df), :X, dic; ignora_zeros = true).X ==
+              ["um", "um", "zero", "dez", "a-um"]
+    end
+
+    @testset "detecta_sistema reconhece toda fonte SINAN registrada" begin
+        for (id, f) in MicroSUS.FONTES
+            startswith(string(id), "SINAN_") || continue
+            arq = basename(first(f.urls("BR", 2022, nothing)))
+            @test MicroSUS.detecta_sistema(arq) === :sinan
+        end
     end
 
     @testset "ignorar_ausentes e cabecalho pública" begin
@@ -742,6 +1075,20 @@ end
     # MicroSUS_TEST_NETWORK=true julia --project -e 'using Pkg; Pkg.test()'
     # -----------------------------------------------------------------------
     if get(ENV, "MicroSUS_TEST_NETWORK", "false") == "true"
+        @testset "Rede (IBGE/SIDRA) — populacao bate com os totais oficiais" begin
+            br(a) = only(populacao(a; nivel = :brasil, cache = false)).populacao
+            @test br(2010) == 190_755_799                  # Censo 2010
+            @test br(2022) == 203_080_756                  # Censo 2022
+            m = populacao(2022; cache = false)
+            @test length(m) == 5570
+            @test sum(r.populacao for r in m) == 203_080_756
+            @test only(r for r in m if r.codigo6 == 261160).populacao == 1_488_920
+            @test length(populacao(2019:2021; nivel = :uf, cache = false)) == 81
+            i = populacao(2023; nivel = :brasil, interpolar = true)
+            @test br(2022) < only(i).populacao < br(2024)
+            @test occursin("interpolação", only(i).fonte)
+        end
+
         @testset "Rede (DATASUS) — links de todas as fontes registradas" begin
             # Para cada fonte de fontes(), baixa de verdade o ano MAIS ANTIGO
             # coberto (tende a ser o menor arquivo) — PE quando particionado

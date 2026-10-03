@@ -2,6 +2,7 @@
 
 """
     fetch_datasus(fonte::Symbol; uf = :all, anos, meses = nothing,
+                  colunas = nothing, filtro = nothing,
                   processar = true, cache = true, verbose = true) -> DataFrame
 
 Baixa, descomprime, lê e concatena microdados públicos do DATASUS.
@@ -15,16 +16,30 @@ Baixa, descomprime, lê e concatena microdados públicos do DATASUS.
 - `anos`: ano (`2023`) ou coleção de anos (`2019:2023`);
 - `meses`: mês ou coleção de meses (`1:12`), obrigatório apenas para fontes
   mensais (SIH, SIA, CNES);
+- `colunas`: `Vector{Symbol}` com os campos desejados, como em [`ler`](@ref)
+  — os demais nem são lidos. Campos que não existem no layout de algum ano
+  vêm `missing` nas linhas dele;
+- `filtro`: função `RegistroDBF -> Bool` aplicada a cada registro **antes**
+  do parse, como em [`ler`](@ref). Vê os códigos crus do arquivo
+  (`r[:SEXO] == "2"`), não os rótulos da padronização;
 - `processar`: aplica a padronização da fonte quando disponível
   ([`process_sim`](@ref), [`process_sinasc`](@ref));
 - `cache`: reutiliza arquivos já baixados (ver [`MicroSUS.limpar_cache`](@ref));
 - `verbose`: registra progresso via `@info`/`@warn`.
 
+Os arquivos são lidos em streaming, um depois do outro
+(ver `ler(caminhos::AbstractVector)`), e a padronização roda no próprio
+resultado, sem cópia: o pico de memória fica perto do tamanho do
+`DataFrame` devolvido. Com `colunas` e `filtro`, só o que foi pedido chega
+a existir.
+
 Arquivos ausentes no FTP (ano ainda não publicado para uma UF, mês sem
 partição extra) geram um `@warn` e são pulados; o resultado concatena tudo
-que foi encontrado, unindo colunas por nome (`cols = :union`). As colunas
+que foi encontrado, unindo colunas por nome. As colunas
 `UF_ARQUIVO`, `ANO_ARQUIVO` e, se aplicável, `MES_ARQUIVO` identificam a
-origem de cada linha.
+origem de cada linha, e `PRELIMINAR` diz se ela veio de um arquivo ainda não
+consolidado pelo DATASUS (pasta `PRELIM/`, ver [`eh_preliminar`](@ref)) —
+quando houver algum, um `@warn` lista quais.
 
 # Exemplos
 ```julia
@@ -39,12 +54,19 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 
 # Dengue no Brasil inteiro (fonte nacional: uf é ignorada)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
+
+# Só o que interessa: óbitos por agressão em PE, três colunas, dez anos
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))
 ```
 """
 function fetch_datasus(fonte_id::Symbol;
                        uf = :all,
                        anos,
                        meses = nothing,
+                       colunas::Union{Nothing,Vector{Symbol}} = nothing,
+                       filtro::Union{Nothing,Function} = nothing,
                        processar::Bool = true,
                        cache::Bool = true,
                        verbose::Bool = true)
@@ -64,34 +86,45 @@ function fetch_datasus(fonte_id::Symbol;
         a in f.anos || @warn "ano $a fora da faixa de cobertura conhecida de :$(f.id) ($(first(f.anos))+)"
     end
 
-    partes = DataFrame[]
+    arquivos = String[]
+    metadados = Dict{String,NamedTuple}()
     faltantes = String[]
+    preliminares = String[]
 
     for u in ufs, a in anos_, m in meses_
-        arquivos = _baixar_periodo(f, u, a, m; cache, verbose)
-        if isempty(arquivos)
+        achados = _baixar_periodo(f, u, a, m; cache, verbose)
+        if isempty(achados)
             rotulo = f.periodicidade == :mensal ? "$u $a-$(mm(m))" : "$u $a"
             push!(faltantes, rotulo)
             continue
         end
-        for caminho in arquivos
-            df = DataFrame(ler(caminho))
-            df[!, :UF_ARQUIVO]  .= u
-            df[!, :ANO_ARQUIVO] .= a
-            f.periodicidade == :mensal && (df[!, :MES_ARQUIVO] .= m)
-            push!(partes, df)
+        for caminho in achados
+            prelim = eh_preliminar(caminho)
+            push!(arquivos, caminho)
+            metadados[caminho] = f.periodicidade == :mensal ?
+                (UF_ARQUIVO = u, ANO_ARQUIVO = a, MES_ARQUIVO = m, PRELIMINAR = prelim) :
+                (UF_ARQUIVO = u, ANO_ARQUIVO = a, PRELIMINAR = prelim)
+            prelim && push!(preliminares,
+                "$(basename(caminho)) (baixado em $(_baixado_em(caminho)))")
         end
     end
 
     isempty(faltantes) || @warn "arquivos não encontrados no FTP" faltantes
+    isempty(preliminares) ||
+        @warn "o resultado inclui dados PRELIMINARES, sujeitos a revisão " *
+              "(coluna PRELIMINAR; `cache = false` rebaixa)" preliminares
 
-    isempty(partes) && error(
+    isempty(arquivos) && error(
         "nenhum arquivo encontrado para :$(f.id) com os parâmetros informados")
 
-    df = vcat(partes...; cols = :union)
+    # layouts mudam entre anos: com colunas pedidas, a que falta num ano
+    # vem missing nele (ignorar_ausentes + uniao)
+    t = ler(arquivos; uniao = true, origem = c -> metadados[c],
+            colunas, filtro, ignorar_ausentes = colunas !== nothing)
+    df = DataFrame(materializar(t); copycols = false)
 
     if processar
-        df = processar_fonte(f.id, df; verbose)
+        df = processar_fonte(f.id, df; verbose, copiar = false)
     end
 
     return df

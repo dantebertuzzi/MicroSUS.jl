@@ -101,12 +101,10 @@ dengue = DataFrame(ler(sinan_caminho;
     colunas = [:DT_NOTIFIC, :SG_UF, :ID_MN_RESI, :CLASSI_FIN, :NU_IDADE_N],
     filtro = r -> r[:SG_UF] == "26"))   # Pernambuco
 
-# download multi-ano em paralelo
+# download multi-ano em paralelo, um .arrow só
 caminhos = baixar(:sim, "PE"; anos = 2019:2023)
-for c in caminhos
-    converter(c, replace(basename(c), ".dbc" => ".arrow");
-              colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
-end
+converter(caminhos, "do_pe_2019_2023.arrow";
+          colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
 ```
 
 ## `ler` — referência
@@ -136,6 +134,25 @@ TabelaDBC — DOPE2023.dbc
     IDADE       C(3)     → idade_sim
     SEXO        C(1)     → pool
 ```
+
+### Vários arquivos
+
+`ler` também aceita um vetor de caminhos e devolve uma tabela só, em streaming
+— os lotes saem de um arquivo depois do outro, memória O(`tamanho_lote`):
+
+```julia
+t = ler(baixar(:sim, "PE"; anos = 2014:2023);
+        colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))
+DataFrame(t)          # + coluna :ARQUIVO com o arquivo de cada linha
+```
+
+Com `uniao = false` (padrão), arquivos com colunas diferentes são erro, e a
+mensagem diz quais faltam onde; `uniao = true` faz a união e preenche com
+`missing`. `origem = nothing` dispensa a coluna `:ARQUIVO`. Os tipos são
+unificados por coluna entre os arquivos — o DATASUS alarga campos e troca o
+tipo DBF de alguns entre anos —, então todo lote tem o mesmo schema e
+`converter(caminhos, "saida.arrow")` grava um `.arrow` só.
 
 ## Schemas
 
@@ -199,7 +216,7 @@ pe_dengue = DataFrame(ler(baixar_sinan(:dengue; ano = 2024);
     filtro = r -> r[:ID_MN_RESI] == "261110"))   # Petrolina/PE
 ```
 
-Agravos disponíveis: `:dengue`, `:chikungunya`, `:zika`, `:malaria`, `:tuberculose`, `:hanseniase`, `:meningite`, `:violencia`, `:leishmaniose_visceral`, `:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`, `:hepatites`, `:intoxicacao_exogena`, `:acidente_animais`.
+São 48 agravos — de `:dengue`, `:tuberculose` e `:hanseniase` a `:sifilis_congenita`, `:sifilis_gestante`, `:leptospirose`, `:acidente_trabalho` e `:coqueluche`. `agravos_sinan()` lista todos, com o prefixo do arquivo, o ano inicial publicado e o identificador em `fetch_datasus` (`:sifilis_congenita` → `:SINAN_SIFILIS_CONGENITA`).
 
 > **Malária**: o arquivo do SINAN cobre apenas a notificação **extra-amazônica**. Os casos da região amazônica — a grande maioria — são notificados no SIVEP-Malária, que não faz parte do SINAN e não é servido por este FTP. Um `MALABR{aa}.dbc` de poucas centenas de KB é o esperado, não um download truncado.
 
@@ -220,6 +237,11 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 # SINAN: dengue no Brasil inteiro (fonte nacional: uf é ignorada)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 
+# só o que interessa, direto no leitor: dez anos de CVLI em PE, três colunas
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))
+
 # SIA: produção ambulatorial em SP, 2023
 pa = fetch_datasus(:SIA_PA; uf = "SP", anos = 2023, meses = 1:12)
 ```
@@ -237,11 +259,11 @@ Caminhos atuais do FTP (conferidos contra o `microdatasus`, jul/2026):
 | `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{aamm}.dbc` |
 | SINAN | `SINAN/DADOS/FINAIS/` | `{AGRAVO}BR{aa}.dbc` (nacional — use `baixar_sinan`) |
 
-**Dados preliminares**: se o arquivo consolidado não existir (anos recentes do SIM/SINASC), o `baixar` tenta automaticamente a pasta `PRELIM/` correspondente, com um `@warn` — indicador calculado sobre dado preliminar merece asterisco. `url_arquivo(...; prelim = true)` monta a URL preliminar diretamente.
+**Dados preliminares**: se o arquivo consolidado não existir (anos recentes do SIM/SINASC), o `baixar` tenta automaticamente a pasta `PRELIM/` correspondente, com um `@warn` — indicador calculado sobre dado preliminar merece asterisco. `url_arquivo(...; prelim = true)` monta a URL preliminar diretamente. O preliminar fica no cache numa subpasta `PRELIM/`, separado do consolidado de mesmo nome: o consolidado é sempre tentado primeiro e substitui o preliminar quando sai.
 
 **Limites de cobertura**: SINASC via helper cobre 1996+ (1994–1995 estão em `SINASC/1994_1995/` com outro padrão de nome — monte a URL manualmente); SIH/SIA cobrem a estrutura pós-2008.
 
-## Padronização: `process_sim` / `process_sinasc` / `process_sih`
+## Padronização: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan`
 
 `fetch_datasus` chama a rotina de padronização da fonte por padrão
 (`processar = true`). Ela troca códigos por rótulos legíveis, converte datas
@@ -257,7 +279,17 @@ No SIM: rotula `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO` e
 afins, e cria `IDADE_ANOS` em anos completos. No SINASC: `PARTO`, `GRAVIDEZ`,
 `ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`. No SIH: `SEXO`,
 `RACA_COR`, `IDENT`, `CAR_INT`, e `IDADE_ANOS` a partir do par `IDADE` +
-`COD_IDADE`.
+`COD_IDADE`. No SINAN: o núcleo comum às fichas (`TP_NOT`, `CS_SEXO`,
+`CS_RACA`, `CS_GESTANT`, `CS_ESCOL_N`, `HOSPITALIZ`) e `IDADE_ANOS` a partir de
+`NU_IDADE_N`.
+
+> **Atenção ao SINAN**: `CLASSI_FIN`, `CRITERIO` e `EVOLUCAO` mudam de sentido
+> entre agravos — `CLASSI_FIN = "1"` é "Dengue clássico" na ficha antiga da
+> dengue e "Confirmado" na da zika. Só são rotulados para dengue, chikungunya e
+> zika, com o dicionário de cada um (`process_sinan(df; agravo = :zika)`, ou
+> inferido de `ID_AGRAVO`); nos demais agravos ficam crus. E os códigos vêm com
+> e sem zero à esquerda no mesmo arquivo (`"01"` e `"1"`): a rotina trata os
+> dois como o mesmo código.
 
 > **Atenção ao SIH**: `SEXO` usa 1 = Masculino e **3** = Feminino (no SIM é 1 e
 > 2), e `RACA_COR` usa `01`–`05` + `99` (no SIM é `1`–`5`, e "Parda" é `4`, não
@@ -270,8 +302,8 @@ dicionário incompleto apagaria dados válidos em silêncio.
 
 Colunas ausentes no layout do ano são ignoradas em silêncio — o layout do
 DATASUS muda entre anos, e a rotina é escrita para sobreviver a isso. As demais
-fontes (SIH, SIA, CNES, SINAN) ainda não têm rotina: devolvem os códigos brutos
-com um `@info`.
+fontes (SIA, CNES) ainda não têm rotina: devolvem os códigos brutos com um
+`@info`.
 
 ## Dimensões auxiliares
 
@@ -292,6 +324,27 @@ eh_agressao(missing)          # false
 df.cod7 = codigo7_ibge.(String.(df.CODMUNRES))
 leftjoin!(df, tabela_ibge; on = :cod7 => :codigo_municipio)
 ```
+
+### Populações e taxas
+
+`populacao(anos; nivel = :municipio)` traz a população residente do IBGE (API
+SIDRA, com cache local) por município, UF (`:uf`) ou Brasil (`:brasil`), de
+2000 em diante — o denominador para transformar contagens em taxas. O
+`codigo6` casa direto com `CODMUNRES`/`MUNIC_RES`:
+
+```julia
+pop = DataFrame(populacao(2022))      # codigo7, codigo6, nome, ano, populacao, fonte
+```
+
+**A série não é homogênea.** Cada ano vem do que o IBGE publicou para ele —
+Censo (2000, 2010, 2022), Contagem (2007) ou estimativa (os demais) —, e a
+coluna `fonte` diz qual. As estimativas de 2011–2021 superestimaram a
+população: o Censo 2022 achou 203,1 milhões de habitantes contra 213,3
+milhões estimados para 2021. No Recife, os óbitos por agressão caíram de 655
+para 636 entre 2021 e 2022, mas a taxa *subiu* de 39,4 para 42,7 por 100 mil
+— só porque o denominador passou da estimativa (1.661.017) para o Censo
+(1.488.920). O IBGE não publicou população para 2023; `interpolar = true`
+interpola entre 2022 e 2024 e registra isso em `fonte`.
 
 ## Utilitários
 
@@ -333,8 +386,9 @@ Três consequências práticas:
   diferentes pode devolver números diferentes. Registre a data de extração
   (ver [Como citar](#como-citar)).
 - **Dados preliminares existem e são sinalizados.** Quando o `baixar` cai numa
-  pasta `PRELIM/`, ele emite `@warn`. Indicador calculado sobre dado
-  preliminar merece asterisco.
+  pasta `PRELIM/`, ele emite `@warn`; `eh_preliminar(caminho)` diz de onde veio
+  cada arquivo, e o `fetch_datasus` marca as linhas na coluna `PRELIMINAR`.
+  Indicador calculado sobre dado preliminar merece asterisco.
 - **Os microdados têm defeitos próprios.** Códigos implausíveis, campos que
   deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
   A documentação registra os que conhecemos — ver

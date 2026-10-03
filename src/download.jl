@@ -14,21 +14,17 @@ porque a existência de partições (`PA...b.dbc`) e de arquivos preliminares
 só pode ser descoberta tentando.
 """
 function baixar_url(url::AbstractString; cache::Bool = true, verbose::Bool = true)
-    destino = joinpath(_dir_cache(), basename(url))
+    destino = _destino_cache(url)
 
     if cache && isfile(destino) && filesize(destino) > 0
         verbose && @info "cache" arquivo = basename(destino)
         return destino
     end
 
-    tmp = destino * ".part"
     try
         verbose && @info "baixando" url
-        Downloads.download(url, tmp)
-        mv(tmp, destino; force = true)
-        return destino
+        return _baixa!(url, destino)
     catch e
-        rm(tmp; force = true)
         if e isa Downloads.RequestError
             # FTP: arquivo inexistente responde com erro de transferência
             # (RETR falhou / 550); HTTP responderia 404.

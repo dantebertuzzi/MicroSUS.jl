@@ -132,35 +132,99 @@ function _novo_vetor(tl::Symbol, c::CampoDBF)
     (tl === :data_ddmmyyyy || tl === :data_yyyymmdd) &&
         return Vector{Union{Missing,Date}}()
     T = _tipo_texto(c.largura)
-    tl === :pool && return PooledArray(T[])
+    # pool de String, não de InlineString: o Arrow não grava dicionário de
+    # InlineString em mais de um record batch ("fatal error writing arrow
+    # data"), e o pool guarda só os valores distintos — custo desprezível.
+    tl === :pool && return PooledArray(String[])
     return T[]
 end
 
-_novos_vetores(t::TabelaDBC) =
-    Any[_novo_vetor(t.tipos[j], t.campos[j]) for j in eachindex(t.campos)]
+# ── conversão por coluna ─────────────────────────────────────────────
+#
+# Um lote é convertido coluna a coluna: o tipo lógico é resolvido uma vez
+# por coluna e o laço sobre as linhas fica estável em tipo. Antes era
+# linha a linha, com `_push_valor!` despachado em tempo de execução para
+# cada campo (os vetores do lote viviam num Vector{Any}): 29 milhões de
+# despachos no DOSP2023 (334 mil registros × 87 campos).
 
-@inline function _push_valor!(v, tl::Symbol, c::CampoDBF,
-                              dados::Vector{UInt8}, enc::Symbol)
+# Texto do campo como `T`, sem String intermediária no caso ASCII (a
+# imensa maioria: códigos, datas, dígitos). Mesma semântica de
+# `decodifica_texto`: espaços e NULs à direita são removidos.
+@inline function _texto(::Type{T}, d::Vector{UInt8}, lo::Int, hi::Int,
+                        enc::Symbol) where {T<:AbstractString}
+    @inbounds while hi ≥ lo && (d[hi] == 0x20 || d[hi] == 0x00)
+        hi -= 1
+    end
+    hi < lo && return T("")
+    ascii = true
+    @inbounds for i in lo:hi
+        if d[i] ≥ 0x80
+            ascii = false
+            break
+        end
+    end
+    if ascii || enc === :utf8 || enc === :raw
+        return T <: InlineString ? T(d, lo, hi - lo + 1) : T(view(d, lo:hi))
+    end
+    return convert(T, decodifica_texto(d, lo, hi, enc))
+end
+
+function _preenche(f::F, ::Type{T}, regs) where {F,T}
+    v = Vector{T}(undef, length(regs))
+    @inbounds for i in eachindex(regs, v)
+        v[i] = f(regs[i])
+    end
+    return v
+end
+
+# Categórica montada direto como PooledArray: cada valor distinto vira
+# String uma vez por lote; as linhas só guardam o índice. Antes, toda
+# linha criava uma String para procurá-la no dicionário.
+function _coluna_pool(::Type{K}, regs, lo, hi, enc) where {K}
+    pool = String[]
+    invpool = Dict{String,UInt32}()
+    vistos = Dict{K,UInt32}()
+    refs = Vector{UInt32}(undef, length(regs))
+    @inbounds for i in eachindex(regs, refs)
+        k = _texto(K, regs[i], lo, hi, enc)
+        r = get(vistos, k, UInt32(0))
+        if r == 0
+            s = String(k)
+            push!(pool, s)
+            r = UInt32(length(pool))
+            vistos[k] = r
+            invpool[s] = r
+        end
+        refs[i] = r
+    end
+    return PooledArray(PooledArrays.RefArray(refs), invpool, pool)
+end
+
+function _coluna(tl::Symbol, c::CampoDBF, regs, enc::Symbol)
     lo = c.offset + 1
     hi = c.offset + c.largura
-    if tl === :inteiro
-        push!(v, _parse_int(dados, lo, hi))
-    elseif tl === :float
-        push!(v, _parse_float(dados, lo, hi))
-    elseif tl === :data_ddmmyyyy
-        push!(v, _parse_data(dados, lo, hi, :ddmmyyyy))
-    elseif tl === :data_yyyymmdd
-        push!(v, _parse_data(dados, lo, hi, :yyyymmdd))
-    elseif tl === :idade_sim
-        push!(v, decodifica_idade_sim(decodifica_texto(dados, lo, hi, enc)))
-    elseif tl === :idade_sinan
-        push!(v, decodifica_idade_sinan(decodifica_texto(dados, lo, hi, enc)))
-    else # :texto, :pool
-        s = decodifica_texto(dados, lo, hi, enc)
-        push!(v, convert(eltype(v), s))
+    tl === :inteiro &&
+        return _preenche(d -> _parse_int(d, lo, hi), Union{Missing,Int32}, regs)
+    tl === :float &&
+        return _preenche(d -> _parse_float(d, lo, hi), Union{Missing,Float64}, regs)
+    tl === :data_ddmmyyyy &&
+        return _preenche(d -> _parse_data(d, lo, hi, :ddmmyyyy), Union{Missing,Date}, regs)
+    tl === :data_yyyymmdd &&
+        return _preenche(d -> _parse_data(d, lo, hi, :yyyymmdd), Union{Missing,Date}, regs)
+    T = _tipo_texto(c.largura)
+    tl === :idade_sim && return _preenche(Union{Missing,Float64}, regs) do d
+        decodifica_idade_sim(_texto(T, d, lo, hi, enc))
     end
-    return nothing
+    tl === :idade_sinan && return _preenche(Union{Missing,Float64}, regs) do d
+        decodifica_idade_sinan(_texto(T, d, lo, hi, enc))
+    end
+    tl === :pool && return _coluna_pool(T, regs, lo, hi, enc)
+    return _preenche(d -> _texto(T, d, lo, hi, enc), T, regs)   # :texto
 end
+
+_converte_lote(t::TabelaDBC, regs) =
+    _fecha_lote(t, Any[_coluna(t.tipos[j], t.campos[j], regs, t.encoding)
+                       for j in eachindex(t.campos)])
 
 _nomes(t::TabelaDBC) = Tuple(c.nome for c in t.campos)
 
@@ -172,27 +236,24 @@ function _canal_lotes(t::TabelaDBC)
     Channel{NamedTuple}(1; spawn = true) do saida
         regs = canal_registros(t.caminho, t.cab;
                                lote = min(t.tamanho_lote, 8_192))
-        vets = _novos_vetores(t)
-        n = 0
+        # os registros são vetores novos (copy no canal_registros): dá para
+        # guardá-los até fechar o lote e converter coluna a coluna
+        pendentes = Vector{Vector{UInt8}}()
+        sizehint!(pendentes, t.tamanho_lote)
         for lote in regs
             for dados in lote
                 if t.filtro !== nothing
-                    r = RegistroDBF(dados, t.cab, t.encoding)
-                    t.filtro(r) || continue
+                    t.filtro(RegistroDBF(dados, t.cab, t.encoding)) || continue
                 end
-                for j in eachindex(t.campos)
-                    _push_valor!(vets[j], t.tipos[j], t.campos[j],
-                                 dados, t.encoding)
-                end
-                n += 1
-                if n ≥ t.tamanho_lote
-                    put!(saida, _fecha_lote(t, vets))
-                    vets = _novos_vetores(t)
-                    n = 0
+                push!(pendentes, dados)
+                if length(pendentes) ≥ t.tamanho_lote
+                    put!(saida, _converte_lote(t, pendentes))
+                    pendentes = Vector{Vector{UInt8}}()
+                    sizehint!(pendentes, t.tamanho_lote)
                 end
             end
         end
-        n > 0 && put!(saida, _fecha_lote(t, vets))
+        isempty(pendentes) || put!(saida, _converte_lote(t, pendentes))
     end
 end
 
@@ -201,7 +262,38 @@ end
 Tables.istable(::Type{TabelaDBC}) = true
 Tables.columnaccess(::Type{TabelaDBC}) = true
 Tables.partitions(t::TabelaDBC) = _canal_lotes(t)
-Tables.columns(t::TabelaDBC) = materializar(t)
+# As colunas são vetores novos, de ninguém: CopiedColumns diz isso ao
+# DataFrame, que de outro modo copiaria tudo de novo (DataFrame(t) ia a
+# 3,6× o tamanho do resultado no DOSP2023).
+Tables.columns(t::TabelaDBC) = Tables.CopiedColumns(materializar(t))
+
+# Acumula os lotes com append! em vez de guardá-los todos e concatenar no
+# fim: cada lote é liberado assim que é anexado, e o pico fica perto do
+# tamanho do resultado em vez do dobro. Os vetores do primeiro lote são
+# nossos (cada lote é alocado do zero), então crescer neles é seguro.
+#
+# `capacidade` é o total de registros quando não há filtro (o cabeçalho
+# diz exatamente quantos são): reservado de antemão, o append! não deixa
+# folga. Com filtro o total é desconhecido, e a folga é devolvida no fim.
+# sizehint! em PooledArray só existe a partir do Julia 1.11 (pelo fallback
+# genérico de AbstractVector); a capacidade que importa é a dos índices
+_reserva!(v::PooledArray, n) = (sizehint!(v.refs, n); v)
+_reserva!(v, n) = sizehint!(v, n)
+
+function _acumula(lotes, capacidade::Union{Nothing,Int})
+    acc = nothing
+    for l in lotes
+        if acc === nothing
+            acc = l
+            capacidade === nothing || foreach(v -> _reserva!(v, capacidade), values(acc))
+        else
+            foreach(append!, values(acc), values(l))
+        end
+    end
+    acc === nothing || capacidade !== nothing ||
+        foreach(v -> _reserva!(v, length(v)), values(acc))
+    return acc
+end
 
 """
     materializar(t::TabelaDBC) -> NamedTuple
@@ -210,12 +302,8 @@ Consome todas as partições e concatena as colunas. É o que
 `DataFrame(t)` chama por baixo via `Tables.columns`.
 """
 function materializar(t::TabelaDBC)
-    partes = collect(_canal_lotes(t))
-    isempty(partes) && return _fecha_lote(t, _novos_vetores(t))
-    length(partes) == 1 && return partes[1]
-    nomes = _nomes(t)
-    return NamedTuple{nomes}(Tuple(
-        reduce(vcat, (p[nome] for p in partes)) for nome in nomes))
+    acc = _acumula(_canal_lotes(t), t.filtro === nothing ? t.cab.n_registros : nothing)
+    return acc === nothing ? _converte_lote(t, Vector{UInt8}[]) : acc
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::TabelaDBC)
@@ -230,4 +318,6 @@ function Base.show(io::IO, ::MIME"text/plain", t::TabelaDBC)
                 rpad(string(c.tipo, "(", c.largura, ")"), 8), " → ", tl)
     end
     t.filtro !== nothing && println(io, "  filtro: ativo")
+    eh_preliminar(t.caminho) &&
+        printstyled(io, "  dados PRELIMINARES (pasta PRELIM/ do DATASUS)\n"; color = :yellow)
 end

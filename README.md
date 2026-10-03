@@ -101,12 +101,10 @@ dengue = DataFrame(ler(sinan_path;
     colunas = [:DT_NOTIFIC, :SG_UF, :ID_MN_RESI, :CLASSI_FIN, :NU_IDADE_N],
     filtro = r -> r[:SG_UF] == "26"))   # Pernambuco
 
-# multi-year download in parallel
+# multi-year download in parallel, a single .arrow
 caminhos = baixar(:sim, "PE"; anos = 2019:2023)
-for c in caminhos
-    converter(c, replace(basename(c), ".dbc" => ".arrow");
-              colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
-end
+converter(caminhos, "do_pe_2019_2023.arrow";
+          colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES, :IDADE, :SEXO])
 ```
 
 ## `ler` — reference
@@ -136,6 +134,25 @@ TabelaDBC — DOPE2023.dbc
     IDADE       C(3)     → idade_sim
     SEXO        C(1)     → pool
 ```
+
+### Several files
+
+`ler` also takes a vector of paths and returns a single table, still streaming
+— batches come out of one file after the other, memory O(`tamanho_lote`):
+
+```julia
+t = ler(baixar(:sim, "PE"; anos = 2014:2023);
+        colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+        filtro = r -> eh_agressao(r[:CAUSABAS]))
+DataFrame(t)          # + an :ARQUIVO column with each row's file
+```
+
+With `uniao = false` (the default), files with different columns are an error,
+and the message says which are missing where; `uniao = true` takes the union and
+fills with `missing`. `origem = nothing` drops the `:ARQUIVO` column. Types are
+unified per column across files — DATASUS widens fields and changes some
+fields' DBF type between years — so every batch has the same schema and
+`converter(caminhos, "out.arrow")` writes a single `.arrow`.
 
 ## Schemas
 
@@ -199,7 +216,7 @@ pe_dengue = DataFrame(ler(baixar_sinan(:dengue; ano = 2024);
     filtro = r -> r[:ID_MN_RESI] == "261110"))   # Petrolina/PE
 ```
 
-Available SINAN diseases: `:dengue`, `:chikungunya`, `:zika`, `:malaria`, `:tuberculose`, `:hanseniase`, `:meningite`, `:violencia`, `:leishmaniose_visceral`, `:leishmaniose_tegumentar`, `:esquistossomose`, `:febre_tifoide`, `:hepatites`, `:intoxicacao_exogena`, `:acidente_animais`.
+There are 48 diseases — from `:dengue`, `:tuberculose` and `:hanseniase` to `:sifilis_congenita`, `:sifilis_gestante`, `:leptospirose`, `:acidente_trabalho` and `:coqueluche`. `agravos_sinan()` lists them all, with the file prefix, the first year published and the `fetch_datasus` identifier (`:sifilis_congenita` → `:SINAN_SIFILIS_CONGENITA`).
 
 > **Malaria**: the SINAN file only covers **extra-Amazonian** notification. Cases in the Amazon region — the large majority — are reported through SIVEP-Malária, which is not part of SINAN and is not served by this FTP. A `MALABR{yy}.dbc` of a few hundred KB is expected, not a truncated download.
 
@@ -220,6 +237,11 @@ rd = fetch_datasus(:SIH_RD; uf = "PE", anos = 2024, meses = 1:6)
 # SINAN: dengue in all of Brazil (national source: uf is ignored)
 dengue = fetch_datasus(:SINAN_DENGUE; anos = 2024)
 
+# only what you need, straight in the reader: ten years of CVLI in PE, three columns
+cvli = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023,
+                     colunas = [:DTOBITO, :CAUSABAS, :CODMUNRES],
+                     filtro = r -> eh_agressao(r[:CAUSABAS]))
+
 # all sources available, including dates of reported/symptom onset
 do_pe.DT_NOTIFIC = coalesce.(do_pe.DT_SIN_PRI, do_pe.DT_NOTIFIC)
 ```
@@ -237,11 +259,11 @@ Current FTP paths (checked against `microdatasus`, Jul 2026):
 | `:cnes` | `CNES/200508_/Dados/ST/` | `ST{UF}{yymm}.dbc` |
 | SINAN | `SINAN/DADOS/FINAIS/` | `{DISEASE}BR{yy}.dbc` (national — use `baixar_sinan`) |
 
-**Preliminary data**: if the consolidated file doesn't exist (recent SIM/SINASC years), `baixar` automatically tries the corresponding `PRELIM/` folder, with a `@warn` — an indicator computed over preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)` builds the preliminary URL directly.
+**Preliminary data**: if the consolidated file doesn't exist (recent SIM/SINASC years), `baixar` automatically tries the corresponding `PRELIM/` folder, with a `@warn` — an indicator computed over preliminary data deserves an asterisk. `url_arquivo(...; prelim = true)` builds the preliminary URL directly. The preliminary file is cached in a `PRELIM/` subfolder, apart from the consolidated file of the same name: the consolidated one is always tried first and replaces the preliminary one once it is out.
 
 **Coverage limits**: SINASC via the helper covers 1996+ (1994–1995 live in `SINASC/1994_1995/` with a different naming pattern — build the URL manually); SIH/SIA cover the post-2008 structure.
 
-## Standardization: `process_sim` / `process_sinasc` / `process_sih`
+## Standardization: `process_sim` / `process_sinasc` / `process_sih` / `process_sinan`
 
 `fetch_datasus` calls the source's standardization routine by default
 (`processar = true`). It replaces codes with readable labels, converts text
@@ -257,7 +279,17 @@ For SIM it labels `SEXO`, `RACACOR`, `ESTCIV`, `ESC`, `LOCOCOR`, `CIRCOBITO`
 and friends, and derives `IDADE_ANOS` in whole years. For SINASC: `PARTO`,
 `GRAVIDEZ`, `ESCMAE`, `ESTCIVMAE`, `CONSULTAS`, `LOCNASC`, `RACACOR`. For SIH:
 `SEXO`, `RACA_COR`, `IDENT`, `CAR_INT`, plus `IDADE_ANOS` from the `IDADE` +
-`COD_IDADE` pair.
+`COD_IDADE` pair. For SINAN: the core shared by every notification form
+(`TP_NOT`, `CS_SEXO`, `CS_RACA`, `CS_GESTANT`, `CS_ESCOL_N`, `HOSPITALIZ`), plus
+`IDADE_ANOS` from `NU_IDADE_N`.
+
+> **Careful with SINAN**: `CLASSI_FIN`, `CRITERIO` and `EVOLUCAO` change meaning
+> between diseases — `CLASSI_FIN = "1"` is "classic dengue" on the old dengue
+> form and "confirmed" on the Zika one. They are labelled only for dengue,
+> chikungunya and Zika, each with its own dictionary
+> (`process_sinan(df; agravo = :zika)`, or inferred from `ID_AGRAVO`); for other
+> diseases they stay raw. Codes also come with and without a leading zero in the
+> same file (`"01"` and `"1"`): the routine treats both as the same code.
 
 > **Careful with SIH**: `SEXO` is 1 = Male and **3** = Female (SIM uses 1 and
 > 2), and `RACA_COR` is `01`–`05` + `99` (SIM uses `1`–`5`, and "Parda" is `4`,
@@ -270,8 +302,8 @@ dictionary would silently erase valid data.
 
 Columns absent from a given year's layout are silently skipped — DATASUS
 layouts change between years, and the routine is written to survive that. The
-remaining sources (SIH, SIA, CNES, SINAN) have no routine yet: they return raw
-codes with an `@info`.
+remaining sources (SIA, CNES) have no routine yet: they return raw codes with
+an `@info`.
 
 ## Auxiliary dimensions
 
@@ -292,6 +324,28 @@ eh_agressao(missing)          # false
 df.cod7 = codigo7_ibge.(String.(df.CODMUNRES))
 leftjoin!(df, tabela_ibge; on = :cod7 => :codigo_municipio)
 ```
+
+### Populations and rates
+
+`populacao(anos; nivel = :municipio)` fetches IBGE's resident population (SIDRA
+API, cached locally) by municipality, state (`:uf`) or Brazil (`:brasil`), from
+2000 on — the denominator that turns counts into rates. `codigo6` joins
+directly with `CODMUNRES`/`MUNIC_RES`:
+
+```julia
+pop = DataFrame(populacao(2022))      # codigo7, codigo6, nome, ano, populacao, fonte
+```
+
+**The series is not homogeneous.** Each year comes from whatever IBGE
+published for it — census (2000, 2010, 2022), count (2007) or estimate (the
+rest) — and the `fonte` column says which. The 2011–2021 estimates
+overestimated the population: the 2022 census found 203.1 million people
+against 213.3 million estimated for 2021. In Recife, assault deaths fell from
+655 to 636 between 2021 and 2022, but the rate *rose* from 39.4 to 42.7 per
+100,000 — only because the denominator switched from the estimate (1,661,017)
+to the census (1,488,920). IBGE published no population for 2023;
+`interpolar = true` interpolates between 2022 and 2024 and records it in
+`fonte`.
 
 ## Utilities
 
@@ -333,8 +387,9 @@ Three practical consequences:
   dates can return different numbers. Record your extraction date (see
   [How to cite](#how-to-cite)).
 - **Preliminary data exists and is flagged.** When `baixar` falls back to a
-  `PRELIM/` folder it emits a `@warn`. An indicator computed over preliminary
-  data deserves an asterisk.
+  `PRELIM/` folder it emits a `@warn`; `eh_preliminar(path)` tells where each
+  file came from, and `fetch_datasus` marks the rows in a `PRELIMINAR` column.
+  An indicator computed over preliminary data deserves an asterisk.
 - **The microdata has defects of its own.** Implausible codes, fields that stop
   being filled mid-series, layouts that change between years. The documentation
   records the ones we know — see

@@ -12,10 +12,16 @@
 Despacha para a rotina de padronização da fonte, se existir. Fontes sem
 rotina implementada devolvem o `DataFrame` inalterado (com um aviso).
 """
-function processar_fonte(id::Symbol, df::DataFrame; verbose::Bool = true)
-    id === :SIM_DO  && return process_sim(df)
-    id === :SINASC  && return process_sinasc(df)
-    id === :SIH_RD  && return process_sih(df)
+function processar_fonte(id::Symbol, df::DataFrame; verbose::Bool = true,
+                         copiar::Bool = true)
+    id === :SIM_DO  && return process_sim(df; copiar)
+    id === :SINASC  && return process_sinasc(df; copiar)
+    id === :SIH_RD  && return process_sih(df; copiar)
+    if startswith(string(id), "SINAN_")
+        agravo = Symbol(lowercase(string(id)[7:end]))
+        return process_sinan(df; agravo = haskey(SINAN_AGRAVOS, agravo) ? agravo : nothing,
+                             copiar)
+    end
     verbose && @info "fonte :$id ainda não tem rotina de padronização; devolvendo dados brutos (use processar = false para silenciar)"
     return df
 end
@@ -24,19 +30,28 @@ _limpa(x::AbstractString) = strip(x)
 _limpa(x) = x
 
 """
-    rotular!(df, col, labels) -> df
+    rotular!(df, col, labels; ignora_zeros = false) -> df
 
 Substitui os códigos da coluna `col` pelos rótulos do dicionário `labels`.
 Códigos ausentes do dicionário (ex.: "9" = ignorado) viram `missing`.
 Não faz nada se a coluna não existir no `DataFrame` — o layout dos arquivos
 do DATASUS varia entre anos.
+
+Com `ignora_zeros = true`, zeros à esquerda são descartados antes da
+consulta (`"01"` e `"1"` dão o mesmo rótulo; `"00"` vira `"0"`): o SINAN
+grava as duas formas no mesmo arquivo.
 """
-function rotular!(df::DataFrame, col::Symbol, labels::Dict{String,String})
+function rotular!(df::DataFrame, col::Symbol, labels::Dict{String,String};
+                  ignora_zeros::Bool = false)
     hasproperty(df, col) || return df
     df[!, col] = map(df[!, col]) do v
         v === missing && return missing
         s = string(_limpa(v))
         isempty(s) && return missing
+        if ignora_zeros && all(isdigit, s)
+            s = lstrip(s, '0')
+            isempty(s) && (s = "0")
+        end
         get(labels, s, missing)
     end
     return df

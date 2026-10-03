@@ -21,6 +21,61 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `municipio(cod)` devolve nome, UF, região e códigos de 6 e 7 dígitos sem
   acesso à rede; `municipios()` devolve a tabela inteira para joins; `uf_de` e
   `regiao` resolvem UF e grande região a partir de sigla ou código.
+- 48 agravos do SINAN, de 16: entram sífilis congênita, em gestante e
+  adquirida, leptospirose, coqueluche, acidente de trabalho, LER/DORT,
+  toxoplasmose congênita e gestacional, varicela e outros. Cada um é aceito
+  por `baixar_sinan`/`url_sinan` e é uma fonte de `fetch_datasus`
+  (`:sifilis_congenita` → `:SINAN_SIFILIS_CONGENITA`). O ano inicial de cada
+  um foi verificado no FTP do DATASUS; `agravos_sinan()` lista todos, e o guia
+  de download tem a tabela com a cobertura e as lacunas (cólera 2023, surtos de
+  DTA 2014, varicela 2020).
+- `process_sinan(df; agravo = :auto)`, aplicado por `fetch_datasus` a toda fonte
+  `:SINAN_*`. Rotula o núcleo comum às fichas (`TP_NOT`, `CS_SEXO`, `CS_RACA`,
+  `CS_GESTANT`, `CS_ESCOL_N`, `HOSPITALIZ`), converte as datas `DT_*` e cria
+  `IDADE_ANOS`. `CLASSI_FIN`, `CRITERIO` e `EVOLUCAO` mudam de sentido entre
+  agravos e só são rotulados para dengue, chikungunya e zika, cada um com seu
+  dicionário — inclusive a ficha da dengue anterior a 2014 (1–4) e a ficha
+  própria da chikungunya de 2014–2016 (1 = confirmado, 2 = descartado), que um
+  dicionário único rotularia como "Dengue clássico". Validado contra
+  DENGBR23, CHIKBR15, ZIKABR23, VIOLBR09 e MALABR22: só viram `missing` os
+  códigos de ignorado (`9`, `I`) e o `0` não documentado.
+- `rotular!(...; ignora_zeros = true)`: `"01"` e `"1"` dão o mesmo rótulo. O
+  SINAN grava as duas formas no mesmo arquivo (ZIKABR23: 1.101 `"01"` e 502
+  `"1"` em `CS_ESCOL_N`); sem isso, metade dos registros viraria `missing`.
+- `ler(caminhos::AbstractVector)`: vários `.dbc`/`.dbf` como uma tabela só
+  (`TabelaConcatenada`), em streaming — os lotes saem de um arquivo depois do
+  outro e a memória continua O(`tamanho_lote`). Os tipos são unificados por
+  coluna (texto de larguras diferentes vira a `InlineString` mais larga,
+  inteiro + decimal vira `Float64`, outra mudança de tipo vira `String` com
+  aviso), então todo lote tem o mesmo schema. `uniao = true` faz a união de
+  layouts diferentes com `missing`; sem ele, a diferença é erro e a mensagem
+  diz o que falta onde. `origem` (padrão `:ARQUIVO`) acrescenta o arquivo de
+  cada linha. Com `colunas`, a ordem da saída é a pedida. Validado com o SIM de
+  PE 2010–2023 (902.936 registros, 100 colunas na união) e o SIH de 2010 + 2016
+  (`DIAGSEC1` só a partir de 2011): idêntico à leitura arquivo a arquivo.
+- `converter` aceita um vetor de caminhos e grava um `.arrow` só.
+- `ler(caminhos; origem = f)`: `origem` também aceita uma função
+  `caminho -> NamedTuple`, cujas chaves viram colunas constantes por arquivo.
+- `process_sim`, `process_sinasc`, `process_sih` e `process_sinan` aceitam
+  `copiar = false`, para padronizar no lugar.
+
+- `eh_preliminar(caminho)` diz se um arquivo veio de uma pasta `PRELIM/` do
+  DATASUS; `fetch_datasus` acrescenta a coluna `PRELIMINAR` e lista num `@warn`
+  os arquivos preliminares do resultado; o `show` de `ler` avisa. Antes, a
+  única marca era um `@warn` no download, que não chegava ao resultado — nem
+  aparecia nas chamadas seguintes, servidas do cache.
+- `populacao(anos; nivel = :municipio, interpolar = false)`: população
+  residente do IBGE por município, UF ou Brasil, de 2000 em diante, pela API
+  SIDRA e com cache local — o denominador das taxas. O `codigo6` casa com
+  `CODMUNRES`/`MUNIC_RES`. Cada linha traz a `fonte` (Censo 2000/2010/2022,
+  Contagem 2007 ou estimativa anual), porque a série não é homogênea: as
+  estimativas de 2011–2021 superestimaram a população (213,3 milhões para
+  2021 contra 203,1 milhões no Censo 2022), e uma taxa que atravesse esses
+  anos salta só pelo denominador — no Recife, os óbitos por agressão caíram de
+  655 para 636 e a taxa subiu de 39,4 para 42,7 por 100 mil. 2023, sem
+  publicação do IBGE, é erro, a não ser com `interpolar = true`. Sem
+  dependência nova: o JSON da SIDRA é lido com regex. Os totais batem com os
+  oficiais (teste de rede).
 
 - `notebooks/sim-pe-2023.ipynb`, linked from both READMEs by a badge that opens it in Google
   Colab, which runs Julia natively. It reads one year of death certificates from Pernambuco
@@ -37,6 +92,45 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   `process_sim` deliberately leaves unlabelled, keeps 8,067 blank occupations that survive
   standardisation looking like data.
 
+### Changed
+
+- A leitura converte cada lote coluna a coluna, em vez de linha a linha. Antes,
+  cada campo de cada registro passava por uma chamada despachada em tempo de
+  execução (29 milhões no `DOSP2023`), o texto virava uma `String` temporária
+  antes da `InlineString`, e cada linha de uma coluna categórica criava uma
+  `String` só para procurá-la no dicionário. Agora o texto ASCII vai direto
+  dos bytes para a `InlineString`, a categórica é montada a partir dos índices
+  (cada valor distinto vira `String` uma vez por lote) e a idade do SIM/SINAN
+  é decodificada sem `String` intermediária. `DOSP2023`: 4,3 → 1,9 s e 60 → 4,6
+  milhões de alocações; `DENGBR23` (1,6 milhão de registros): 17,8 → 5,2 s e
+  384 → 20 milhões de alocações; `fetch_datasus` do SIM de PE 2014–2023: 9,4 →
+  4,7 s. Resultado idêntico, valor e tipo, nas 1.078 colunas de 12 casos
+  (SIM, SINASC, SIH, SINAN, CNES, SIA; lote pequeno, filtro, `pool = false`,
+  outra codificação, vários arquivos).
+- `fetch_datasus` lê os arquivos em streaming, por `ler(caminhos)`, e
+  padroniza o próprio resultado sem copiá-lo. No SIM de PE 2014–2023 (675.806
+  óbitos, 92 colunas) o pico de memória cai de 5,9 para 3,4 GiB, com o mesmo
+  resultado coluna a coluna e o mesmo tempo. Ganha `colunas` e `filtro`, que
+  vão para o leitor: dez anos de CVLI em PE com três colunas ficam em 580 MiB
+  de pico. `UF_ARQUIVO` passa a ser categórica.
+- `DataFrame(ler(...))` não copia mais as colunas (`Tables.columns` devolve
+  `Tables.CopiedColumns`) e a materialização acumula os lotes em vez de
+  guardá-los todos para concatenar no fim: no `DOSP2023`, pico de 2,1 para
+  1,5 GiB.
+
+- Os agravos do SINAN vêm de uma tabela única (`src/agravos.jl`). Eram três
+  listas mantidas à mão — a de `baixar_sinan` (16 agravos), a de
+  `fetch_datasus`/`fontes()` (6) e a de `detecta_sistema` (19 prefixos) — e
+  divergiam: malária estava em `fetch_datasus` mas não era reconhecida como
+  SINAN por `detecta_sistema`, e 10 dos 16 agravos de `baixar_sinan` não
+  existiam em `fontes()`. Todo símbolo e toda fonte que existiam continuam
+  aceitos.
+- `:SINAN_CHIKUNGUNYA` começa em 2014 (era 2015) e `:SINAN_ZIKA` em 2015 (era
+  2016): os dois anos estão publicados.
+- O tipo do elemento das colunas categóricas (`pool = true`) passou de
+  `InlineString` para `String`. Comparações (`== "261110"`) não mudam; código
+  que dependia do tipo exato do elemento, sim.
+
 ### Fixed
 
 - `codigo7_ibge` e `codigo6_ibge` erravam em nove municípios cujo dígito
@@ -46,6 +140,33 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   devolvia 2611531 em vez de 2611533, e `codigo6_ibge(2611533)` rejeitava um
   código válido. As duas agora usam o dígito da tabela oficial e caem no
   algoritmo só para códigos fora dela.
+- `detecta_sistema` olhava só as 4 primeiras letras do nome, o que não serve
+  para prefixos de 3 (`SRCBR21.dbc`, rubéola congênita); agora casa o nome
+  inteiro (`{PREFIXO}BR{aa}.dbc`).
+- `converter` — e `Arrow.write(saida, ler(caminho))`, como a docstring de `ler`
+  sugere — falhava com `fatal error writing arrow data` em todo arquivo que
+  produzisse mais de um lote e tivesse uma coluna categórica: o Arrow não grava
+  o dicionário de um `PooledArray` de `InlineString` em mais de um record batch.
+  Com o lote padrão de 100.000 linhas, isso derrubava a conversão de qualquer
+  UF grande (`DOSP2023`, 334.303 registros). As colunas categóricas agora usam
+  `PooledArray{String}`; o pool guarda só os valores distintos, e a leitura do
+  `DOSP2023` inteiro não mudou de tempo nem de memória. Arrow entrou nas
+  dependências de teste, com um teste de regressão.
+- `converter` grava as colunas categóricas como texto simples, sem
+  dicionário. Com dicionário, um valor que só aparece num lote posterior vira
+  um *delta*, e o leitor do Arrow.jl 2.8 falha de forma intermitente ao abrir
+  o arquivo (`MethodError` em `resize!` de um `DictEncoded`) — o que acontece
+  ao juntar UFs ou anos num `.arrow` só. O `DOSP2023` sai 13% maior (161 MiB
+  contra 142 MiB) e é gravado 3× mais rápido.
+- Preliminar e consolidado têm o mesmo nome de arquivo e eram guardados no
+  mesmo lugar do cache. Um preliminar baixado uma vez passava a ser devolvido
+  para sempre — sem aviso, como se fosse definitivo, e mesmo depois que o
+  DATASUS publicasse o consolidado. Agora o preliminar mora em `PRELIM/` dentro
+  do cache, e o consolidado é sempre tentado antes: quando sai, substitui o
+  preliminar. Vale para `baixar`, `baixar_sinan` e `fetch_datasus`. **Caches
+  montados até a 0.3.1 podem ter preliminares antigos na raiz**: rebaixe os
+  anos recentes com `forcar = true`, ou rode `MicroSUS.limpar_cache()`.
+- `limpar_cache` agora apaga também subpastas do cache.
 
 - Os arquivos do CNES de 2023 não abriam (`descritor de campo truncado`):
   `STPE2312.dbc` e `STBA2312.dbc` trazem `0x00` onde o DBF põe o `0x0D` que

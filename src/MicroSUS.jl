@@ -39,31 +39,35 @@ using Scratch
 using Tables
 
 export ler, materializar, converter, baixar, url_arquivo,
-       baixar_sinan, url_sinan,
+       baixar_sinan, url_sinan, agravos_sinan, eh_preliminar,
        dcl_descomprime, descomprime_dbc_para_dbf,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao,
        normaliza_cid, cid_casa, cids_em, menciona_cid,
-       dv_ibge, codigo7_ibge, codigo6_ibge,
+       dv_ibge, codigo7_ibge, codigo6_ibge, populacao,
        uf_de, regiao, municipio, municipios,
-       CabecalhoDBF, CampoDBF, TabelaDBC, cabecalho,
+       CabecalhoDBF, CampoDBF, TabelaDBC, TabelaConcatenada, cabecalho,
        fetch_datasus, fontes, fonte,
-       process_sim, process_sinasc, process_sih
+       process_sim, process_sinasc, process_sih, process_sinan
 
 include("dcl.jl")
 include("encoding.jl")
 include("dbf.jl")
 include("dbc.jl")
 include("dimensoes.jl")
+include("agravos.jl")
 include("schema.jl")
 include("tables.jl")
+include("multi.jl")
 include("ftp.jl")
 include("download.jl")
+include("populacao.jl")
 include("sources.jl")
 include("process/process.jl")
 include("process/sim.jl")
 include("process/sinasc.jl")
 include("process/sih.jl")
+include("process/sinan.jl")
 include("fetch.jl")
 
 """
@@ -72,6 +76,14 @@ include("fetch.jl")
 Converte um `.dbc`/`.dbf` para Arrow em streaming (um record batch por
 lote), sem materializar o arquivo inteiro. Requer `using Arrow` na
 sessão (extensão condicional). Aceita os mesmos kwargs de [`ler`](@ref).
+
+`entrada` também pode ser um vetor de caminhos: os arquivos vão para um
+único `.arrow`, com schema unificado (ver `ler(caminhos::AbstractVector)`).
+
+As colunas categóricas são gravadas como texto simples, sem dicionário:
+o leitor do Arrow.jl falha de forma intermitente em arquivos cujo
+dicionário cresce de um lote para outro. Por isso `converter` é o caminho
+recomendado em vez de `Arrow.write(saida, ler(caminho))`.
 """
 function converter end
 

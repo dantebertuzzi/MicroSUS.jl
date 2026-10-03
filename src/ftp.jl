@@ -67,6 +67,54 @@ end
 
 _dir_cache() = @get_scratch!("dbc")
 
+# Preliminar e consolidado têm o mesmo nome de arquivo (DOPE2024.dbc nas
+# duas pastas). No mesmo lugar do cache, o preliminar baixado uma vez
+# passava a ser devolvido para sempre — como se fosse definitivo e mesmo
+# depois da consolidação. Por isso o preliminar mora em PRELIM/.
+# separador / ou \: o FTP usa /, mas um file:// montado com joinpath no
+# Windows usa \ (era o que fazia o teste falhar só lá)
+_eh_url_prelim(url::AbstractString) = occursin(r"[/\\]PRELIM[/\\]", url)
+
+function _destino_cache(url::AbstractString)
+    _eh_url_prelim(url) || return joinpath(_dir_cache(), basename(url))
+    dir = mkpath(joinpath(_dir_cache(), "PRELIM"))
+    return joinpath(dir, basename(url))
+end
+
+# baixa para um .part e só então move: download interrompido não deixa
+# arquivo truncado com o nome definitivo no cache
+function _baixa!(url::AbstractString, destino::AbstractString)
+    tmp = destino * ".part"
+    try
+        Downloads.download(url, tmp)
+    catch
+        rm(tmp; force = true)
+        rethrow()
+    end
+    mv(tmp, destino; force = true)
+    return destino
+end
+
+"""
+    eh_preliminar(caminho) -> Bool
+
+`true` se o arquivo veio de uma pasta `PRELIM/` do DATASUS — dado ainda não
+consolidado, sujeito a revisão. [`baixar`](@ref), [`baixar_sinan`](@ref) e
+[`fetch_datasus`](@ref) guardam esses arquivos em `PRELIM/` dentro do cache,
+separados dos consolidados de mesmo nome.
+
+```julia
+c = baixar(:sim, "PE"; ano = 2025)
+eh_preliminar(c)    # true enquanto o DATASUS não consolidar 2025
+```
+"""
+eh_preliminar(caminho::AbstractString) =
+    basename(dirname(abspath(caminho))) == "PRELIM"
+
+# O preliminar também muda: o DATASUS o republica até consolidar. Quem usa
+# o do cache precisa saber de quando ele é.
+_baixado_em(caminho) = Date(unix2datetime(mtime(caminho)))
+
 """
     baixar(sistema, uf; ano = nothing, mes = nothing,
            forcar = false, quieto = false) -> String
@@ -95,51 +143,46 @@ function baixar(sistema::Symbol, uf::AbstractString;
     end
 
     u = url_arquivo(sistema, uf; ano = ano, mes = mes)
-    destino = joinpath(_dir_cache(), basename(u))
+    destino = _destino_cache(u)
     if isfile(destino) && !forcar
         quieto || @info "cache: $destino"
         return destino
     end
-    tmp = destino * ".part"
     try
         quieto || @info "baixando $u"
-        Downloads.download(u, tmp)
+        return _baixa!(u, destino)
     catch e
-        rm(tmp; force = true)
-        # arquivo consolidado inexistente (550) → tenta a pasta PRELIM
-        # (anos recentes do SIM/SINASC ficam lá até a consolidação)
-        if sistema in (:sim, :sinasc)
-            up = url_arquivo(sistema, uf; ano = ano, mes = mes,
-                             prelim = true)
-            @warn "não achei o consolidado; tentando dados PRELIMINARES" url = up
-            try
-                Downloads.download(up, tmp)
-            catch
-                rm(tmp; force = true)
-                rethrow(e)   # erro original, com a URL principal
-            end
-        else
-            rethrow(e)
+        # consolidado inexistente → tenta a pasta PRELIM (anos recentes do
+        # SIM/SINASC ficam lá até a consolidação). O consolidado é sempre
+        # tentado antes, mesmo com o preliminar em cache: é assim que a
+        # versão definitiva substitui a preliminar quando sai.
+        sistema in (:sim, :sinasc) || rethrow()
+        up = url_arquivo(sistema, uf; ano = ano, mes = mes, prelim = true)
+        dp = _destino_cache(up)
+        if isfile(dp) && !forcar
+            @warn "consolidado ainda não publicado; usando dados PRELIMINARES do cache " *
+                  "(o DATASUS os atualiza — `forcar = true` rebaixa)" arquivo = dp baixado_em = _baixado_em(dp)
+            return dp
+        end
+        @warn "não achei o consolidado; tentando dados PRELIMINARES" url = up
+        try
+            return _baixa!(up, dp)
+        catch
+            throw(e)   # erro original, com a URL principal
         end
     end
-    mv(tmp, destino; force = true)
-    return destino
 end
 
 # ── SINAN (arquivos NACIONAIS por agravo, não por UF) ────────────────
 
 const _FTP_SINAN = "$_FTP_BASE/SINAN/DADOS"
 
-# agravo → prefixo do arquivo nacional (AGRAVOBR{aa})
-const _SINAN_AGRAVO = Dict(
-    :dengue => "DENGBR", :chikungunya => "CHIKBR", :chik => "CHIKBR",
-    :zika => "ZIKABR", :malaria => "MALABR",
-    :leishmaniose_visceral => "LEIVBR", :leishmaniose_tegumentar => "LTANBR",
-    :esquistossomose => "ESQUBR", :febre_tifoide => "FTIFBR",
-    :meningite => "MENIBR", :tuberculose => "TUBEBR", :hanseniase => "HANSBR",
-    :hepatites => "HEPABR", :violencia => "VIOLBR",
-    :intoxicacao_exogena => "IEXOBR", :acidente_animais => "ANIMBR",
-)
+# agravo → prefixo do arquivo nacional (AGRAVOBR{aa}), do catálogo único
+# em agravos.jl, mais os nomes alternativos
+const _SINAN_AGRAVO = merge(
+    Dict(a.agravo => a.prefixo * "BR" for a in AGRAVOS_SINAN),
+    Dict(k => only(a.prefixo for a in AGRAVOS_SINAN if a.agravo === v) * "BR"
+         for (k, v) in _ALIASES_AGRAVO))
 
 """
     url_sinan(agravo; ano, prelim = false) -> String
@@ -150,8 +193,8 @@ por residência no [`ler`](@ref) (`SG_UF`/`ID_MN_RESI`). `prelim = true`
 aponta para a pasta de dados preliminares.
 
 Agravos: `:dengue`, `:chikungunya`, `:zika`, `:meningite`,
-`:tuberculose`, `:hanseniase`, `:hepatites`, `:violencia`, … (ver
-`MicroSUS._SINAN_AGRAVO`).
+`:tuberculose`, `:hanseniase`, `:sifilis_congenita`, `:violencia`, … —
+a lista completa, com o ano inicial de cada um, é [`agravos_sinan`](@ref).
 
 Ex.: `url_sinan(:dengue; ano = 2020)` →
 `.../SINAN/DADOS/FINAIS/DENGBR20.dbc`.
@@ -159,7 +202,7 @@ Ex.: `url_sinan(:dengue; ano = 2020)` →
 function url_sinan(agravo::Symbol; ano::Int, prelim::Bool = false)
     pref = get(_SINAN_AGRAVO, agravo, nothing)
     pref === nothing && throw(ArgumentError(
-        "agravo desconhecido: $agravo (veja MicroSUS._SINAN_AGRAVO)"))
+        "agravo desconhecido: $agravo (veja agravos_sinan())"))
     aa = lpad(ano % 100, 2, '0')
     pasta = prelim ? "PRELIM" : "FINAIS"
     return "$_FTP_SINAN/$pasta/$pref$aa.dbc"
@@ -190,20 +233,18 @@ function baixar_sinan(agravo::Symbol; ano::Union{Nothing,Int} = nothing,
     erro = nothing
     for (i, pl) in enumerate(tentativas)
         u = url_sinan(agravo; ano = ano, prelim = pl)
-        destino = joinpath(_dir_cache(), basename(u))
+        destino = _destino_cache(u)
         if isfile(destino) && !forcar
+            pl && @warn "usando dados PRELIMINARES do cache (o DATASUS os atualiza — " *
+                        "`forcar = true` rebaixa)" agravo ano arquivo = destino baixado_em = _baixado_em(destino)
             quieto || @info "cache: $destino"
             return destino
         end
-        tmp = destino * ".part"
         try
             i > 1 && @warn "FINAIS ausente; tentando PRELIM" agravo ano
             quieto || @info "baixando $u"
-            Downloads.download(u, tmp)
-            mv(tmp, destino; force = true)
-            return destino
+            return _baixa!(u, destino)
         catch e
-            rm(tmp; force = true)
             erro = e
         end
     end
@@ -213,12 +254,13 @@ end
 """
     limpar_cache()
 
-Remove todos os `.dbc` baixados do cache local.
+Remove todos os `.dbc` baixados do cache local, inclusive os preliminares
+(subpasta `PRELIM/`).
 """
 function limpar_cache()
     dir = _dir_cache()
     for f in readdir(dir; join = true)
-        rm(f; force = true)
+        rm(f; force = true, recursive = true)
     end
     return dir
 end
