@@ -65,6 +65,10 @@ GitHub without being executed.
 The download needs a runtime that can open an FTP connection: DATASUS publishes over
 `ftp://ftp.datasus.gov.br` and has no HTTPS mirror.
 
+## Compared with microdatasus and PySUS
+
+Reading the same files, the three return identical values (2.55 million records checked cell by cell). MicroSUS ties microdatasus on a single thread for whole SIM/SINASC files and is 1.4–1.7× faster on 16 threads; on the national SINAN file it is 6–13× faster. Filtering in the reader takes 112 MB where microdatasus takes 292 MB, and `process_sim` is 5× faster. Reading a whole SIM/SINASC file uses 2–3× more memory than microdatasus, and Julia's first call pays 2–6 s of compilation. Python's PySUS stack is about 10× slower than both. Method and tables: [`benchmark/`](benchmark/README.md).
+
 ## Quick start
 
 ```julia
