@@ -117,6 +117,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ### Changed
 
+- Compatível com InlineStrings 2 (`InlineStrings = "1, 2"`). O CompatHelper
+  propunha isso desde 5/9/2026, mas não conseguia abrir o PR: o `GITHUB_TOKEN`
+  dos workflows do repositório não tem permissão para criar pull requests, e
+  sobraram 29 branches com a mesma mudança. Suíte inteira passando com
+  InlineStrings 2.0.1 no Julia 1.13 e 1.10, e as 1.078 colunas de comparação
+  idênticas, em valor e tipo, às de InlineStrings 1.
+
 - Com mais de uma thread, as colunas de cada lote são convertidas em
   paralelo (uma tarefa por coluna; lotes com menos de 2.000 linhas ficam na
   thread atual). Acelera também a leitura de um arquivo só: `DOSP2023` 1,72 →
