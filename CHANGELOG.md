@@ -34,6 +34,13 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   da mãe, semanas de gestação, causa incompatível com o sexo). No SIM de PE
   2014–2023 (676 mil óbitos, 1,3 s): o CRM do atestante some a partir de
   2019.
+- Indicadores de mortalidade (RIPSA), por residência e ano, em qualquer nível
+  territorial: `mortalidade_infantil` (e os componentes neonatal precoce,
+  neonatal tardio e pós-neonatal), `razao_mortalidade_materna`,
+  `proporcao_mal_definidas` e `mortalidade_prematura_dcnt` (30–69 anos, as
+  quatro DCNT do Plano de DANT, com a população da SIDRA). Para PE em 2022,
+  todas as contagens batem com o TabNet. `CID_MATERNA` e `CID_DCNT` exportam
+  os recortes.
 
 ## [0.4.1] - 2026-10-03
 
