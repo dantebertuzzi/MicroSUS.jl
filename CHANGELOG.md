@@ -9,6 +9,12 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-04
+
+Nada aqui quebra código existente; a versão sobe o número do meio pelo
+volume de funcionalidade nova. Quem tem `MicroSUS = "0.4"` no `[compat]`
+precisa passar para `"0.4, 0.5"` (ou `"0.5"`) para recebê-la.
+
 ### Added
 
 - Downloads interrompidos são retomados de onde pararam (FTP e `file://`):
@@ -41,6 +47,21 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   quatro DCNT do Plano de DANT, com a população da SIDRA). Para PE em 2022,
   todas as contagens batem com o TabNet. `CID_MATERNA` e `CID_DCNT` exportam
   os recortes.
+
+### Changed
+
+- `proveniencia` ganha a coluna `obtido_de` (o espelho de onde o arquivo
+  veio; `missing` quando veio do DATASUS).
+- O download em andamento fica no cache como `<arquivo>.parcial` (e
+  `.parcial.info`) até terminar, no lugar de um `.part` temporário que era
+  apagado na falha — é o que permite retomar. Dois pedidos simultâneos do
+  mesmo arquivo esperam um pelo outro em vez de baixar em paralelo.
+
+### Documentation
+
+- Benchmark contra o microdatasus (R) e o PySUS (Python) em `benchmark/`:
+  tempo e memória na leitura de SIM, SINASC e SINAN, com os valores das três
+  ferramentas conferidos célula a célula (2,55 milhões de registros).
 
 ## [0.4.1] - 2026-10-03
 
@@ -598,7 +619,8 @@ Mudanças que alteram o resultado de código que já existia:
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.0...v0.3.1

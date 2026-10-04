@@ -434,8 +434,9 @@ Three practical consequences:
   file came from, and `fetch_datasus` marks the rows in a `PRELIMINAR` column.
   An indicator computed over preliminary data deserves an asterisk.
 - **The microdata has defects of its own.** Implausible codes, fields that stop
-  being filled mid-series, layouts that change between years. The documentation
-  records the ones we know — see
+  being filled mid-series, layouts that change between years. `auditar(df)`
+  checks a result for the common ones, and the documentation records the ones
+  we know — see
   [Exemplos intermediários](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos-intermediarios/)
   and the [CHANGELOG](CHANGELOG.md) — but the list is not exhaustive.
 
@@ -465,7 +466,7 @@ APA and BibTeX. A [`CITATION.bib`](CITATION.bib) is also provided:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.4.1},
+  version = {0.5.0},
   doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
@@ -516,7 +517,7 @@ or a transfer. Two DOIs coexist, and they are not interchangeable:
 | DOI | What it identifies |
 |---|---|
 | [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — the project as a whole. Always resolves to the newest version; it is what the badge at the top of this README points at. |
-| one per release | Each archived version gets its own: 0.4.0 is [10.5281/zenodo.23126730](https://doi.org/10.5281/zenodo.23126730), 0.3.1 is [10.5281/zenodo.22164475](https://doi.org/10.5281/zenodo.22164475), 0.3.0 is [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). Zenodo mints a version's DOI only after the release is published, so the newest one is always on the [Zenodo page](https://doi.org/10.5281/zenodo.22164178) before it is here. |
+| one per release | Each archived version gets its own: 0.4.1 is [10.5281/zenodo.23127560](https://doi.org/10.5281/zenodo.23127560), 0.4.0 is [10.5281/zenodo.23126730](https://doi.org/10.5281/zenodo.23126730), 0.3.1 is [10.5281/zenodo.22164475](https://doi.org/10.5281/zenodo.22164475), 0.3.0 is [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). Zenodo mints a version's DOI only after the release is published, so the newest one is always on the [Zenodo page](https://doi.org/10.5281/zenodo.22164178) before it is here. |
 
 The BibTeX above carries the concept DOI, so it keeps working across releases.
 **In a paper, swap it for the DOI of the version you used**: the concept DOI
