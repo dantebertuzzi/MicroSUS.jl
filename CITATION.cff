@@ -16,10 +16,14 @@ abstract: >-
   microdata (DATASUS): constant-memory streaming reads of
   .dbc (PKWare DCL) and .dbf files, per-system typed schemas
   (SIM, SINASC, SIH, SIA, CNES, SINAN), CP850 to UTF-8
-  transcoding, cached downloads with provenance records, and a
-  Tables.jl interface with partitions; plus IBGE population
-  denominators (by age and sex, and by health region) and
-  embedded municipality and ICD-10 tables.
+  transcoding, cached downloads with provenance records,
+  resumable downloads and mirrors, a data manifest that pins
+  the exact files an analysis read, and a Tables.jl interface
+  with partitions; plus IBGE population denominators (by age
+  and sex, and by health region), embedded municipality and
+  ICD-10 tables, data quality audits and the RIPSA mortality
+  indicators (infant, maternal, ill-defined causes, premature
+  NCD mortality).
 keywords:
   - julia
   - datasus
@@ -29,8 +33,8 @@ keywords:
   - brazil
   - dbc
 license: MIT
-version: 0.4.1
-date-released: 2026-10-03
+version: 0.5.0
+date-released: 2026-10-04
 doi: 10.5281/zenodo.22164178
 identifiers:
   - type: doi

@@ -435,7 +435,8 @@ Três consequências práticas:
   Indicador calculado sobre dado preliminar merece asterisco.
 - **Os microdados têm defeitos próprios.** Códigos implausíveis, campos que
   deixam de ser preenchidos no meio de uma série, layouts que mudam entre anos.
-  A documentação registra os que conhecemos — ver
+  `auditar(df)` procura os mais comuns num resultado, e a documentação registra
+  os que conhecemos — ver
   [Exemplos intermediários](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos-intermediarios/)
   e o [CHANGELOG](CHANGELOG.md) —, mas a lista não é exaustiva.
 
@@ -466,7 +467,7 @@ para quem prefere pegar o BibTeX direto:
   author  = {Bertuzzi, Dante},
   title   = {{MicroSUS.jl}: streaming reader for {DATASUS} public health microdata in {Julia}},
   year    = {2026},
-  version = {0.4.1},
+  version = {0.5.0},
   doi     = {10.5281/zenodo.22164178},
   url     = {https://github.com/dantebertuzzi/MicroSUS.jl},
   note    = {Julia package}
@@ -524,7 +525,7 @@ intercambiáveis:
 | DOI | O que identifica |
 |---|---|
 | [10.5281/zenodo.22164178](https://doi.org/10.5281/zenodo.22164178) | *Concept DOI* — o projeto como um todo. Resolve sempre para a versão mais recente; é o que o badge no topo deste README aponta. |
-| um por release | Cada versão arquivada ganha o seu: a 0.4.0 é [10.5281/zenodo.23126730](https://doi.org/10.5281/zenodo.23126730), a 0.3.1 é [10.5281/zenodo.22164475](https://doi.org/10.5281/zenodo.22164475), a 0.3.0 é [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). O Zenodo só cria o DOI de uma versão depois que a release sai, então o mais novo aparece sempre antes na [página do Zenodo](https://doi.org/10.5281/zenodo.22164178) do que aqui. |
+| um por release | Cada versão arquivada ganha o seu: a 0.4.1 é [10.5281/zenodo.23127560](https://doi.org/10.5281/zenodo.23127560), a 0.4.0 é [10.5281/zenodo.23126730](https://doi.org/10.5281/zenodo.23126730), a 0.3.1 é [10.5281/zenodo.22164475](https://doi.org/10.5281/zenodo.22164475), a 0.3.0 é [10.5281/zenodo.22164179](https://doi.org/10.5281/zenodo.22164179). O Zenodo só cria o DOI de uma versão depois que a release sai, então o mais novo aparece sempre antes na [página do Zenodo](https://doi.org/10.5281/zenodo.22164178) do que aqui. |
 
 O BibTeX acima traz o concept DOI, que continua válido a cada release.
 **No artigo, troque pelo DOI da versão que você usou**: o concept DOI diz qual
