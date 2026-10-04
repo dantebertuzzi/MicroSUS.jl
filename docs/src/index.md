@@ -473,6 +473,46 @@ t = ler(caminho; colunas = [:CAUSABAS, :CODMUNRES, linhas...],
                       any(l -> menciona_cid(r[l], dcj), linhas))
 ```
 
+### Auditoria de qualidade
+
+O DATASUS não usa `missing`: a ausência vem codificada, campos param de ser
+preenchidos no meio de uma série, e parte das causas básicas não informa a
+causa de fato. Nada disso aparece num `describe`. [`auditar`](@ref) junta as
+checagens:
+
+```julia
+df = fetch_datasus(:SIM_DO; uf = "PE", anos = 2014:2023)
+auditar(df)
+```
+
+```
+Auditoria — 675806 registros, 2014–2023 (ano de ANO_ARQUIVO)
+
+  Completude: 89 colunas; 17 sempre preenchidas, 3 sempre vazias
+    OBITOPUERP     0.1%
+    EXAME          0.1%
+    …
+
+  Descontinuidades: 2 (campo que muda de preenchimento entre anos)
+    FONTESINF   2014→2015: 100.0% → 0.0%
+    CRM         2018→2019: 97.3% → 0.0%
+
+  Causas básicas: 4.1% mal definidas (R00–R99), 0.1% com código que não vale como causa básica
+
+  Valores implausíveis:
+    idade acima de 120 anos ou negativa (IDADE_ANOS): 4
+    peso fora de 100–7.000 g (PESO): 7
+    semanas de gestação fora de 20–45 (SEMAGESTAC): 512
+```
+
+Em Pernambuco, o CRM do médico atestante deixa de vir nos arquivos a partir
+de 2019 — uma análise que dependa dele quebra ali sem erro nenhum. Os detalhes
+ficam nos campos: `a.completude` (por coluna e ano), `a.descontinuidades`,
+`a.causas` (mal definidas e códigos que não valem como causa básica, por ano)
+e `a.implausiveis` (com as primeiras linhas de cada regra em `exemplos`). Os
+códigos de "ignorado" só contam como ausência nos dados padronizados, onde
+viram `missing`.
+
 ### Baixo nível
 
 ```julia

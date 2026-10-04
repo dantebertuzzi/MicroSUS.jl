@@ -43,7 +43,7 @@ import TOML
 export ler, materializar, converter, baixar, url_arquivo,
        baixar_sinan, url_sinan, agravos_sinan, eh_preliminar,
        verificar_cache, proveniencia, exportar_espelho,
-       travar_dados, restaurar_dados, soltar_dados,
+       travar_dados, restaurar_dados, soltar_dados, auditar,
        dcl_descomprime, descomprime_dbc_para_dbf,
        decodifica_idade_sim, decodifica_idade_sinan, idade_sih,
        capitulo_cid10, eh_agressao, cid10, descricao_cid,
@@ -79,6 +79,7 @@ include("process/cnes.jl")
 include("process/sinan.jl")
 include("fetch.jl")
 include("trava.jl")
+include("auditoria.jl")
 
 """
     converter(entrada, saida; kwargs...)
