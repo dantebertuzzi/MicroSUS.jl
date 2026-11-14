@@ -179,26 +179,52 @@ end
     return convert(T, decodifica_texto(d, lo, hi, enc))
 end
 
+# Cada coluna de um lote tem um conversor: o vetor de saída, alocado para
+# o lote inteiro, e o que preenche uma faixa de linhas dele. Assim o lote é
+# convertido por blocos de linhas (ver `_converte_lote`), e cada coluna
+# continua num laço estável em tipo.
+
 # `f(dados, base)` converte o campo do registro que começa em dados[base + 1]
-function _preenche(f::F, ::Type{T}, regs::LoteRegistros) where {F,T}
-    v = Vector{T}(undef, regs.n)
+struct _ConvVetor{T,F}
+    v::Vector{T}
+    f::F
+end
+_ConvVetor(::Type{T}, f::F, n::Int) where {T,F} = _ConvVetor{T,F}(Vector{T}(undef, n), f)
+
+function _preenche!(c::_ConvVetor, regs::LoteRegistros, faixa::UnitRange{Int})
+    v = c.v
+    f = c.f
     d = regs.dados
-    @inbounds for i in 1:regs.n
+    @inbounds for i in faixa
         v[i] = f(d, _base(regs, i))
     end
-    return v
+    return nothing
 end
+_fecha(c::_ConvVetor) = c.v
 
 # Categórica montada direto como PooledArray: cada valor distinto vira
 # String uma vez por lote; as linhas só guardam o índice. Antes, toda
-# linha criava uma String para procurá-la no dicionário.
-function _coluna_pool(::Type{K}, regs::LoteRegistros, lo, hi, enc) where {K}
-    pool = String[]
-    invpool = Dict{String,UInt32}()
-    vistos = Dict{K,UInt32}()
-    refs = Vector{UInt32}(undef, regs.n)
+# linha criava uma String para procurá-la no dicionário. O dicionário vale
+# para o lote inteiro, entre um bloco e outro: o pool sai na ordem da
+# primeira aparição, como se o lote fosse convertido de uma vez.
+struct _ConvPool{K}
+    lo::Int
+    hi::Int
+    enc::Symbol
+    pool::Vector{String}
+    invpool::Dict{String,UInt32}
+    vistos::Dict{K,UInt32}
+    refs::Vector{UInt32}
+end
+_ConvPool(::Type{K}, lo, hi, enc, n) where {K} =
+    _ConvPool{K}(lo, hi, enc, String[], Dict{String,UInt32}(), Dict{K,UInt32}(),
+                 Vector{UInt32}(undef, n))
+
+function _preenche!(c::_ConvPool{K}, regs::LoteRegistros, faixa::UnitRange{Int}) where {K}
     d = regs.dados
-    @inbounds for i in 1:regs.n
+    lo, hi, enc = c.lo, c.hi, c.enc
+    pool, invpool, vistos, refs = c.pool, c.invpool, c.vistos, c.refs
+    @inbounds for i in faixa
         b = _base(regs, i)
         k = _texto(K, d, b + lo, b + hi, enc)
         r = get(vistos, k, UInt32(0))
@@ -211,48 +237,73 @@ function _coluna_pool(::Type{K}, regs::LoteRegistros, lo, hi, enc) where {K}
         end
         refs[i] = r
     end
-    return PooledArray(PooledArrays.RefArray(refs), invpool, pool)
+    return nothing
 end
+_fecha(c::_ConvPool) = PooledArray(PooledArrays.RefArray(c.refs), c.invpool, c.pool)
 
-function _coluna(tl::Symbol, c::CampoDBF, regs::LoteRegistros, enc::Symbol)
+function _conversor(tl::Symbol, c::CampoDBF, n::Int, enc::Symbol)
     lo = c.offset + 1
     hi = c.offset + c.largura
     tl === :inteiro &&
-        return _preenche((d, b) -> _parse_int(d, b + lo, b + hi), Union{Missing,Int32}, regs)
+        return _ConvVetor(Union{Missing,Int32}, (d, b) -> _parse_int(d, b + lo, b + hi), n)
     tl === :float &&
-        return _preenche((d, b) -> _parse_float(d, b + lo, b + hi), Union{Missing,Float64}, regs)
+        return _ConvVetor(Union{Missing,Float64}, (d, b) -> _parse_float(d, b + lo, b + hi), n)
     tl === :data_ddmmyyyy &&
-        return _preenche((d, b) -> _parse_data(d, b + lo, b + hi, :ddmmyyyy), Union{Missing,Date}, regs)
+        return _ConvVetor(Union{Missing,Date}, (d, b) -> _parse_data(d, b + lo, b + hi, :ddmmyyyy), n)
     tl === :data_yyyymmdd &&
-        return _preenche((d, b) -> _parse_data(d, b + lo, b + hi, :yyyymmdd), Union{Missing,Date}, regs)
+        return _ConvVetor(Union{Missing,Date}, (d, b) -> _parse_data(d, b + lo, b + hi, :yyyymmdd), n)
     T = _tipo_texto(c.largura)
-    tl === :idade_sim && return _preenche(Union{Missing,Float64}, regs) do d, b
-        decodifica_idade_sim(_texto(T, d, b + lo, b + hi, enc))
-    end
-    tl === :idade_sinan && return _preenche(Union{Missing,Float64}, regs) do d, b
-        decodifica_idade_sinan(_texto(T, d, b + lo, b + hi, enc))
-    end
-    tl === :pool && return _coluna_pool(T, regs, lo, hi, enc)
-    return _preenche((d, b) -> _texto(T, d, b + lo, b + hi, enc), T, regs)   # :texto
+    tl === :idade_sim && return _ConvVetor(Union{Missing,Float64},
+        (d, b) -> decodifica_idade_sim(_texto(T, d, b + lo, b + hi, enc)), n)
+    tl === :idade_sinan && return _ConvVetor(Union{Missing,Float64},
+        (d, b) -> decodifica_idade_sinan(_texto(T, d, b + lo, b + hi, enc)), n)
+    tl === :pool && return _ConvPool(T, lo, hi, enc, n)
+    return _ConvVetor(T, (d, b) -> _texto(T, d, b + lo, b + hi, enc), n)   # :texto
 end
 
-# As colunas de um lote são independentes: cada uma lê os mesmos registros
-# (só leitura) e aloca o próprio vetor. Com mais de uma thread, cada
-# coluna vira uma tarefa. Lotes pequenos ficam na thread atual, onde o
+# uma coluna do lote inteiro, de uma vez
+function _coluna(tl::Symbol, c::CampoDBF, regs::LoteRegistros, enc::Symbol)
+    cv = _conversor(tl, c, regs.n, enc)
+    _preenche!(cv, regs, 1:regs.n)
+    return _fecha(cv)
+end
+
+# Conversão por blocos de linhas. Um lote padrão (100 mil registros) tem
+# dezenas de MiB — 50 MiB no DOSP2023, com registros de 490 bytes — e cada
+# coluna lê um campo de cada registro: convertido coluna a coluna, o lote
+# inteiro passava pela memória uma vez por coluna (87 vezes no SIM), sem
+# caber em cache nenhum. Por blocos de `_BYTES_BLOCO`, todas as colunas
+# leem o bloco enquanto ele ainda está no cache.
+const _BYTES_BLOCO = 4 << 20     # 1–8 MiB dão o mesmo tempo no SIM e no SINASC
+
+# As colunas são independentes: cada uma lê os mesmos registros (só
+# leitura) e escreve no próprio vetor. Com mais de uma thread, cada coluna
+# de um bloco vira uma tarefa. Lotes pequenos ficam na thread atual, onde o
 # custo de criar as tarefas pesaria mais que a conversão.
 const _MIN_LINHAS_PARALELO = 2_000
 
-function _converte_lote(t::TabelaDBC, regs::LoteRegistros)
-    col(j) = _coluna(t.tipos[j], t.campos[j], regs, t.encoding)
-    js = eachindex(t.campos)
-    cols = if Threads.nthreads() > 1 && length(js) > 1 &&
-              regs.n ≥ _MIN_LINHAS_PARALELO
-        tarefas = [Threads.@spawn col(j) for j in js]
-        Any[fetch(x) for x in tarefas]
-    else
-        Any[col(j) for j in js]
+_converte_lote(t::TabelaDBC, regs::LoteRegistros) =
+    _converte_lote(t, regs, Threads.nthreads() > 1 && length(t.campos) > 1 &&
+                            regs.n ≥ _MIN_LINHAS_PARALELO)
+
+# `paralelo` explícito: o workload de precompilação roda com uma thread e
+# exercita o ramo paralelo por aqui (as tarefas também rodam numa thread só)
+function _converte_lote(t::TabelaDBC, regs::LoteRegistros, paralelo::Bool)
+    convs = Any[_conversor(t.tipos[j], t.campos[j], regs.n, t.encoding)
+                for j in eachindex(t.campos)]
+    k = max(1, _BYTES_BLOCO ÷ regs.tamanho)
+    for ini in 1:k:regs.n
+        faixa = ini:min(ini + k - 1, regs.n)
+        if paralelo
+            tarefas = [Threads.@spawn _preenche!(cv, regs, faixa) for cv in convs]
+            foreach(wait, tarefas)
+        else
+            for cv in convs
+                _preenche!(cv, regs, faixa)
+            end
+        end
     end
-    return _fecha_lote(t, cols)
+    return _fecha_lote(t, Any[_fecha(cv) for cv in convs])
 end
 
 _nomes(t::TabelaDBC) = Tuple(c.nome for c in t.campos)
@@ -267,12 +318,15 @@ _fecha_lote(t::TabelaDBC, vets) = NamedTuple{_nomes(t)}(Tuple(vets))
 # sem filtro, um `copyto!` por lote do canal; com filtro, um por sequência
 # de registros aceitos seguidos. O buffer cresce sob demanda — um filtro
 # seletivo não reserva `tamanho × tamanho_registro` bytes à toa.
+#
+# O buffer é um só, reutilizado de um lote para o outro: o lote entregue só
+# vale durante a chamada a `entrega` (a conversão copia tudo o que lê). Um
+# buffer novo por lote — dezenas de MB cada, que viravam lixo de uma vez —
+# subia o pico em ~350 MB no DENGBR23 com 16 threads.
 mutable struct _Juntador{E}
     entrega::E
     rsize::Int
     tamanho::Int     # registros por lote entregue
-    inicial::Int     # capacidade inicial (em registros) de cada buffer
-    restam::Int      # registros que ainda devem chegar (sem filtro); senão typemax
     buf::Vector{UInt8}
     n::Int
 end
@@ -286,20 +340,16 @@ function _anexa!(j::_Juntador, src::Vector{UInt8}, de::Int, k::Int)
     j.n += k
     if j.n == j.tamanho
         j.entrega(LoteRegistros(j.buf, j.n, j.rsize))
-        j.restam -= j.n
-        j.buf = Vector{UInt8}(undef, clamp(j.restam, 1, j.inicial) * j.rsize)
         j.n = 0
     end
     return nothing
 end
 
 function _junta_lotes(entrega, regs, cab::CabecalhoDBF, filtro, encoding::Symbol,
-                      tamanho::Int)
+                      tamanho::Int; livres = nothing)
     rsize = cab.tamanho_registro
     inicial = min(tamanho, filtro === nothing ? max(cab.n_registros, 1) : 8_192)
-    restam = filtro === nothing ? cab.n_registros : typemax(Int)
-    j = _Juntador(entrega, rsize, tamanho, inicial, restam,
-                  Vector{UInt8}(undef, inicial * rsize), 0)
+    j = _Juntador(entrega, rsize, tamanho, Vector{UInt8}(undef, inicial * rsize), 0)
     for lote in regs
         i = 1
         while i ≤ lote.n
@@ -328,6 +378,8 @@ function _junta_lotes(entrega, regs, cab::CabecalhoDBF, filtro, encoding::Symbol
             _anexa!(j, lote.dados, i, k)
             i += k + rejeitado
         end
+        # os registros aceitos já foram copiados: o buffer volta ao montador
+        livres === nothing || put!(livres, lote.dados)
     end
     j.n > 0 && entrega(LoteRegistros(j.buf, j.n, rsize))
     return nothing
@@ -335,9 +387,10 @@ end
 
 function _canal_lotes(t::TabelaDBC)
     Channel{NamedTuple}(1; spawn = true) do saida
+        livres = Channel{Vector{UInt8}}(Inf)
         regs = canal_registros(t.caminho, t.cab;
-                               lote = min(t.tamanho_lote, 8_192))
-        _junta_lotes(regs, t.cab, t.filtro, t.encoding, t.tamanho_lote) do lote
+                               lote = min(t.tamanho_lote, 8_192), livres)
+        _junta_lotes(regs, t.cab, t.filtro, t.encoding, t.tamanho_lote; livres) do lote
             put!(saida, _converte_lote(t, lote))
         end
     end

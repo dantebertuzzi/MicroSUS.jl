@@ -720,6 +720,29 @@ end
         @test length(materializar(ler(f; filtro = r -> r[:NOME] == "SÃO JOSÉ")).NOME) == 2
     end
 
+    @testset "conversão por blocos: lote maior que um bloco dá o mesmo resultado" begin
+        dir = mktempdir()
+        # registros de ~3 KiB: um lote de 4 000 atravessa vários blocos de 4 MiB
+        largos = [("L$k", 'C', 250, 0) for k in 1:12]
+        campos = vcat([("ID", 'N', 6, 0), ("CAT", 'C', 3, 0), ("DT", 'D', 8, 0)], largos)
+        n = 4_000
+        linhas = [vcat([i, "c$(i % 17)", "2023$(lpad(1 + i % 12, 2, '0'))15"],
+                       ["$(k)-$(i)" for k in 1:12]) for i in 1:n]
+        f = escreve_dbf(joinpath(dir, "largo.dbf"), campos, linhas)
+        rsize = cabecalho(f).tamanho_registro
+        @test n * rsize > 2 * MicroSUS._BYTES_BLOCO                     # vários blocos
+        sch = Dict(:CAT => :pool)
+        m = materializar(ler(f; schema = sch, tamanho_lote = n))
+        @test m.ID == 1:n
+        @test m.CAT == ["c$(i % 17)" for i in 1:n]
+        @test m.CAT.pool == ["c$(i % 17)" for i in 1:17]               # ordem da 1ª aparição
+        @test m.DT == [Date(2023, 1 + i % 12, 15) for i in 1:n]
+        @test m.L12 == ["12-$(i)" for i in 1:n]
+        # mesmo resultado com lotes de um bloco só
+        p = materializar(ler(f; schema = sch, tamanho_lote = 100))
+        @test all(isequal(getproperty(m, c), getproperty(p, c)) for c in keys(m))
+    end
+
     @testset "lotes contíguos: deletados, fronteiras de lote, filtro uma vez por registro" begin
         dir = mktempdir()
         campos = [("ID", 'N', 6, 0), ("TXT", 'C', 3, 0)]

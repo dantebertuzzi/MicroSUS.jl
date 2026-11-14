@@ -79,8 +79,9 @@ Base.length(l::LoteRegistros) = l.n
 # Estado da montagem, chamado como sink do descompressor. Um objeto com
 # campos tipados, e não uma closure: as variáveis que a closure antiga
 # reatribuía viravam `Core.Box`, instáveis em tipo, no laço mais quente.
-mutable struct _Montador{C}
+mutable struct _Montador{C,L}
     canal::C
+    livres::L         # buffers devolvidos pelo consumidor, ou `nothing`
     rsize::Int
     lote::Int
     n_esperado::Int
@@ -112,7 +113,7 @@ function (m::_Montador)(chunk::AbstractVector{UInt8})
             @inbounds m.dados[base + 1] == 0x2a || (m.n += 1)
             if m.n == m.lote
                 put!(m.canal, LoteRegistros(m.dados, m.n, rsize))
-                m.dados = Vector{UInt8}(undef, m.lote * rsize)
+                m.dados = _buffer(m.livres, m.lote * rsize)
                 m.n = 0
             end
         end
@@ -120,20 +121,31 @@ function (m::_Montador)(chunk::AbstractVector{UInt8})
     return nothing
 end
 
+# Um buffer devolvido, se houver; senão, um novo. Só o montador tira do
+# canal de livres, então `isready` seguido de `take!` não disputa com ninguém.
+_buffer(::Nothing, n::Int) = Vector{UInt8}(undef, n)
+_buffer(livres::Channel{Vector{UInt8}}, n::Int) =
+    isready(livres) ? take!(livres) : Vector{UInt8}(undef, n)
+
 """
-    canal_registros(caminho, cab; lote = 4096) -> Channel{LoteRegistros}
+    canal_registros(caminho, cab; lote = 4096, livres = nothing) -> Channel{LoteRegistros}
 
 Produz lotes de registros brutos ([`MicroSUS.LoteRegistros`](@ref), cada
 registro com `tamanho_registro` bytes, já sem os deletados), lendo `.dbc`
 (descompressão em task separada) ou `.dbf` (leitura direta). A montagem
 lida com registros que atravessam a fronteira dos chunks de 4 KiB da
 janela DCL.
+
+`livres` é um `Channel{Vector{UInt8}}` em que o consumidor devolve o
+`dados` de cada lote depois de usá-lo; o montador reaproveita esses
+buffers em vez de alocar um por lote. Sem ele, cada lote é um buffer novo.
 """
 function canal_registros(caminho::AbstractString, cab::CabecalhoDBF;
-                         lote::Int = 4096)
+                         lote::Int = 4096,
+                         livres::Union{Nothing,Channel{Vector{UInt8}}} = nothing)
     rsize = cab.tamanho_registro
     Channel{LoteRegistros}(2; spawn = true) do canal
-        m = _Montador(canal, rsize, lote, cab.n_registros,
+        m = _Montador(canal, livres, rsize, lote, cab.n_registros,
                       Vector{UInt8}(undef, lote * rsize), 0, 0, 0)
         if _eh_dbc(caminho)
             io, _ = abre_dbc(caminho)

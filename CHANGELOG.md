@@ -28,6 +28,17 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   código já está limpo (o caso dos campos do DATASUS). O filtro de CVLI no
   DOSP2023 cai de 0,49 s para 0,35 s com 1 thread (0,35 s → 0,32 s com 16),
   com o mesmo resultado em 263 mil códigos distintos do SIM.
+- Conversão das colunas por blocos de 4 MiB de registros, em vez de uma
+  coluna inteira por vez: um lote de 100 mil registros (50 MiB no DOSP2023)
+  passava pela memória uma vez por coluna, sem caber em cache. Com 1 thread,
+  `DataFrame(ler(...))` passa de 1,38 s para 0,92 s no DOSP2023 e de 0,26 s
+  para 0,15 s no DOPE2023, e `process_sim` no DOSP2023 de 1,95 s para 1,25 s;
+  com 16 threads o ganho é pequeno (o limite é a descompressão). Mesmos
+  valores, e mesma ordem do pool nas colunas categóricas.
+- Os buffers de registros brutos são reaproveitados de um lote para o
+  outro, em vez de um novo por lote: sem isso, o pico de memória do
+  DENGBR23 com 16 threads subia de ~1640 MB (0.5.0) para ~1990 MB; agora
+  fica em ~1730 MB, dentro da variação entre execuções.
 - Workload de precompilação (PrecompileTools): a primeira leitura da sessão
   não paga mais a compilação — no DOPE2023 com 1 thread, de 3,3 s para
   0,5 s. Nova dependência: PrecompileTools.
