@@ -46,7 +46,7 @@ julia --project=docs docs/make.jl     # saída em docs/build/index.html
 
 Documentação: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** — comece pelos [Exemplos práticos (iniciantes)](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos/) se for a sua primeira vez. Histórico de versões em [CHANGELOG.md](CHANGELOG.md).
 
-Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates, SHA. Arrow é opcional (weak dep).
+Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, PrecompileTools, Scratch, Downloads, Dates, SHA. Arrow é opcional (weak dep).
 
 ## Notebook
 
