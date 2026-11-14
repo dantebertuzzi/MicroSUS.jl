@@ -179,10 +179,12 @@ end
     return convert(T, decodifica_texto(d, lo, hi, enc))
 end
 
-function _preenche(f::F, ::Type{T}, regs) where {F,T}
-    v = Vector{T}(undef, length(regs))
-    @inbounds for i in eachindex(regs, v)
-        v[i] = f(regs[i])
+# `f(dados, base)` converte o campo do registro que começa em dados[base + 1]
+function _preenche(f::F, ::Type{T}, regs::LoteRegistros) where {F,T}
+    v = Vector{T}(undef, regs.n)
+    d = regs.dados
+    @inbounds for i in 1:regs.n
+        v[i] = f(d, _base(regs, i))
     end
     return v
 end
@@ -190,13 +192,15 @@ end
 # Categórica montada direto como PooledArray: cada valor distinto vira
 # String uma vez por lote; as linhas só guardam o índice. Antes, toda
 # linha criava uma String para procurá-la no dicionário.
-function _coluna_pool(::Type{K}, regs, lo, hi, enc) where {K}
+function _coluna_pool(::Type{K}, regs::LoteRegistros, lo, hi, enc) where {K}
     pool = String[]
     invpool = Dict{String,UInt32}()
     vistos = Dict{K,UInt32}()
-    refs = Vector{UInt32}(undef, length(regs))
-    @inbounds for i in eachindex(regs, refs)
-        k = _texto(K, regs[i], lo, hi, enc)
+    refs = Vector{UInt32}(undef, regs.n)
+    d = regs.dados
+    @inbounds for i in 1:regs.n
+        b = _base(regs, i)
+        k = _texto(K, d, b + lo, b + hi, enc)
         r = get(vistos, k, UInt32(0))
         if r == 0
             s = String(k)
@@ -210,26 +214,26 @@ function _coluna_pool(::Type{K}, regs, lo, hi, enc) where {K}
     return PooledArray(PooledArrays.RefArray(refs), invpool, pool)
 end
 
-function _coluna(tl::Symbol, c::CampoDBF, regs, enc::Symbol)
+function _coluna(tl::Symbol, c::CampoDBF, regs::LoteRegistros, enc::Symbol)
     lo = c.offset + 1
     hi = c.offset + c.largura
     tl === :inteiro &&
-        return _preenche(d -> _parse_int(d, lo, hi), Union{Missing,Int32}, regs)
+        return _preenche((d, b) -> _parse_int(d, b + lo, b + hi), Union{Missing,Int32}, regs)
     tl === :float &&
-        return _preenche(d -> _parse_float(d, lo, hi), Union{Missing,Float64}, regs)
+        return _preenche((d, b) -> _parse_float(d, b + lo, b + hi), Union{Missing,Float64}, regs)
     tl === :data_ddmmyyyy &&
-        return _preenche(d -> _parse_data(d, lo, hi, :ddmmyyyy), Union{Missing,Date}, regs)
+        return _preenche((d, b) -> _parse_data(d, b + lo, b + hi, :ddmmyyyy), Union{Missing,Date}, regs)
     tl === :data_yyyymmdd &&
-        return _preenche(d -> _parse_data(d, lo, hi, :yyyymmdd), Union{Missing,Date}, regs)
+        return _preenche((d, b) -> _parse_data(d, b + lo, b + hi, :yyyymmdd), Union{Missing,Date}, regs)
     T = _tipo_texto(c.largura)
-    tl === :idade_sim && return _preenche(Union{Missing,Float64}, regs) do d
-        decodifica_idade_sim(_texto(T, d, lo, hi, enc))
+    tl === :idade_sim && return _preenche(Union{Missing,Float64}, regs) do d, b
+        decodifica_idade_sim(_texto(T, d, b + lo, b + hi, enc))
     end
-    tl === :idade_sinan && return _preenche(Union{Missing,Float64}, regs) do d
-        decodifica_idade_sinan(_texto(T, d, lo, hi, enc))
+    tl === :idade_sinan && return _preenche(Union{Missing,Float64}, regs) do d, b
+        decodifica_idade_sinan(_texto(T, d, b + lo, b + hi, enc))
     end
     tl === :pool && return _coluna_pool(T, regs, lo, hi, enc)
-    return _preenche(d -> _texto(T, d, lo, hi, enc), T, regs)   # :texto
+    return _preenche((d, b) -> _texto(T, d, b + lo, b + hi, enc), T, regs)   # :texto
 end
 
 # As colunas de um lote são independentes: cada uma lê os mesmos registros
@@ -238,11 +242,11 @@ end
 # custo de criar as tarefas pesaria mais que a conversão.
 const _MIN_LINHAS_PARALELO = 2_000
 
-function _converte_lote(t::TabelaDBC, regs)
+function _converte_lote(t::TabelaDBC, regs::LoteRegistros)
     col(j) = _coluna(t.tipos[j], t.campos[j], regs, t.encoding)
     js = eachindex(t.campos)
     cols = if Threads.nthreads() > 1 && length(js) > 1 &&
-              length(regs) ≥ _MIN_LINHAS_PARALELO
+              regs.n ≥ _MIN_LINHAS_PARALELO
         tarefas = [Threads.@spawn col(j) for j in js]
         Any[fetch(x) for x in tarefas]
     else
@@ -257,28 +261,85 @@ _fecha_lote(t::TabelaDBC, vets) = NamedTuple{_nomes(t)}(Tuple(vets))
 
 # ── produção de partições ────────────────────────────────────────────
 
+# Junta os lotes brutos do `canal_registros` (até 8 192 registros) em lotes
+# de `tamanho` registros que passaram no filtro, num buffer contíguo, e
+# entrega cada um a `entrega`. Os registros aceitos são copiados em bloco:
+# sem filtro, um `copyto!` por lote do canal; com filtro, um por sequência
+# de registros aceitos seguidos. O buffer cresce sob demanda — um filtro
+# seletivo não reserva `tamanho × tamanho_registro` bytes à toa.
+mutable struct _Juntador{E}
+    entrega::E
+    rsize::Int
+    tamanho::Int     # registros por lote entregue
+    inicial::Int     # capacidade inicial (em registros) de cada buffer
+    restam::Int      # registros que ainda devem chegar (sem filtro); senão typemax
+    buf::Vector{UInt8}
+    n::Int
+end
+
+# anexa k registros de `src`, a partir do de-ésimo; entrega se encheu
+function _anexa!(j::_Juntador, src::Vector{UInt8}, de::Int, k::Int)
+    if (j.n + k) * j.rsize > length(j.buf)
+        resize!(j.buf, min(j.tamanho, max(2j.n, j.n + k)) * j.rsize)
+    end
+    copyto!(j.buf, j.n * j.rsize + 1, src, (de - 1) * j.rsize + 1, k * j.rsize)
+    j.n += k
+    if j.n == j.tamanho
+        j.entrega(LoteRegistros(j.buf, j.n, j.rsize))
+        j.restam -= j.n
+        j.buf = Vector{UInt8}(undef, clamp(j.restam, 1, j.inicial) * j.rsize)
+        j.n = 0
+    end
+    return nothing
+end
+
+function _junta_lotes(entrega, regs, cab::CabecalhoDBF, filtro, encoding::Symbol,
+                      tamanho::Int)
+    rsize = cab.tamanho_registro
+    inicial = min(tamanho, filtro === nothing ? max(cab.n_registros, 1) : 8_192)
+    restam = filtro === nothing ? cab.n_registros : typemax(Int)
+    j = _Juntador(entrega, rsize, tamanho, inicial, restam,
+                  Vector{UInt8}(undef, inicial * rsize), 0)
+    for lote in regs
+        i = 1
+        while i ≤ lote.n
+            if filtro === nothing
+                k = min(lote.n - i + 1, tamanho - j.n)
+                _anexa!(j, lote.dados, i, k)
+                i += k
+                continue
+            end
+            if !filtro(RegistroDBF(lote.dados, _base(lote, i), cab, encoding))
+                i += 1
+                continue
+            end
+            # i foi aceito; estende a sequência de aceitos seguidos (cada
+            # registro passa pelo filtro uma vez só)
+            k = 1
+            rejeitado = false
+            while i + k ≤ lote.n && j.n + k < tamanho
+                if filtro(RegistroDBF(lote.dados, _base(lote, i + k), cab, encoding))
+                    k += 1
+                else
+                    rejeitado = true
+                    break
+                end
+            end
+            _anexa!(j, lote.dados, i, k)
+            i += k + rejeitado
+        end
+    end
+    j.n > 0 && entrega(LoteRegistros(j.buf, j.n, rsize))
+    return nothing
+end
+
 function _canal_lotes(t::TabelaDBC)
     Channel{NamedTuple}(1; spawn = true) do saida
         regs = canal_registros(t.caminho, t.cab;
                                lote = min(t.tamanho_lote, 8_192))
-        # os registros são vetores novos (copy no canal_registros): dá para
-        # guardá-los até fechar o lote e converter coluna a coluna
-        pendentes = Vector{Vector{UInt8}}()
-        sizehint!(pendentes, t.tamanho_lote)
-        for lote in regs
-            for dados in lote
-                if t.filtro !== nothing
-                    t.filtro(RegistroDBF(dados, t.cab, t.encoding)) || continue
-                end
-                push!(pendentes, dados)
-                if length(pendentes) ≥ t.tamanho_lote
-                    put!(saida, _converte_lote(t, pendentes))
-                    pendentes = Vector{Vector{UInt8}}()
-                    sizehint!(pendentes, t.tamanho_lote)
-                end
-            end
+        _junta_lotes(regs, t.cab, t.filtro, t.encoding, t.tamanho_lote) do lote
+            put!(saida, _converte_lote(t, lote))
         end
-        isempty(pendentes) || put!(saida, _converte_lote(t, pendentes))
     end
 end
 
@@ -328,7 +389,8 @@ Consome todas as partições e concatena as colunas. É o que
 """
 function materializar(t::TabelaDBC)
     acc = _acumula(_canal_lotes(t), t.filtro === nothing ? t.cab.n_registros : nothing)
-    return acc === nothing ? _converte_lote(t, Vector{UInt8}[]) : acc
+    return acc === nothing ?
+        _converte_lote(t, LoteRegistros(UInt8[], 0, t.cab.tamanho_registro)) : acc
 end
 
 function Base.show(io::IO, ::MIME"text/plain", t::TabelaDBC)

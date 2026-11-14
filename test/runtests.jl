@@ -708,6 +708,33 @@ end
         @test length(materializar(ler(f; filtro = r -> r[:NOME] == "SÃO JOSÉ")).NOME) == 2
     end
 
+    @testset "lotes contíguos: deletados, fronteiras de lote, filtro uma vez por registro" begin
+        dir = mktempdir()
+        campos = [("ID", 'N', 6, 0), ("TXT", 'C', 3, 0)]
+        n = 20_000                                   # > 8 192: vários lotes do canal
+        h, rsize = monta_cabecalho_dbf(campos, n)
+        corpo = monta_registros(campos, [[i, "x$(i % 10)"] for i in 1:n])
+        deletado(i) = i % 7 == 0
+        for i in 1:n
+            deletado(i) && (corpo[(i - 1) * rsize + 1] = 0x2a)
+        end
+        dbf = joinpath(dir, "lotes.dbf")
+        open(io -> (write(io, h); write(io, corpo); write(io, 0x1a)), dbf, "w")
+        dbc = joinpath(dir, "lotes.dbc")
+        open(io -> (write(io, h); write(io, zeros(UInt8, 4)); write(io, comprime_dcl(corpo))), dbc, "w")
+        vivos = [i for i in 1:n if !deletado(i)]
+        for f in (dbf, dbc), lote in (1, 5, 8_192, 100_000)
+            @test materializar(ler(f; tamanho_lote = lote)).ID == vivos
+            chamadas = Ref(0)
+            m = materializar(ler(f; tamanho_lote = lote,
+                                 filtro = r -> (chamadas[] += 1; parse(Int, r[:ID]) % 3 != 0)))
+            @test m.ID == filter(i -> i % 3 != 0, vivos)
+            @test m.TXT == ["x$(i % 10)" for i in m.ID]
+            @test chamadas[] == length(vivos)
+            @test all(length(p.ID) ≤ lote for p in Tables.partitions(ler(f; tamanho_lote = lote)))
+        end
+    end
+
     @testset "encoding pelo LDID e pelo sistema (CNES é CP1252)" begin
         @test MicroSUS.encoding_do_ldid(0x02) === :cp850
         @test MicroSUS.encoding_do_ldid(0x00) === :cp850

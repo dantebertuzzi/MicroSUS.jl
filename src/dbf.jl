@@ -108,17 +108,21 @@ do campo (trim + transcodificação), parseando só o que for pedido —
 """
 struct RegistroDBF
     dados::Vector{UInt8}
+    base::Int            # o registro começa em dados[base + 1]
     cab::CabecalhoDBF
     encoding::Symbol
 end
+
+RegistroDBF(dados::Vector{UInt8}, cab::CabecalhoDBF, encoding::Symbol) =
+    RegistroDBF(dados, 0, cab, encoding)
 
 _nome_campo(nome::Symbol) = Symbol(uppercase(String(nome)))
 
 function Base.getindex(r::RegistroDBF, nome::Symbol)
     c = get(r.cab.indice, _nome_campo(nome), nothing)
     c === nothing && throw(KeyError(nome))
-    return decodifica_texto(r.dados, c.offset + 1, c.offset + c.largura,
-                            r.encoding)
+    lo = r.base + c.offset + 1
+    return decodifica_texto(r.dados, lo, lo + c.largura - 1, r.encoding)
 end
 
 Base.keys(r::RegistroDBF) = (c.nome for c in r.cab.campos)
@@ -127,4 +131,3 @@ Base.keys(r::RegistroDBF) = (c.nome for c in r.cab.campos)
 # (as linhas da DO, DIAGSEC1 no SIH) — `r[:CAMPO]` daria KeyError neles
 Base.haskey(r::RegistroDBF, nome::Symbol) = haskey(r.cab.indice, _nome_campo(nome))
 
-_deletado(registro::AbstractVector{UInt8}) = registro[1] == 0x2a  # '*'

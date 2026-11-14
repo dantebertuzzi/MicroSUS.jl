@@ -1,7 +1,7 @@
 name = "MicroSUS"
 uuid = "cf66faa3-c0ab-41b5-b901-e1d7c735fa13"
-authors = ["Dante Bertuzzi"]
 version = "0.5.0"
+authors = ["Dante Bertuzzi"]
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
@@ -9,6 +9,7 @@ Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 InlineStrings = "842dd82b-1e85-43dc-bf29-5d0ee9dffc48"
 PooledArrays = "2dfb63ee-cc39-5dd5-95bd-886bf059d720"
+PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
 SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
 Scratch = "6c6a2e73-6563-6170-7368-637461726353"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
@@ -27,6 +28,7 @@ Dates = "1"
 Downloads = "1"
 InlineStrings = "1"
 PooledArrays = "1"
+PrecompileTools = "1"
 SHA = "0.7, 1"
 Scratch = "1"
 TOML = "1"
