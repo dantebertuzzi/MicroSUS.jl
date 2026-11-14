@@ -318,12 +318,15 @@ _fecha_lote(t::TabelaDBC, vets) = NamedTuple{_nomes(t)}(Tuple(vets))
 # sem filtro, um `copyto!` por lote do canal; com filtro, um por sequência
 # de registros aceitos seguidos. O buffer cresce sob demanda — um filtro
 # seletivo não reserva `tamanho × tamanho_registro` bytes à toa.
+#
+# O buffer é um só, reutilizado de um lote para o outro: o lote entregue só
+# vale durante a chamada a `entrega` (a conversão copia tudo o que lê). Um
+# buffer novo por lote — dezenas de MB cada, que viravam lixo de uma vez —
+# subia o pico em ~350 MB no DENGBR23 com 16 threads.
 mutable struct _Juntador{E}
     entrega::E
     rsize::Int
     tamanho::Int     # registros por lote entregue
-    inicial::Int     # capacidade inicial (em registros) de cada buffer
-    restam::Int      # registros que ainda devem chegar (sem filtro); senão typemax
     buf::Vector{UInt8}
     n::Int
 end
@@ -337,20 +340,16 @@ function _anexa!(j::_Juntador, src::Vector{UInt8}, de::Int, k::Int)
     j.n += k
     if j.n == j.tamanho
         j.entrega(LoteRegistros(j.buf, j.n, j.rsize))
-        j.restam -= j.n
-        j.buf = Vector{UInt8}(undef, clamp(j.restam, 1, j.inicial) * j.rsize)
         j.n = 0
     end
     return nothing
 end
 
 function _junta_lotes(entrega, regs, cab::CabecalhoDBF, filtro, encoding::Symbol,
-                      tamanho::Int)
+                      tamanho::Int; livres = nothing)
     rsize = cab.tamanho_registro
     inicial = min(tamanho, filtro === nothing ? max(cab.n_registros, 1) : 8_192)
-    restam = filtro === nothing ? cab.n_registros : typemax(Int)
-    j = _Juntador(entrega, rsize, tamanho, inicial, restam,
-                  Vector{UInt8}(undef, inicial * rsize), 0)
+    j = _Juntador(entrega, rsize, tamanho, Vector{UInt8}(undef, inicial * rsize), 0)
     for lote in regs
         i = 1
         while i ≤ lote.n
@@ -379,6 +378,8 @@ function _junta_lotes(entrega, regs, cab::CabecalhoDBF, filtro, encoding::Symbol
             _anexa!(j, lote.dados, i, k)
             i += k + rejeitado
         end
+        # os registros aceitos já foram copiados: o buffer volta ao montador
+        livres === nothing || put!(livres, lote.dados)
     end
     j.n > 0 && entrega(LoteRegistros(j.buf, j.n, rsize))
     return nothing
@@ -386,9 +387,10 @@ end
 
 function _canal_lotes(t::TabelaDBC)
     Channel{NamedTuple}(1; spawn = true) do saida
+        livres = Channel{Vector{UInt8}}(Inf)
         regs = canal_registros(t.caminho, t.cab;
-                               lote = min(t.tamanho_lote, 8_192))
-        _junta_lotes(regs, t.cab, t.filtro, t.encoding, t.tamanho_lote) do lote
+                               lote = min(t.tamanho_lote, 8_192), livres)
+        _junta_lotes(regs, t.cab, t.filtro, t.encoding, t.tamanho_lote; livres) do lote
             put!(saida, _converte_lote(t, lote))
         end
     end

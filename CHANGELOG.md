@@ -35,6 +35,10 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   para 0,15 s no DOPE2023, e `process_sim` no DOSP2023 de 1,95 s para 1,25 s;
   com 16 threads o ganho é pequeno (o limite é a descompressão). Mesmos
   valores, e mesma ordem do pool nas colunas categóricas.
+- Os buffers de registros brutos são reaproveitados de um lote para o
+  outro, em vez de um novo por lote: sem isso, o pico de memória do
+  DENGBR23 com 16 threads subia de ~1640 MB (0.5.0) para ~1990 MB; agora
+  fica em ~1730 MB, dentro da variação entre execuções.
 - Workload de precompilação (PrecompileTools): a primeira leitura da sessão
   não paga mais a compilação — no DOPE2023 com 1 thread, de 3,3 s para
   0,5 s. Nova dependência: PrecompileTools.
