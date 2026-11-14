@@ -7,6 +7,12 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
     continue-on-error: ${{ matrix.julia-version == 'nightly' }}
+    # O glibc recente (Ubuntu do runner) recusa bibliotecas que pedem pilha
+    # executável, e o libopenlibm.so do binário oficial do Julia 1.9 pede:
+    # sem isto o Julia 1.9 nem abre ("cannot enable executable stack"). Não
+    # tem efeito nas versões novas do Julia nem nos outros sistemas.
+    env:
+      GLIBC_TUNABLES: ${{ matrix.julia-version == '1.9' && 'glibc.rtld.execstack=2' || '' }}
     strategy:
       fail-fast: false
       matrix:

@@ -145,11 +145,25 @@ function _casa_alvo(c::String, (ini, fim)::Pair{<:AbstractString,<:AbstractStrin
     length(fim) == n ||
         throw(ArgumentError("faixa de CID com extremos de tamanhos diferentes: $ini => $fim"))
     length(c) ≥ n || return false
-    # SubString em vez de first(c, n), que alocaria uma String; em ASCII o
-    # n-ésimo caractere é o n-ésimo byte. Dois ramos, e não um `pre` que ora
-    # é SubString, ora String: a união faria a SubString ir para o heap.
-    isascii(c) && return ini ≤ SubString(c, 1, n) ≤ fim
+    # Em ASCII, os n primeiros caracteres são os n primeiros bytes: compara
+    # direto nos bytes, sem first(c, n) (que aloca uma String) nem SubString
+    # (que alguns compiladores, como o do Julia 1.9, não tiram do heap). Dá
+    # o mesmo que `ini ≤ first(c, n) ≤ fim`: String se compara byte a byte,
+    # e em UTF-8 válido a ordem dos bytes é a dos caracteres.
+    isascii(c) && return _cmp_prefixo(ini, c, n) ≤ 0 && _cmp_prefixo(fim, c, n) ≥ 0
     return ini ≤ first(c, n) ≤ fim
+end
+
+# cmp(a, os n primeiros bytes de c), byte a byte
+function _cmp_prefixo(a::AbstractString, c::String, n::Int)
+    ua = codeunits(a)
+    m = length(ua)
+    @inbounds for i in 1:min(m, n)
+        x = ua[i]
+        y = codeunit(c, i)
+        x == y || return x < y ? -1 : 1
+    end
+    return cmp(m, n)
 end
 
 const _Alvo = Union{AbstractString,Pair{<:AbstractString,<:AbstractString}}
@@ -174,8 +188,16 @@ cid_casa(cid, alvo::_Alvo) = cid_casa(cid, (alvo,))
 function cid_casa(cid, alvos)
     c = normaliza_cid(cid)
     isempty(c) && return false
-    return any(a -> _casa_alvo(c, a), alvos)
+    return _casa_algum(c, alvos)
 end
+
+# Tuplas (como CID_AGRESSAO, com uma faixa e um prefixo) por recursão: um
+# `any` com closure sobre tupla heterogênea não é desenrolado em todo Julia
+# (no 1.9 alocava a cada chamada); vetores e afins, pelo `any`.
+_casa_algum(c::String, alvos::Tuple) =
+    _casa_alvo(c, first(alvos)) || _casa_algum(c, Base.tail(alvos))
+_casa_algum(::String, ::Tuple{}) = false
+_casa_algum(c::String, alvos) = any(a -> _casa_alvo(c, a), alvos)
 
 const _RE_CID = r"[A-Z][0-9]{2}[0-9X]?"
 

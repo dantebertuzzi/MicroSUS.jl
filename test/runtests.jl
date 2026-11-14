@@ -564,9 +564,16 @@ end
         @test !eh_agressao("X84Z") && !eh_agressao("Y10") && !eh_agressao("Y87")
         @test eh_agressao("Y09") && !eh_agressao("Y0")               # curto demais p/ a faixa
         @test cid_casa("ÇX85", "Ç" => "Ç") && !cid_casa("ÇX85", "X85" => "Y09")   # não ASCII
+        # sem alocação nas versões lançadas; o nightly muda de compilador e
+        # pode alocar onde a versão estável não aloca
         aloca(f, x) = (f(x); @allocated f(x))
-        @test aloca(eh_agressao, "X954") == 0
-        @test aloca(eh_agressao, "Y871") == 0
+        if isempty(VERSION.prerelease)
+            @test aloca(eh_agressao, "X954") == 0
+            @test aloca(eh_agressao, "Y871") == 0
+            @test aloca(x -> cid_casa(x, ("I21", "J12" => "J18")), "J189") == 0
+        end
+        @test cid_casa("J189", ("I21", "J12" => "J18")) && !cid_casa("J19", ("I21", "J12" => "J18"))
+        @test cid_casa("I219", ("I21", "J12" => "J18")) && !cid_casa("I22", ())
 
         @test cids_em("*I219*E149") == ["I219", "E149"]
         @test cids_em("*j18x  r092") == ["J18X", "R092"]
