@@ -9,43 +9,46 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-14
+
+Só desempenho: nenhuma função nova, nenhuma mudança de comportamento, e os
+valores lidos são os mesmos da 0.5.0 — conferidos célula a célula em
+DOPE2023, DOSP2023, DNSP2023 e DENGBR23, com 1 e 16 threads, inclusive a
+ordem do pool das colunas categóricas. Nova dependência: PrecompileTools.
+
 ### Changed
 
-- Leitura mais rápida, com valores idênticos (conferidos célula a célula
-  contra a 0.5.0 em DOPE2023, DOSP2023 e DNSP2023, com 1 e 16 threads):
-  - O descompressor DCL lê o fluxo em blocos de 64 KiB e decodifica os
-    códigos Huffman de até 8 bits por tabela, em vez de um bit por vez:
-    descomprimir o DOSP2023 cai de 0,79 s para 0,24 s.
-  - Os registros de cada lote ficam num buffer contíguo
-    (`MicroSUS.LoteRegistros`), não mais um `Vector{UInt8}` por registro, e
-    a montagem deixou de capturar variáveis reatribuídas numa closure.
-  - Com 1 thread, `DataFrame(ler(...))` passa de 2,1 s para 1,3 s no DOSP2023
-    e de 1,8 s para 0,8 s no DNSP2023; o filtro de CVLI no DOSP2023, de
-    1,2 s para 0,5 s. O pico de memória não muda.
-- Filtros mais baratos: `r[:CAMPO]` procura o campo pelo nome como veio
-  antes de passá-lo a maiúsculas (que alocava uma String e um Symbol por
-  registro), e `normaliza_cid`/`cid_casa`/`eh_agressao` não alocam quando o
-  código já está limpo (o caso dos campos do DATASUS). O filtro de CVLI no
-  DOSP2023 cai de 0,49 s para 0,35 s com 1 thread (0,35 s → 0,32 s com 16),
-  com o mesmo resultado em 263 mil códigos distintos do SIM.
-- Conversão das colunas por blocos de 4 MiB de registros, em vez de uma
-  coluna inteira por vez: um lote de 100 mil registros (50 MiB no DOSP2023)
-  passava pela memória uma vez por coluna, sem caber em cache. Com 1 thread,
-  `DataFrame(ler(...))` passa de 1,38 s para 0,92 s no DOSP2023 e de 0,26 s
-  para 0,15 s no DOPE2023, e `process_sim` no DOSP2023 de 1,95 s para 1,25 s;
-  com 16 threads o ganho é pequeno (o limite é a descompressão). Mesmos
-  valores, e mesma ordem do pool nas colunas categóricas.
-- Os buffers de registros brutos são reaproveitados de um lote para o
-  outro, em vez de um novo por lote: sem isso, o pico de memória do
-  DENGBR23 com 16 threads subia de ~1640 MB (0.5.0) para ~1990 MB; agora
-  fica em ~1730 MB, dentro da variação entre execuções.
-- Workload de precompilação (PrecompileTools): a primeira leitura da sessão
-  não paga mais a compilação — no DOPE2023 com 1 thread, de 3,3 s para
-  0,5 s. Nova dependência: PrecompileTools. O workload cobre também
-  `process_sim` e `process_sinasc` (com as larguras de campo dos arquivos
-  reais): a primeira chamada de `process_sim` no DOPE2023 cai de 3,6 s para
-  0,2 s. Em troca, precompilar o pacote leva ~10 s, e o cache compilado
-  tem 14 MB.
+- Leitura 2–3× mais rápida. Com 1 thread, `DataFrame(ler(...))` vai de
+  2,1 s para 0,92 s no DOSP2023 e de 1,8 s para 0,85 s no DNSP2023; com
+  16 threads, o DENGBR23 vai de 3,0 s para 1,1 s. O filtro de CVLI no
+  DOSP2023 cai de 1,2 s para 0,29 s, e `process_sim` de 2,5 s para 1,3 s.
+  O que mudou:
+  - o descompressor DCL lê o fluxo em blocos de 64 KiB e decodifica os
+    códigos Huffman de até 8 bits por tabela (descomprimir o DOSP2023:
+    0,79 s → 0,24 s);
+  - os registros de cada lote ficam num buffer contíguo
+    (`MicroSUS.LoteRegistros`), reaproveitado de um lote para o outro, em
+    vez de um `Vector{UInt8}` por registro;
+  - as colunas são convertidas por blocos de 4 MiB de registros, que cabem
+    no cache, em vez de uma coluna inteira do lote por vez;
+  - `r[:CAMPO]` no `filtro` não aloca mais para achar o campo, e
+    `normaliza_cid`/`cid_casa`/`eh_agressao` não alocam quando o código já
+    está limpo (o caso dos campos do DATASUS).
+- Workload de precompilação (PrecompileTools) para `ler`, `process_sim` e
+  `process_sinasc`: a primeira leitura da sessão no DOPE2023 cai de 3,3 s
+  para 0,6 s, e a primeira chamada de `process_sim`, de 3,6 s para 0,2 s.
+  Em troca, precompilar o pacote (uma vez por instalação) leva ~10 s, e o
+  cache compilado tem 14 MB.
+- O pico de memória não muda (DENGBR23 com 16 threads: ~1640 MB na 0.5.0,
+  ~1730 MB agora, dentro da variação entre execuções).
+
+### Documentation
+
+- Benchmark do MicroSUS remedido ([`benchmark/`](benchmark/README.md)):
+  com uma thread, 2,0–2,4× mais rápido que o microdatasus em arquivos
+  inteiros do SIM e do SINASC (antes, empate) e 13× no SINAN nacional.
+- Tempos com threads, dependências e a descrição interna do pipeline
+  atualizados na documentação.
 
 ## [0.5.0] - 2026-10-04
 
@@ -657,7 +660,8 @@ Mudanças que alteram o resultado de código que já existia:
   `capitulo_cid10`, `eh_agressao`, `decodifica_idade_sim` and
   `decodifica_idade_sinan`.
 
-[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.1...v0.5.0
 [0.4.1]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/dantebertuzzi/MicroSUS.jl/compare/v0.3.1...v0.4.0
