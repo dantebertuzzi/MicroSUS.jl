@@ -50,9 +50,13 @@ C). Propriedades que importam aqui:
 - O porte emite a janela a um `sink(chunk)` a cada preenchimento:
   memória O(1) em relação ao arquivo, exatamente a arquitetura do
   `outfun` do blast original.
-- A cópia de matches é byte a byte para preservar a semântica de
-  sobreposição (`dist < len` ⇒ repetição de padrão) e lida com o
-  wrap circular da janela.
+- O fluxo comprimido é lido em blocos de 64 KiB e os bits saem de um
+  `UInt64`; os códigos Huffman de até 8 bits (quase todos) são
+  decodificados por tabela, de uma vez, e só os mais longos bit a bit.
+- A cópia de matches é em bloco quando origem e destino não se
+  sobrepõem, e byte a byte quando se sobrepõem, para preservar a
+  semântica de repetição de padrão (`dist < len`); lida com o wrap
+  circular da janela.
 
 ## O pipeline
 
@@ -85,4 +89,7 @@ Para cada registro bruto:
 3. **parse das colunas selecionadas** — numéricos e datas são
    parseados direto dos bytes (sem `String` intermediária); texto passa
    pelo fast path ASCII e só paga transcodificação quando há byte
-   ≥ `0x80`.
+   ≥ `0x80`. O lote é convertido por blocos de 4 MiB de registros, todas
+   as colunas de um bloco enquanto ele está no cache — coluna a coluna
+   sobre o lote inteiro, o lote passava pela memória uma vez por
+   coluna.

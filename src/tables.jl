@@ -151,8 +151,9 @@ end
 
 # ── conversão por coluna ─────────────────────────────────────────────
 #
-# Um lote é convertido coluna a coluna: o tipo lógico é resolvido uma vez
-# por coluna e o laço sobre as linhas fica estável em tipo. Antes era
+# Cada coluna tem um conversor: o tipo lógico é resolvido uma vez por
+# coluna e o laço sobre as linhas fica estável em tipo (o lote é percorrido
+# por blocos de linhas; ver `_converte_lote`). Antes era
 # linha a linha, com `_push_valor!` despachado em tempo de execução para
 # cada campo (os vetores do lote viviam num Vector{Any}): 29 milhões de
 # despachos no DOSP2023 (334 mil registros × 87 campos).

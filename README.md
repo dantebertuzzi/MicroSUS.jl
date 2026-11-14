@@ -46,7 +46,7 @@ julia --project=docs docs/make.jl     # output at docs/build/index.html
 
 Documentation: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** (in Portuguese). Version history in [CHANGELOG.md](CHANGELOG.md).
 
-Julia ≥ 1.9 (conditional extensions). Dependencies: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates, SHA. Arrow is optional (weak dep).
+Julia ≥ 1.9 (conditional extensions). Dependencies: DataFrames, Tables, InlineStrings, PooledArrays, PrecompileTools, Scratch, Downloads, Dates, SHA. Arrow is optional (weak dep).
 
 ## Notebook
 
@@ -67,7 +67,7 @@ The download needs a runtime that can open an FTP connection: DATASUS publishes 
 
 ## Compared with microdatasus and PySUS
 
-Reading the same files, the three return identical values (2.55 million records checked cell by cell). Reading whole SIM/SINASC files, MicroSUS is 2.0–2.4× faster than microdatasus on a single thread and 3.8–5.2× on 16 threads; on the national SINAN file it is 13–36× faster. Filtering in the reader takes 0.29 s and 53 MB where microdatasus takes 2.0 s and 292 MB, and `process_sim` is 10× faster. Reading a whole SIM/SINASC file uses 1.7–3.1× more memory than microdatasus. `ler` is precompiled, so the first read costs only 0.4–0.7 s more than later ones; the first `process_sim` call still pays 3.6–3.8 s of compilation. Python's PySUS stack is about 11× slower than microdatasus. Method and tables: [`benchmark/`](benchmark/README.md).
+Reading the same files, the three return identical values (2.55 million records checked cell by cell). Reading whole SIM/SINASC files, MicroSUS is 2.0–2.4× faster than microdatasus on a single thread and 3.8–5.2× on 16 threads; on the national SINAN file it is 13–36× faster. Filtering in the reader takes 0.29 s and 53 MB where microdatasus takes 2.0 s and 292 MB, and `process_sim` is 10× faster. Reading a whole SIM/SINASC file uses 1.7–3.1× more memory than microdatasus. `ler`, `process_sim` and `process_sinasc` are precompiled: the first read costs only 0.4–0.7 s more than later ones, and the first standardization 0.2–0.5 s. Python's PySUS stack is about 11× slower than microdatasus. Method and tables: [`benchmark/`](benchmark/README.md).
 
 ## Quick start
 

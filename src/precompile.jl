@@ -97,6 +97,41 @@ function _pc_escreve(caminho, h, corpo)
     return caminho
 end
 
+# Os campos que `process_sim` e `process_sinasc` tocam, com as larguras dos
+# arquivos reais (DOPE2023, DNSP2023): a compilação especializa no tipo de
+# cada coluna (PooledArray, String3, String7, Int32…), que vem da largura.
+const _PC_SIM = [("DTOBITO", 8), ("DTNASC", 8), ("IDADE", 3), ("SEXO", 1),
+    ("RACACOR", 1), ("ESTCIV", 1), ("ESC", 1), ("LOCOCOR", 1), ("QTDFILVIVO", 2),
+    ("QTDFILMORT", 2), ("GRAVIDEZ", 1), ("OBITOPARTO", 1), ("PESO", 4),
+    ("TPMORTEOCO", 1), ("OBITOGRAV", 1), ("OBITOPUERP", 1), ("ASSISTMED", 1),
+    ("NECROPSIA", 1), ("DTATESTADO", 8), ("CIRCOBITO", 1), ("ACIDTRAB", 1),
+    ("FONTE", 1), ("DTINVESTIG", 8), ("DTCADASTRO", 8), ("CAUSABAS", 4),
+    ("CODMUNRES", 6), ("CODMUNOCOR", 6)]
+const _PC_SINASC = [("LOCNASC", 1), ("IDADEMAE", 2), ("ESTCIVMAE", 1),
+    ("ESCMAE", 1), ("QTDFILVIVO", 2), ("QTDFILMORT", 2), ("GRAVIDEZ", 1),
+    ("PARTO", 1), ("CONSULTAS", 1), ("DTNASC", 8), ("SEXO", 1), ("APGAR1", 2),
+    ("APGAR5", 2), ("RACACOR", 1), ("PESO", 4), ("DTCADASTRO", 8),
+    ("DTNASCMAE", 8), ("RACACORMAE", 1), ("QTDGESTANT", 2), ("QTDPARTNOR", 2),
+    ("QTDPARTCES", 2), ("IDADEPAI", 2), ("DTULTMENST", 8), ("SEMAGESTAC", 2),
+    ("CONSPRENAT", 2), ("STTRABPART", 1), ("STCESPARTO", 1), ("DTDECLARAC", 8),
+    ("CODMUNRES", 6)]
+
+# um valor válido por largura (código "1", datas, idade do SIM, município);
+# a 3ª linha fica em branco, como os campos ignorados dos arquivos reais (as
+# colunas saem Union{Missing,…}, como nos dados de verdade)
+function _pc_valor(nome, larg, i)
+    i == 3 && return ""
+    nome == "IDADE" && return i == 1 ? "472" : "210"
+    nome == "CAUSABAS" && return i == 1 ? "X954" : "I219"
+    larg == 8 && return "0$(i)022023"
+    larg == 6 && return "26116$(i)"
+    larg == 4 && return "3$(i)00"
+    return lpad(string(i), larg, '0')
+end
+
+_pc_processo(campos) = _pc_dbf([(n, 'C', l, 0) for (n, l) in campos],
+                               [[_pc_valor(n, l, i) for (n, l) in campos] for i in 1:4])
+
 PrecompileTools.@setup_workload begin
     # um campo de texto por classe de InlineString (String3 … String) e
     # os tipos lógicos dos schemas
@@ -117,6 +152,8 @@ PrecompileTools.@setup_workload begin
     h, corpo = _pc_dbf(campos, linhas)
     texto = Dict(Symbol(c[1]) => :pool for c in campos if c[2] == 'C')
     texto[:NU_IDADE_N] = :idade_sinan
+    h_sim, c_sim = _pc_processo(_PC_SIM)
+    h_nasc, c_nasc = _pc_processo(_PC_SINASC)
     PrecompileTools.@compile_workload begin
         dir = mktempdir()
         try
@@ -142,6 +179,12 @@ PrecompileTools.@setup_workload begin
             end
             DataFrame(ler([sim, sim2]))
             DataFrame(ler([sim, dbf]; colunas = [:CAUSABAS, :QTD]))
+            # padronização: a 1ª chamada de process_sim compilava ~3,5 s
+            do_ = _pc_escreve(joinpath(dir, "DOYY2023.dbc"), h_sim, c_sim)
+            dn = _pc_escreve(joinpath(dir, "DNYY2023.dbc"), h_nasc, c_nasc)
+            process_sim(DataFrame(ler(do_)))
+            process_sim(DataFrame(ler(do_)); copiar = false)
+            process_sinasc(DataFrame(ler(dn)))
         finally
             rm(dir; recursive = true, force = true)
         end

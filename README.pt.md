@@ -46,7 +46,7 @@ julia --project=docs docs/make.jl     # saída em docs/build/index.html
 
 Documentação: **[dantebertuzzi.github.io/MicroSUS.jl](https://dantebertuzzi.github.io/MicroSUS.jl/)** — comece pelos [Exemplos práticos (iniciantes)](https://dantebertuzzi.github.io/MicroSUS.jl/dev/exemplos/) se for a sua primeira vez. Histórico de versões em [CHANGELOG.md](CHANGELOG.md).
 
-Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, Scratch, Downloads, Dates, SHA. Arrow é opcional (weak dep).
+Julia ≥ 1.9 (extensões condicionais). Dependências: DataFrames, Tables, InlineStrings, PooledArrays, PrecompileTools, Scratch, Downloads, Dates, SHA. Arrow é opcional (weak dep).
 
 ## Notebook
 
@@ -67,7 +67,7 @@ O download exige um runtime capaz de abrir conexão FTP: o DATASUS publica em
 
 ## Comparado ao microdatasus e ao PySUS
 
-Lendo os mesmos arquivos, os três devolvem valores idênticos (2,55 milhões de registros conferidos célula a célula). Lendo arquivos inteiros do SIM e do SINASC, o MicroSUS é 2,0–2,4× mais rápido que o microdatasus com uma thread e 3,8–5,2× com 16; no arquivo nacional do SINAN, 13–36× mais rápido. Filtrar na leitura leva 0,29 s e 53 MB onde o microdatasus leva 2,0 s e 292 MB, e o `process_sim` é 10× mais rápido. Ler um arquivo inteiro do SIM/SINASC usa 1,7–3,1× mais memória que o microdatasus. O `ler` vem precompilado: a primeira leitura custa só 0,4–0,7 s a mais que as seguintes; a primeira chamada de `process_sim` ainda paga 3,6–3,8 s de compilação. A pilha do PySUS, em Python, é cerca de 11× mais lenta que o microdatasus. Método e tabelas: [`benchmark/`](benchmark/README.md).
+Lendo os mesmos arquivos, os três devolvem valores idênticos (2,55 milhões de registros conferidos célula a célula). Lendo arquivos inteiros do SIM e do SINASC, o MicroSUS é 2,0–2,4× mais rápido que o microdatasus com uma thread e 3,8–5,2× com 16; no arquivo nacional do SINAN, 13–36× mais rápido. Filtrar na leitura leva 0,29 s e 53 MB onde o microdatasus leva 2,0 s e 292 MB, e o `process_sim` é 10× mais rápido. Ler um arquivo inteiro do SIM/SINASC usa 1,7–3,1× mais memória que o microdatasus. O `ler`, o `process_sim` e o `process_sinasc` vêm precompilados: a primeira leitura custa só 0,4–0,7 s a mais que as seguintes, e a primeira padronização, 0,2–0,5 s. A pilha do PySUS, em Python, é cerca de 11× mais lenta que o microdatasus. Método e tabelas: [`benchmark/`](benchmark/README.md).
 
 ## Início rápido
 
