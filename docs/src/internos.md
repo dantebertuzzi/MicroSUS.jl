@@ -7,6 +7,7 @@ estender o pacote (ou entender o pipeline). Nada aqui é API estável.
 
 ```@docs
 MicroSUS.canal_registros
+MicroSUS.LoteRegistros
 MicroSUS.abre_dbc
 MicroSUS.le_cabecalho_dbf
 MicroSUS.RegistroDBF
@@ -16,7 +17,7 @@ O fluxo completo: [`MicroSUS.abre_dbc`](@ref) lê o cabeçalho em claro e
 posiciona o `IO` no fluxo DCL; [`dcl_descomprime`](@ref) emite chunks
 de ≤ 4 KiB; [`MicroSUS.canal_registros`](@ref) monta registros de
 largura fixa atravessando fronteiras de chunk e emite lotes de
-registros brutos por um `Channel`; `MicroSUS._canal_lotes` (em
+registros brutos, contíguos num buffer só ([`MicroSUS.LoteRegistros`](@ref)), por um `Channel`; `MicroSUS._canal_lotes` (em
 `src/tables.jl`) aplica filtro e parse e emite `NamedTuple`s prontos.
 
 ## Helpers de padronização

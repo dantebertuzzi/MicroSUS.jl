@@ -9,6 +9,23 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
 
 ## [Unreleased]
 
+### Changed
+
+- Leitura mais rápida, com valores idênticos (conferidos célula a célula
+  contra a 0.5.0 em DOPE2023, DOSP2023 e DNSP2023, com 1 e 16 threads):
+  - O descompressor DCL lê o fluxo em blocos de 64 KiB e decodifica os
+    códigos Huffman de até 8 bits por tabela, em vez de um bit por vez:
+    descomprimir o DOSP2023 cai de 0,79 s para 0,24 s.
+  - Os registros de cada lote ficam num buffer contíguo
+    (`MicroSUS.LoteRegistros`), não mais um `Vector{UInt8}` por registro, e
+    a montagem deixou de capturar variáveis reatribuídas numa closure.
+  - Com 1 thread, `DataFrame(ler(...))` passa de 2,1 s para 1,3 s no DOSP2023
+    e de 1,8 s para 0,8 s no DNSP2023; o filtro de CVLI no DOSP2023, de
+    1,2 s para 0,5 s. O pico de memória não muda.
+- Workload de precompilação (PrecompileTools): a primeira leitura da sessão
+  não paga mais a compilação — no DOPE2023 com 1 thread, de 3,3 s para
+  0,5 s. Nova dependência: PrecompileTools.
+
 ## [0.5.0] - 2026-10-04
 
 Nada aqui quebra código existente; a versão sobe o número do meio pelo

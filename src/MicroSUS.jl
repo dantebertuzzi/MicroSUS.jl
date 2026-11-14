@@ -35,6 +35,7 @@ using Dates
 using Downloads
 using InlineStrings
 using PooledArrays
+import PrecompileTools
 using Scratch
 using Tables
 import SHA
@@ -109,5 +110,7 @@ function __init__()
         end
     end
 end
+
+include("precompile.jl")
 
 end # module
