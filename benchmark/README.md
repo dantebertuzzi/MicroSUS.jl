@@ -27,18 +27,20 @@ três).
   agressão de SP em 2023 saem em 0,29 s com 53 MB, contra 2,0 s e 292 MB
   — o microdatasus lê o arquivo inteiro antes de filtrar.
 - **Padronizar** (`process_sim`): 10× mais rápido que o do microdatasus
-  (1,3 s contra 13,3 s no DOSP2023), com 20% mais memória.
-- **A primeira execução**: `ler` vem precompilado, e a primeira leitura
-  paga só 0,4–0,7 s a mais que as seguintes — no DOPE2023 (0,61 s), empata
-  com o R (0,59 s). A primeira chamada de `process_sim` ainda compila:
-  3,6–3,8 s a mais.
+  (1,3 s contra 13,3 s no DOSP2023), com 4% mais memória.
+- **A primeira execução**: `ler`, `process_sim` e `process_sinasc` vêm
+  precompilados. A primeira leitura paga 0,4–0,7 s a mais que as seguintes
+  — no DOPE2023 (0,61 s), empata com o R (0,59 s) —, e a primeira
+  padronização, 0,2–0,5 s (0,54 s contra 3,48 s do R no DOPE2023).
 
 ## Máquina e versões
 
 AMD Ryzen 7 5700G (8 núcleos, 16 threads), 14 GB de RAM, Linux 7.2.
 
 - MicroSUS.jl `73ca76a` (0.5.0 + as otimizações de leitura do
-  [Unreleased](../CHANGELOG.md)) no Julia 1.13.0. Novembro de 2026.
+  [Unreleased](../CHANGELOG.md)) no Julia 1.13.0; as linhas de padronizar
+  foram remedidas depois, com `process_sim` também no workload de
+  precompilação. Novembro de 2026.
 - microdatasus 3.0.0 no R 4.5.3; pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas
   3.0.6 no Python 3.14.7. Outubro de 2026, na mesma máquina e com os
   mesmos arquivos (as linhas de R e Python não foram remedidas; nada nelas
@@ -102,11 +104,11 @@ operacional; sem rede.
 
 | arquivo | ferramenta | 1ª execução (s) | seguintes (s) | memória (MB) |
 |---|---|--:|--:|--:|
-| DOPE2023 (SIM, 68 mil × 87) | MicroSUS (1 thread) | 3,88 | 0,26 | 440 |
-| DOPE2023 (SIM, 68 mil × 87) | MicroSUS (16 threads) | 3,68 | 0,20 | 467 |
+| DOPE2023 (SIM, 68 mil × 87) | MicroSUS (1 thread) | 0,54 | 0,30 | 294 |
+| DOPE2023 (SIM, 68 mil × 87) | MicroSUS (16 threads) | 0,43 | 0,16 | 351 |
 | DOPE2023 (SIM, 68 mil × 87) | microdatasus (R) | 3,48 | 2,94 | 275 |
-| DOSP2023 (SIM, 334 mil × 87) | MicroSUS (1 thread) | 5,13 | 1,31 | 1471 |
-| DOSP2023 (SIM, 334 mil × 87) | MicroSUS (16 threads) | 4,38 | 0,82 | 1714 |
+| DOSP2023 (SIM, 334 mil × 87) | MicroSUS (1 thread) | 1,77 | 1,27 | 1274 |
+| DOSP2023 (SIM, 334 mil × 87) | MicroSUS (16 threads) | 1,13 | 0,79 | 1392 |
 | DOSP2023 (SIM, 334 mil × 87) | microdatasus (R) | 15,97 | 13,28 | 1230 |
 
 ## Reproduzir

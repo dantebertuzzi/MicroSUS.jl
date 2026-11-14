@@ -13,13 +13,13 @@
 {"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":0.443,"t_quente":0.065,"rss_base_mb":374.4,"rss_pico_mb":414.0}
 {"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":0.41,"t_quente":0.058,"rss_base_mb":432.6,"rss_pico_mb":491.4}
 {"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DOPE2023.dbc","tarefa":"cvli","linhas":3689,"colunas":3,"t_frio":4.322,"t_quente":4.114,"rss_base_mb":73.1,"rss_pico_mb":968.5}
-{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":88,"t_frio":3.875,"t_quente":0.262,"rss_base_mb":374.5,"rss_pico_mb":814.1}
-{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":88,"t_frio":3.684,"t_quente":0.199,"rss_base_mb":425.1,"rss_pico_mb":891.8}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":88,"t_frio":0.539,"t_quente":0.301,"rss_base_mb":377.6,"rss_pico_mb":672.1}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOPE2023.dbc","tarefa":"padronizar","linhas":68527,"colunas":88,"t_frio":0.432,"t_quente":0.162,"rss_base_mb":426.2,"rss_pico_mb":776.7}
 {"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":0.677,"t_quente":0.295,"rss_base_mb":374.4,"rss_pico_mb":427.6}
 {"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":0.65,"t_quente":0.269,"rss_base_mb":428.6,"rss_pico_mb":503.6}
 {"ferramenta":"pyreaddbc 2.0.4 + dbfread 2.0.7 + pandas 3.0.6 (Python 3.14.7)","arquivo":"DOSP2023.dbc","tarefa":"cvli","linhas":2919,"colunas":3,"t_frio":22.014,"t_quente":21.116,"rss_base_mb":73.2,"rss_pico_mb":4445.1}
-{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":88,"t_frio":5.129,"t_quente":1.311,"rss_base_mb":374.4,"rss_pico_mb":1845.6}
-{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":88,"t_frio":4.382,"t_quente":0.82,"rss_base_mb":429.0,"rss_pico_mb":2143.0}
+{"ferramenta":"MicroSUS.jl (1 thread)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":88,"t_frio":1.771,"t_quente":1.274,"rss_base_mb":377.5,"rss_pico_mb":1651.3}
+{"ferramenta":"MicroSUS.jl (16 threads)","arquivo":"DOSP2023.dbc","tarefa":"padronizar","linhas":334303,"colunas":88,"t_frio":1.133,"t_quente":0.787,"rss_base_mb":426.0,"rss_pico_mb":1817.8}
 {"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOPE2023.dbc","tarefa":"tudo","linhas":68527,"colunas":87,"t_frio":0.590,"t_quente":0.379,"rss_base_mb":74.8,"rss_pico_mb":170.4}
 {"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DOSP2023.dbc","tarefa":"tudo","linhas":334303,"colunas":87,"t_frio":2.769,"t_quente":1.918,"rss_base_mb":74.8,"rss_pico_mb":366.9}
 {"ferramenta":"microdatasus 3.0.0 (R 4.5.3)","arquivo":"DNSP2023.dbc","tarefa":"tudo","linhas":503910,"colunas":61,"t_frio":2.992,"t_quente":2.059,"rss_base_mb":74.7,"rss_pico_mb":396.5}

@@ -41,7 +41,11 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   fica em ~1730 MB, dentro da variação entre execuções.
 - Workload de precompilação (PrecompileTools): a primeira leitura da sessão
   não paga mais a compilação — no DOPE2023 com 1 thread, de 3,3 s para
-  0,5 s. Nova dependência: PrecompileTools.
+  0,5 s. Nova dependência: PrecompileTools. O workload cobre também
+  `process_sim` e `process_sinasc` (com as larguras de campo dos arquivos
+  reais): a primeira chamada de `process_sim` no DOPE2023 cai de 3,6 s para
+  0,2 s. Em troca, precompilar o pacote leva ~10 s, e o cache compilado
+  tem 14 MB.
 
 ## [0.5.0] - 2026-10-04
 
