@@ -118,8 +118,16 @@ RegistroDBF(dados::Vector{UInt8}, cab::CabecalhoDBF, encoding::Symbol) =
 
 _nome_campo(nome::Symbol) = Symbol(uppercase(String(nome)))
 
+# O nome como veio primeiro (no filtro, quase sempre já em maiúsculas):
+# `_nome_campo` aloca uma String e um Symbol, e roda uma vez por registro.
+@inline function _campo(cab::CabecalhoDBF, nome::Symbol)
+    c = get(cab.indice, nome, nothing)
+    c === nothing || return c
+    return get(cab.indice, _nome_campo(nome), nothing)
+end
+
 function Base.getindex(r::RegistroDBF, nome::Symbol)
-    c = get(r.cab.indice, _nome_campo(nome), nothing)
+    c = _campo(r.cab, nome)
     c === nothing && throw(KeyError(nome))
     lo = r.base + c.offset + 1
     return decodifica_texto(r.dados, lo, lo + c.largura - 1, r.encoding)
@@ -129,5 +137,5 @@ Base.keys(r::RegistroDBF) = (c.nome for c in r.cab.campos)
 
 # `haskey(r, :LINHAA)` no filtro: campos que não existem em todos os anos
 # (as linhas da DO, DIAGSEC1 no SIH) — `r[:CAMPO]` daria KeyError neles
-Base.haskey(r::RegistroDBF, nome::Symbol) = haskey(r.cab.indice, _nome_campo(nome))
+Base.haskey(r::RegistroDBF, nome::Symbol) = _campo(r.cab, nome) !== nothing
 

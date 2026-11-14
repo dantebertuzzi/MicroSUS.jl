@@ -22,6 +22,12 @@ fixes bump the patch version, following Julia's `^0.x.y` compatibility rules.
   - Com 1 thread, `DataFrame(ler(...))` passa de 2,1 s para 1,3 s no DOSP2023
     e de 1,8 s para 0,8 s no DNSP2023; o filtro de CVLI no DOSP2023, de
     1,2 s para 0,5 s. O pico de memória não muda.
+- Filtros mais baratos: `r[:CAMPO]` procura o campo pelo nome como veio
+  antes de passá-lo a maiúsculas (que alocava uma String e um Symbol por
+  registro), e `normaliza_cid`/`cid_casa`/`eh_agressao` não alocam quando o
+  código já está limpo (o caso dos campos do DATASUS). O filtro de CVLI no
+  DOSP2023 cai de 0,49 s para 0,35 s com 1 thread (0,35 s → 0,32 s com 16),
+  com o mesmo resultado em 263 mil códigos distintos do SIM.
 - Workload de precompilação (PrecompileTools): a primeira leitura da sessão
   não paga mais a compilação — no DOPE2023 com 1 thread, de 3,3 s para
   0,5 s. Nova dependência: PrecompileTools.
