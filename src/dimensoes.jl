@@ -127,8 +127,14 @@ end
 Forma canônica de um código CID-10: maiúsculas, sem ponto, espaço, `*` ou
 `-`. `normaliza_cid(" a81.0 ") == "A810"`; `missing` vira `""`.
 """
-normaliza_cid(cid::AbstractString) =
-    uppercase(filter(c -> !(c in ('.', ' ', '*', '-')), String(cid)))
+function normaliza_cid(cid::AbstractString)
+    # caso comum (campo do DATASUS: "X954", "I219"): só dígitos e maiúsculas
+    # ASCII, então filtrar e passar a maiúsculas não mudam nada — devolve o
+    # próprio valor, sem as três alocações do caminho geral
+    cid isa String && _cid_limpo(cid) && return cid
+    return uppercase(filter(c -> !(c in ('.', ' ', '*', '-')), String(cid)))
+end
+_cid_limpo(s::String) = all(b -> (0x30 ≤ b ≤ 0x39) | (0x41 ≤ b ≤ 0x5a), codeunits(s))
 normaliza_cid(::Missing) = ""
 
 # Um alvo é um prefixo (`"A81"`, `"Y871"`) ou uma faixa inclusiva
@@ -139,6 +145,10 @@ function _casa_alvo(c::String, (ini, fim)::Pair{<:AbstractString,<:AbstractStrin
     length(fim) == n ||
         throw(ArgumentError("faixa de CID com extremos de tamanhos diferentes: $ini => $fim"))
     length(c) ≥ n || return false
+    # SubString em vez de first(c, n), que alocaria uma String; em ASCII o
+    # n-ésimo caractere é o n-ésimo byte. Dois ramos, e não um `pre` que ora
+    # é SubString, ora String: a união faria a SubString ir para o heap.
+    isascii(c) && return ini ≤ SubString(c, 1, n) ≤ fim
     return ini ≤ first(c, n) ≤ fim
 end
 

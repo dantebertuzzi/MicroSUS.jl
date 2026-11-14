@@ -556,6 +556,18 @@ end
         @test !cid_casa(missing, dcj)
         @test_throws ArgumentError cid_casa("A810", "A8" => "A810")
 
+        # caminho rápido (código já limpo) e geral dão o mesmo resultado
+        @test normaliza_cid("X954") == "X954"
+        @test normaliza_cid("x954") == normaliza_cid("X95.4") == normaliza_cid("*X954") == "X954"
+        @test normaliza_cid(MicroSUS.InlineStrings.String7("X954")) == "X954"
+        @test eh_agressao("X954") && eh_agressao("x95.4") && eh_agressao("Y871")
+        @test !eh_agressao("X84Z") && !eh_agressao("Y10") && !eh_agressao("Y87")
+        @test eh_agressao("Y09") && !eh_agressao("Y0")               # curto demais p/ a faixa
+        @test cid_casa("ÇX85", "Ç" => "Ç") && !cid_casa("ÇX85", "X85" => "Y09")   # não ASCII
+        aloca(f, x) = (f(x); @allocated f(x))
+        @test aloca(eh_agressao, "X954") == 0
+        @test aloca(eh_agressao, "Y871") == 0
+
         @test cids_em("*I219*E149") == ["I219", "E149"]
         @test cids_em("*j18x  r092") == ["J18X", "R092"]
         @test cids_em(missing) == String[]
