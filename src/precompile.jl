@@ -133,6 +133,13 @@ PrecompileTools.@setup_workload begin
             for lote in Tables.partitions(ler(sim; tamanho_lote = 1))
                 length(lote)
             end
+            # o ramo paralelo da conversão (com várias threads, um lote grande)
+            for f in (sim, dbf), sch in (:auto, texto)
+                tab = ler(f; schema = sch)
+                for lote in canal_registros(f, tab.cab)
+                    _converte_lote(tab, lote, true)
+                end
+            end
             DataFrame(ler([sim, sim2]))
             DataFrame(ler([sim, dbf]; colunas = [:CAUSABAS, :QTD]))
         finally
